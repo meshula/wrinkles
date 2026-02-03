@@ -1,0 +1,68 @@
+.schema_version = 1,
+.name = "Sample Collection",
+.description = "A sample collection containing a timeline and a standalone clip",
+.children = [
+    timeline {
+        .schema_version = 1,
+        .name = "Main Timeline",
+        .children = [
+            track {
+                .name = "Video Track",
+                .children = [
+                    clip {
+                        .name = "Opening Shot",
+                        .bounds_s = continuous [
+                            0.0,
+                            5.0,
+                        ],
+                        .media = {
+                            .data_reference = uri {
+                                .target_uri = "file:///media/opening.mov",
+                            },
+                            .bounds_s = continuous [
+                                0.0,
+                                10.0,
+                            ],
+                            .domain = picture {},
+                        },
+                    },
+                    clip {
+                        .name = "Middle Shot",
+                        .bounds_s = continuous [
+                            0.0,
+                            3.0,
+                        ],
+                        .media = {
+                            .data_reference = uri {
+                                .target_uri = "file:///media/middle.mov",
+                            },
+                            .bounds_s = continuous [
+                                0.0,
+                                8.0,
+                            ],
+                            .domain = picture {},
+                        },
+                    },
+                ],
+            },
+        ],
+        .presentation_space_discrete_partitions = {},
+    },
+    clip {
+        .name = "Standalone B-Roll Clip",
+        .bounds_s = continuous [
+            0.0,
+            15.0,
+        ],
+        .media = {
+            .data_reference = uri {
+                .target_uri = "file:///media/broll.mov",
+            },
+            .bounds_s = continuous [
+                0.0,
+                30.0,
+            ],
+            .domain = picture {},
+        },
+    },
+],

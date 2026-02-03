@@ -1,0 +1,51 @@
+{
+    "OTIO_SCHEMA": "Clip.1",
+    "effects": [],
+    "markers": [],
+    "enabled": true,
+    "media_reference": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "available_range": {
+            "OTIO_SCHEMA": "TimeRange.1",
+            "duration": {
+                "OTIO_SCHEMA": "RationalTime.1",
+                "rate": 24,
+                "value": 8
+            },
+            "start_time": {
+                "OTIO_SCHEMA": "RationalTime.1",
+                "rate": 24,
+                "value": 0
+            }
+        },
+        "metadata": {},
+        "target_url": "file:///folder/titles.mov",
+        "name": "Media-001"
+    },
+    "metadata": {
+        "production": {
+            "studio": "Test Studio",
+            "project_code": "TST001"
+        },
+        "editorial": {
+            "editor": "Jane Doe",
+            "version": 3,
+            "approved": true
+        },
+        "tags": ["hero", "opening", "intro"]
+    },
+    "name": "Clip-001-With-Metadata",
+    "source_range": {
+        "OTIO_SCHEMA": "TimeRange.1",
+        "duration": {
+            "OTIO_SCHEMA": "RationalTime.1",
+            "rate": 24,
+            "value": 3
+        },
+        "start_time": {
+            "OTIO_SCHEMA": "RationalTime.1",
+            "rate": 24,
+            "value": 0
+        }
+    }
+}

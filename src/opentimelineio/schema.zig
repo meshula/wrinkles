@@ -3,7 +3,7 @@
 //! Data types that encode the structure of an editorial document in a temporal
 //! hierarchy.
 //!
-//! Objects typically have an optional `maybe_name` parameter and functions
+//! Objects typically have a `name` parameter and functions
 //! that allow querying their temporal state.  Generally they refer to other
 //! objects through the `references.CompositionItemHandle`.
 //!
@@ -40,17 +40,36 @@ const curve = @import("curve");
 const domain = @import("domain.zig");
 const string_stuff = @import("string_stuff");
 
-const references = @import("references.zig");
+pub const references = @import("references.zig");
 const test_data = @import("test_structures.zig");
+pub const marker = @import("marker.zig");
 
+// forwards for imports
+pub const Marker = marker.Marker;
+pub const MarkerColor = marker.MarkerColor;
 
 /// Indicates whether samples should be interpolated when the parameter space
 /// (usually time) is warped.  Examples include audio (interpolated) vs picture
 /// (snapped, typically)
-const ResamplingBehavior = enum {
+pub const ResamplingBehavior = enum {
     interpolate,
     snap,
     default_from_domain,
+};
+
+/// Policy for how bounds should be serialized when writing.
+/// When deserializing a file, the reader will author this so that round
+/// tripping is preserved.  Users can also set this explicity.  The default
+/// value is "automatic", which picks based on a heuristic.
+pub const BoundsWritePolicy = enum {
+    /// Write bounds as discrete sample indices if a discrete partition exists,
+    /// otherwise write as continuous time values.
+    automatic,
+    /// Always write bounds as discrete sample indices.
+    /// Returns an error if no discrete partition is present.
+    discrete,
+    /// Always write bounds as continuous time values.
+    continuous,
 };
 
 /// A reference described by a URI that is interpreted by clients in some way.
@@ -65,6 +84,79 @@ pub const SignalReference = struct {
     signal_generator: sampling.SignalGenerator,
 };
 
+/// A reference to an image sequence represented by a URL pattern with frame
+/// numbering.
+pub const ImageSequenceReference = struct {
+    /// Base URL or file path before the frame number.
+    target_url_base: string_stuff.latin_s8,
+
+    /// Prefix to insert before the frame number (e.g., "frame_").
+    name_prefix: string_stuff.latin_s8 = "",
+
+    /// Suffix to insert after the frame number (e.g., ".exr").
+    name_suffix: string_stuff.latin_s8 = "",
+
+    /// Zero padding width for frame numbers (e.g., 4 for "0001").  The total
+    /// width of the number in characters.
+    frame_zero_padding: u8 = 0,
+
+    /// Policy for handling missing frames.
+    missing_frame_policy: MissingFramePolicy = .@"error",
+
+    /// Generate the URL for a specific image number in the sequence.
+    pub fn target_url_for_image_number(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        image_number: i32,
+    ) ![]const u8
+    {
+        return try std.fmt.allocPrint(
+            allocator,
+            "{[url]s}{[prefix]s}{[sign]s}{[value]d:0>[width]}{[suffix]s}",
+            .{
+                .url = self.target_url_base,
+                .prefix = self.name_prefix,
+                .sign = if (image_number < 0) "-" else "",
+                .value = @abs(image_number),
+                .width = self.frame_zero_padding,
+                .suffix = self.name_suffix,
+            },
+        );
+    }
+
+    /// Free memory owned by the ImageSequenceReference.
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        allocator.free(self.target_url_base);
+        allocator.free(self.name_prefix);
+        allocator.free(self.name_suffix);
+    }
+
+    /// Policy for handling missing frames in image sequences.
+    pub const MissingFramePolicy = enum {
+        // Raise error
+        @"error",  
+        hold,      // Hold last frame
+        black,     // Show black/transparent
+        
+        pub fn from_maybe_string(
+            maybe_str: ?[]const u8,
+        ) MissingFramePolicy
+        {
+            return (
+                if (maybe_str) |str| std.meta.stringToEnum(
+                    MissingFramePolicy,
+                    str
+                ) orelse .@"error"
+                else .@"error" 
+            );
+        }
+    };
+};
+
 /// Data that assists consumers of this library in finding the data for
 /// referenced media.
 pub const MediaDataReference = union(enum) {
@@ -74,8 +166,24 @@ pub const MediaDataReference = union(enum) {
     /// A Procedurally defined signal (A tone, a color, etc.)
     signal: SignalReference,
 
+    /// An image sequence with frame numbering
+    image_sequence: ImageSequenceReference,
+
     /// No data to reference this media.
     null: void,
+
+    /// Free memory owned by the MediaDataReference.
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        switch (self) {
+            .uri => |uri_ref| allocator.free(uri_ref.target_uri),
+            .image_sequence => |img_seq| img_seq.deinit(allocator),
+            .signal, .null => {},
+        }
+    }
 };
 
 /// Refers to a piece of media or signal that is being cut into a composition.
@@ -100,6 +208,11 @@ pub const MediaReference = struct {
     /// Media that is interpolating can be resampled when under time warps.
     interpolating: ResamplingBehavior = .default_from_domain,
 
+    /// Policy for how bounds should be serialized when writing.
+    bounds_write_policy: BoundsWritePolicy = .automatic,
+
+    // @TODO: no way to support a frame step of not one for now
+
     /// Default Media Reference that is empty and specifies picture domain.
     ///
     /// Intended for unit testing.
@@ -108,6 +221,20 @@ pub const MediaReference = struct {
         .maybe_bounds_s = null,
         .domain = .picture,
     };
+
+    /// Free memory owned by the MediaReference.
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        self.data_reference.deinit(allocator);
+        // Free domain.other string if present
+        switch (self.domain) {
+            .other => |s| allocator.free(s),
+            else => {},
+        }
+    }
 };
 
 /// Clip places a media reference in a track.
@@ -115,14 +242,24 @@ pub const MediaReference = struct {
 /// Has a name and an  optional media space bound that can be imposed, intended
 /// to make it easier to swap out references.
 pub const Clip = struct {
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8 = null,
+    /// Name for labelling and human readability.
+    name:       string.latin_s8 = "",
 
     /// A trim on the media space, in the media coordinate system.
     maybe_bounds_s: ?opentime.ContinuousInterval = null,
 
+    /// Policy for how bounds should be serialized when writing.
+    bounds_write_policy: BoundsWritePolicy = .automatic,
+
     /// Information about the media this clip cuts into the track.
     media: MediaReference,
+
+    /// Optional metadata as raw JSON value (from OTIO JSON parsing).
+    /// Will be serialized to ziggy format and stored in Timeline's metadata_map.
+    maybe_metadata_json: ?std.json.Value = null,
+
+    /// Markers attached to this clip.
+    markers: []marker.Marker = &.{},
 
     /// Clips provide a `media` space in addition to the `presentation` space.
     ///
@@ -207,11 +344,14 @@ pub const Clip = struct {
         allocator: std.mem.Allocator,
     ) void
     {
-        if (self.maybe_name)
-            |n|
+        allocator.free(self.name);
+        self.media.deinit(allocator);
+        for (self.markers) 
+            |*m| 
         {
-            allocator.free(n);
+            m.deinit(allocator);
         }
+        allocator.free(self.markers);
     }
 
     /// Build a handle to this Clip.
@@ -284,29 +424,21 @@ test "Clip: presentation space/media space bounds"
 /// Silent, Transparent.  Regions of the timeline for which there are no media
 /// mapped, ie only gaps are undefined as far as pixels/audio is concerned.
 pub const Gap = struct {
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8 = null,
-
-    /// @TODO: Gaps need a coordinate system so that folks can track markers on
-    ///        them as they trim from the front and the back, effects
-    /// @TODO: add markers and effects as examples, those live in the
-    ///        coordinate spaces
+    /// Name for labelling and human readability.
+    name:       string.latin_s8 = "",
 
     /// Define the bounds for gap.
     ///
-    /// @TODO: confirm the assumption here that markers are defined over the
-    ///        presentation space of objects.
-    ///
-    /// NOTES: 
+    /// NOTES:
     ///
     /// * Unlike the other schema objects, the bounds for a gap is required and
     ///   not optional.
     /// * The bounds are present so that folks can "cut in" on the intrinsic
     ///   space without shifting markers
-    ///
-    /// @TODO:.... implement a marker, see if it sits ok on the Presentation
-    ///        space and then see what happens if it gets cut around
     bounds_s: opentime.ContinuousInterval,
+
+    /// Markers attached to this gap.
+    markers: []marker.Marker = &.{},
 
     /// The internal temporal coordinate systems of the Gap.
     pub const available_local_spaces: []const references.TemporalSpace = (
@@ -318,11 +450,13 @@ pub const Gap = struct {
         allocator: std.mem.Allocator,
     ) void
     {
-        if (self.maybe_name)
-            |name|
+        allocator.free(self.name);
+        for (self.markers) 
+            |*m| 
         {
-            allocator.free(name);
+            @constCast(m).deinit(allocator);
         }
+        allocator.free(self.markers);
     }
 
     /// A Gap's topology is always an identity bounded by the duration of the
@@ -330,7 +464,7 @@ pub const Gap = struct {
     pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !topology_m.Topology 
+    ) !topology_m.Topology
     {
         const result = try topology_m.Topology.init_identity(
             allocator,
@@ -349,8 +483,8 @@ pub const Transition = struct {
     /// order.
     container: Stack,
 
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8,
+    /// Name for labelling and human readability.
+    name:      string.latin_s8 = "",
 
     /// The "kind" of the transition to use.  IE "wipe" "dissolve" etc.
     kind: string.latin_s8,
@@ -377,22 +511,47 @@ pub const Transition = struct {
         allocator: std.mem.Allocator,
     ) !topology_m.Topology
     {
-        return self.container.topology_pres_to_intrinsic(allocator);
+        // If explicit bounds are provided, use them
+        if (self.maybe_bounds_s)
+            |explicit_bounds|
+        {
+            return try topology_m.Topology.init_affine(
+                allocator,
+                .{
+                    .input_bounds_val = explicit_bounds,
+                    .input_to_output_xform = .identity,
+                }
+            );
+        }
+        // Try to get topology from container
+        const container_topo = (
+            try self.container.topology_pres_to_intrinsic(allocator)
+        );
+
+        // If container topology is empty (no children and no bounds),
+        // return a zero-duration identity topology
+        if (container_topo.input_bounds() == null) 
+        {
+            return try topology_m.Topology.init_identity(
+                allocator,
+                opentime.ContinuousInterval.from_start_duration(
+                    .zero,
+                    .zero,
+                ),
+            );
+        }
+
+        return container_topo;
     }
 
     /// Clear the memory of self and any child objects.
     pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
-    ) void 
+    ) void
     {
         self.container.deinit(allocator);
-        if (self.maybe_name)
-            |n|
-        {
-            allocator.free(n);
-            self.maybe_name = null;
-        }
+        allocator.free(self.name);
         allocator.free(self.kind);
     }
 };
@@ -400,8 +559,8 @@ pub const Transition = struct {
 /// An explicit temporal transformation from the parent space of the warp to
 /// the child space of the warp.
 pub const Warp = struct {
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8 = null,
+    /// Name for labelling and human readability.
+    name:       string.latin_s8 = "",
 
     /// The child object of the warp.  Effectively warping the presentation
     /// space of the child.
@@ -423,12 +582,7 @@ pub const Warp = struct {
         self.child.deinit(allocator);
         self.transform.deinit(allocator);
 
-        if (self.maybe_name)
-            |n|
-        {
-            allocator.free(n);
-            self.maybe_name = null;
-        }
+        allocator.free(self.name);
     }
 
     /// Build a handle to this Warp.
@@ -481,7 +635,7 @@ pub const Warp = struct {
 
         const presentation_to_warped = try topology_m.Topology.init_affine(
             allocator,
-            .{ 
+            .{
                 .input_bounds_val = .{
                     .start = .zero,
                     .end = warped_range.duration(),
@@ -506,12 +660,18 @@ pub const Warp = struct {
 
 /// a container in which each contained item is right-met over time
 pub const Track = struct {
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8 = null,
+    /// Name for labelling and human readability.
+    name:       string.latin_s8 = "",
+
+    /// Optional bounds in seconds. If present, overrides bounds computed from children.
+    maybe_bounds_s: ?opentime.ContinuousInterval = null,
 
     /// Child objects of the track, listed from first to last in temporal
     /// order. A sequence of right met segments.
     children: []references.CompositionItemHandle,
+
+    /// Markers attached to this track.
+    markers: []marker.Marker = &.{},
 
     /// The internal temporal coordinate systems of the Track.
     pub const available_local_spaces: []const references.TemporalSpace = (
@@ -520,7 +680,7 @@ pub const Track = struct {
 
     /// An empty track.
     pub const empty = Track{
-        .maybe_name = null,
+        .name = "",
         .children = &.{},
     };
 
@@ -528,33 +688,44 @@ pub const Track = struct {
     pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
-    ) void 
+    ) void
     {
         for (self.children)
             |*c|
         {
             c.deinit(allocator);
         }
-
-        if (self.maybe_name)
-            |n|
-        {
-            allocator.free(n);
-            self.maybe_name = null;
-        }
         allocator.free(self.children);
+
+        allocator.free(self.name);
+        for (self.markers)
+            |*m|
+        {
+            m.deinit(allocator);
+        }
+        allocator.free(self.markers);
     }
 
     /// construct the topology mapping the output to the intrinsic space
     pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !topology_m.Topology 
+    ) !topology_m.Topology
     {
-        // build the maybe_bounds
+        // If explicit bounds are provided, use them
+        if (self.maybe_bounds_s)
+            |explicit_bounds|
+        {
+            return try topology_m.Topology.init_identity(
+                allocator,
+                explicit_bounds,
+            );
+        }
+
+        // Otherwise, build the maybe_bounds from children
         var maybe_bounds: ?opentime.ContinuousInterval = null;
-        for (self.children) 
-            |it| 
+        for (self.children)
+            |it|
         {
             const topo = try it.spanning_topology(allocator);
             defer topo.deinit(allocator);
@@ -562,8 +733,8 @@ pub const Track = struct {
                 topo.input_bounds()
                 orelse return error.InvalidChildTopology
             );
-            if (maybe_bounds) 
-                |b| 
+            if (maybe_bounds)
+                |b|
             {
                 maybe_bounds = opentime.interval.extend(b, it_bound);
             } else {
@@ -573,7 +744,7 @@ pub const Track = struct {
 
         // unpack the optional
         const result_bound:opentime.ContinuousInterval = (
-            maybe_bounds 
+            maybe_bounds
             orelse return .empty
         );
 
@@ -646,13 +817,20 @@ pub const Track = struct {
 
 /// children of a stack are simultaneous in time
 pub const Stack = struct {
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8 = null,
+    /// Name for labelling and human readability.
+    name:       string.latin_s8 = "",
+
+    /// Optional bounds in seconds. If present, overrides bounds computed from
+    /// children.
+    maybe_bounds_s: ?opentime.ContinuousInterval = null,
 
     /// Child objects of the Stack (for example, tracks).  Children are listed
     /// in compositing order, with later children coming "above" earlier
     /// entries.
     children: []references.CompositionItemHandle,
+
+    /// Markers attached to this stack.
+    markers: []marker.Marker = &.{},
 
     /// The internal temporal coordinate systems of the Track.
     pub const available_local_spaces: []const references.TemporalSpace = (
@@ -660,7 +838,7 @@ pub const Stack = struct {
     );
 
     pub const empty: Stack = .{
-        .maybe_name = null,
+        .name = "",
         .children = &.{},
     };
 
@@ -668,40 +846,54 @@ pub const Stack = struct {
     pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
-    ) void 
+    ) void
     {
         for (self.children)
             |*c|
         {
             c.deinit(allocator);
         }
-
-        if (self.maybe_name)
-            |n|
-        {
-            allocator.free(n);
-            self.maybe_name = null;
-        }
         allocator.free(self.children);
+
+        allocator.free(self.name);
+        for (self.markers)
+            |*m|
+        {
+            m.deinit(allocator);
+        }
+        allocator.free(self.markers);
     }
 
     /// construct the topology mapping the output to the intrinsic space
     pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !topology_m.Topology 
+    ) !topology_m.Topology
     {
-        // build the bounds
+        // If explicit bounds are provided, use them
+        if (self.maybe_bounds_s)
+            |explicit_bounds|
+        {
+            return try topology_m.Topology.init_affine(
+                allocator,
+                .{
+                    .input_bounds_val = explicit_bounds,
+                    .input_to_output_xform = .identity,
+                }
+            );
+        }
+
+        // Otherwise, build the bounds from children
         var bounds: ?opentime.ContinuousInterval = null;
-        for (self.children) 
-            |it| 
+        for (self.children)
+            |it|
         {
             const it_bound = (
                 (try it.spanning_topology(allocator)).input_bounds()
                 orelse return error.InvalidChildTopology
             );
-            if (bounds) 
-                |b| 
+            if (bounds)
+                |b|
             {
                 bounds = opentime.interval.extend(b, it_bound);
             } else {
@@ -709,18 +901,27 @@ pub const Stack = struct {
             }
         }
 
-        if (bounds) 
-            |b| 
+        if (bounds)
+            |b|
         {
             return try topology_m.Topology.init_affine(
                 allocator,
-                .{ 
+                .{
                     .input_bounds_val = b,
                     .input_to_output_xform = .identity,
                 }
             );
         } else {
-            return .empty;
+            // No children and no explicit bounds - return zero-duration identity
+            // instead of empty topology to avoid InvalidChildTopology errors
+            // when this stack is used as a child of another container
+            return try topology_m.Topology.init_identity(
+                allocator,
+                opentime.ContinuousInterval.from_start_duration(
+                    .zero,
+                    .zero,
+                ),
+            );
         }
     }
 
@@ -766,11 +967,11 @@ pub const DiscretePartitionDomainMap = struct {
 /// description.
 pub const Timeline = struct {
 
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8 = null,
+    /// Name for labelling and human readability.
+    name:       string.latin_s8 = "",
 
     /// Container for children of the Timeline.
-    tracks:Stack = .empty,
+    tracks: Stack = .empty,
 
     /// Discrete space descriptions for the presentation space of the timeline.
     discrete_space_partitions: struct {
@@ -780,6 +981,9 @@ pub const Timeline = struct {
             .presentation = .no_discretizations,
         };
     } = .no_discretizations,
+
+    /// Markers attached to this timeline.
+    markers: []marker.Marker = &.{},
 
     /// The internal temporal coordinate systems of the Timeline.
     pub const available_local_spaces: []const references.TemporalSpace = &.{
@@ -791,15 +995,16 @@ pub const Timeline = struct {
     pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
-    ) void 
+    ) void
     {
-        if (self.maybe_name)
-            |n|
-        {
-            allocator.free(n);
-            self.maybe_name = null;
-        }
+        allocator.free(self.name);
         self.tracks.deinit(allocator);
+        for (self.markers) 
+            |*m| 
+        {
+            m.deinit(allocator);
+        }
+        allocator.free(self.markers);
     }
 
     /// Presentation space of Timeline -> presentation space of `Tracks` stack.
@@ -1112,4 +1317,157 @@ test "warp topology"
             ).ordinate(),
         );
     }
+}
+
+test "MissingFramePolicy: string conversions"
+{
+    // Test from_maybe_string
+    try std.testing.expectEqual(
+        .@"error",
+        ImageSequenceReference.MissingFramePolicy.from_maybe_string(
+            "error",
+        ),
+    );
+    try std.testing.expectEqual(
+        .hold,
+        ImageSequenceReference.MissingFramePolicy.from_maybe_string(
+            "hold",
+        ),
+    );
+    try std.testing.expectEqual(
+        .black,
+        ImageSequenceReference.MissingFramePolicy.from_maybe_string(
+            "black",
+        ),
+    );
+
+    // Test invalid string
+    try std.testing.expectEqual(
+        .@"error",
+        ImageSequenceReference.MissingFramePolicy.from_maybe_string(
+            "invalid",
+        ),
+    );
+}
+
+test "ImageSequenceReference: URL generation with no padding"
+{
+    const allocator = std.testing.allocator;
+
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/path/to/frames/",
+        .name_prefix = "frame_",
+        .name_suffix = ".exr",
+        .frame_zero_padding = 0,
+    };
+
+    const url = try img_seq.target_url_for_image_number(
+        allocator,
+        42,
+    );
+    defer allocator.free(url);
+
+    try std.testing.expectEqualStrings(
+        "/path/to/frames/frame_42.exr",
+        url
+    );
+}
+
+test "ImageSequenceReference: URL generation with 4-digit padding"
+{
+    const allocator = std.testing.allocator;
+
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/render/",
+        .name_prefix = "img_",
+        .name_suffix = ".png",
+        .frame_zero_padding = 4,
+    };
+
+    const url1 = try img_seq.target_url_for_image_number(
+        allocator,
+        1,
+    );
+    defer allocator.free(url1);
+    try std.testing.expectEqualStrings(
+        "/render/img_0001.png",
+        url1,
+    );
+
+    const url42 = try img_seq.target_url_for_image_number(
+        allocator,
+        42,
+    );
+    defer allocator.free(url42);
+    try std.testing.expectEqualStrings(
+        "/render/img_0042.png",
+        url42,
+    );
+
+    const url1000 = try img_seq.target_url_for_image_number(
+        allocator,
+        1000,
+    );
+    defer allocator.free(url1000);
+    try std.testing.expectEqualStrings("/render/img_1000.png", url1000);
+}
+
+test "ImageSequenceReference: URL generation with 6-digit padding"
+{
+    const allocator = std.testing.allocator;
+
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/vfx/",
+        .name_prefix = "",
+        .name_suffix = ".dpx",
+        .frame_zero_padding = 6,
+    };
+
+    const url = try img_seq.target_url_for_image_number(allocator, 123);
+    defer allocator.free(url);
+    try std.testing.expectEqualStrings("/vfx/000123.dpx", url);
+}
+
+test "ImageSequenceReference: negative start frame"
+{
+    const allocator = std.testing.allocator;
+
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/frames/",
+        .name_prefix = "frame.",
+        .name_suffix = ".jpg",
+        .frame_zero_padding = 0,
+    };
+
+    const url = try img_seq.target_url_for_image_number(
+        allocator,
+        -5,
+    );
+    defer allocator.free(url);
+    try std.testing.expectEqualStrings(
+        "/frames/frame.-5.jpg",
+        url,
+    );
+}
+
+test "ImageSequenceReference: frame stepping"
+{
+    const allocator = std.testing.allocator;
+
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/seq/",
+        .name_prefix = "f",
+        .name_suffix = ".tif",
+        .frame_zero_padding = 3,
+    };
+
+    // Frame at time 0
+    const url1 = try img_seq.target_url_for_image_number(allocator, 10);
+    defer allocator.free(url1);
+    try std.testing.expectEqualStrings("/seq/f010.tif", url1);
+
+    // Frame at time that would be frame 2 (step of 2)
+    const url2 = try img_seq.target_url_for_image_number(allocator, 12);
+    defer allocator.free(url2);
+    try std.testing.expectEqualStrings("/seq/f012.tif", url2);
 }

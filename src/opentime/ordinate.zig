@@ -242,7 +242,7 @@ fn OrdinateOf(
             };
         }
 
-        /// Return an ordinate that is the min of self and rhs, using `@min`.
+        /// Return an ordinate that is the min of self and rhs, using `@max`.
         pub inline fn max(
             self: @This(),
             rhs: anytype,

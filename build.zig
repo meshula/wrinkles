@@ -110,6 +110,7 @@ pub fn rev_HEAD(
 pub fn executable(
     b: *std.Build,
     comptime name: []const u8,
+    comptime description: []const u8,
     comptime main_file_name: []const u8,
     options: Options,
     module_deps: []const std.Build.Module.Import,
@@ -185,7 +186,7 @@ pub fn executable(
         );
         var install_step = b.step(
             "install-" ++ name,
-            "Install " ++ name,
+            "Install " ++ name ++ ": " ++ description,
         );
         install_step.dependOn(&install_exe_step.step);
         b.getInstallStep().dependOn(install_step);
@@ -193,7 +194,7 @@ pub fn executable(
         // a run step specifically for the executable
         var run_step = b.step(
             "run-" ++ name,
-            "Run " ++ name,
+            "Run " ++ name ++ ": " ++ description,
         );
         var run_cmd = b.addRunArtifact(exe);
         run_step.dependOn(&run_cmd.step);
@@ -219,7 +220,10 @@ pub fn executable(
 
         const docs_step = b.step(
             "docs_exe_" ++ name,
-            "Copy documentation artifacts to prefix path",
+            (
+                  "Copy documentation artifacts to prefix path for " 
+                  ++ name
+            ),
         );
         docs_step.dependOn(&install_docs.step);
     }
@@ -327,6 +331,190 @@ pub fn module_with_tests_and_artifact(
     return mod;
 }
 
+/// Schema update step: regenerate tlb.zig from tlb.fbs (Schema)
+/// Requires: flatc (FlatBuffers compiler) to be installed and on PATH
+/// Note that both the tlb.fbs and the resulting tlb.zig are checked into the
+/// tree.
+///
+/// Other intermediates are NOT copied to the source tree and versioned,
+/// although they could be.
+///
+/// Note that this means that unless the .fbs file is changed, flatc does not
+/// need to be installed on a development system.
+fn update_tlb_schema(
+    b: *std.Build,
+    dep_flatbuffers: *std.Build.Dependency,
+    options: Options,
+) *std.Build.Module
+{
+    const update_schema_step = b.step(
+        "update_tlb_schema",
+        (
+            "Regenerate FlatBuffers schema (tlb.fbs -> tlb.bfbs "
+            ++ "-> tlb.zon -> tlb.zig).  Only needs to be run when the "
+            ++ ".fbs file (schema) has been changed."
+        ),
+    );
+
+    // Step 1: Run flatc to generate .bfbs from .fbs
+    ///////////////////////////////////////////////////////////////////////////
+    const flatc_cmd = b.addSystemCommand(&.{"flatc"});
+    flatc_cmd.addArgs(
+        &.{
+            "-b",
+            "--schema",
+            "--bfbs-comments",
+            "--bfbs-builtins",
+            "-o",
+        }
+    );
+    flatc_cmd.setName("Run flatc (tlb.fbs -> tlb.bfbs)");
+
+    const bfbs_dir = flatc_cmd.addOutputDirectoryArg("flatbuf_files");
+
+    // input file (the source tlb.fbs schema file to convert)
+    flatc_cmd.addFileArg(
+        b.path("src/opentimelineio/serialization/tlb_schema/tlb.fbs")
+    );
+
+    // output (bfbs)
+    const tlb_bfbs_path = bfbs_dir.path( b, "tlb.bfbs");
+
+    // Step 2: Run zfbs-parse to generate .zon from .bfbs
+    ///////////////////////////////////////////////////////////////////////////
+
+    // Step 2.1: first compilte zfbs-parse
+    const zfbs_parse = b.addExecutable(
+        .{
+            .name = "zfbs-parse-runner",
+            .root_module = b.createModule(
+                .{
+                    .root_source_file = dep_flatbuffers.path(
+                        "src/parse.zig"
+                    ),
+                    .target = options.target,
+                    .optimize = options.optimize,
+                    .imports = &.{
+                        .{
+                            .name = "flatbuffers",
+                            .module = dep_flatbuffers.module(
+                                "flatbuffers"
+                            ),
+                        },
+                    },
+                }
+            ),
+        }
+    );
+    zfbs_parse.step.name = (
+        "compile exe zfbs-parse-runner (program that will convert .bfbs -> zon)"
+    );
+
+    // Step 2.2: ...then use it to convert the bfbs to zon
+    const parse_cmd = b.addRunArtifact(zfbs_parse);
+    parse_cmd.step.name = "run exe zfbs-parse-runner (tlb.bfbs -> tlb.zon)";
+    parse_cmd.addFileArg(tlb_bfbs_path);
+    parse_cmd.step.dependOn(&flatc_cmd.step);
+    const zon_output = parse_cmd.captureStdOut();
+
+    // XXX: zig 0.15.2: in 0.16 captureStdOut has a second argument which
+    //      allows you to specify the name of the captured output, until then
+    //      this is needed
+    parse_cmd.captured_stdout.?.basename = "stdout.zon";
+
+    // Step 2.3: copy to the source tree
+    const install_zon = b.addUpdateSourceFiles();
+    install_zon.step.name = (
+        "UpdateSourceFiles (copy tlb.zon -> "
+        ++ "src/opentimelineio/serialization/tlb_schema/tlb.zon)"
+    );
+    install_zon.step.dependOn(&parse_cmd.step);
+    install_zon.addCopyFileToSource(
+        zon_output,
+        "src/opentimelineio/serialization/tlb_schema/tlb.zon",
+    );
+    update_schema_step.dependOn(&install_zon.step);
+
+    // Step 3: Run zfbs-generate to generate .zig from .zon
+    ///////////////////////////////////////////////////////////////////////////
+
+    // Step 3.1: compile the zfbs-generate program
+    const zfbs_generate = b.addExecutable(
+        .{
+            .name = "zfbs-generate-runner",
+            .root_module = b.createModule(
+                .{
+                    .root_source_file = dep_flatbuffers.path(
+                        "src/generate.zig"
+                    ),
+                    .target = options.target,
+                    .optimize = options.optimize,
+                    .imports = &.{
+                        .{
+                            .name = "flatbuffers",
+                            .module = dep_flatbuffers.module(
+                                "flatbuffers"
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    );
+    zfbs_generate.step.name = "zfbs-generate-runner (tlb.zon -> tlb.zig)";
+
+    // Step 3.2: run the generator and produce the .zig file
+    const generate_cmd = b.addRunArtifact(zfbs_generate);
+    generate_cmd.addFileArg(
+        b.path("src/opentimelineio/serialization/tlb_schema/tlb.zon")
+    );
+    generate_cmd.step.dependOn(&install_zon.step);
+    const zig_output = generate_cmd.captureStdOut();
+
+    // Step 3.3: copy the result to the source tree with the correct name
+    const tlb_zig_source_path = (
+        "src/opentimelineio/serialization/tlb_schema/tlb.zig"
+    );
+    const install_zig = b.addUpdateSourceFiles();
+    install_zig.step.name = (
+        "UpdateSourceFiles (copy tlb.zig -> "
+        ++ "src/opentimelineio/serialization/tlb_schema/tlb.zig)"
+    );
+    install_zig.step.dependOn(&generate_cmd.step);
+    install_zig.addCopyFileToSource(
+        zig_output,
+        tlb_zig_source_path,
+    );
+
+    update_schema_step.dependOn(&install_zig.step);
+
+    // Step 4: build a module using the source tree tlb.zig file
+    ///////////////////////////////////////////////////////////////////////////
+
+    // Note that the return module depends on the source file, which is
+    // installed to the source tree.  This means that most users who aren't
+    // updating the TLB Schema won't need flatc installed to compile the
+    // project.
+    //
+    // In other words, when the tlb schema is updated, update tlb walks through
+    // the steps of generating a fresh zig file that gets checked into the repo
+    // and distributed.
+    return b.addModule(
+        "tlb_parser", 
+        .{
+            .root_source_file = b.path(tlb_zig_source_path),
+            .target = options.target,
+            .optimize = options.optimize,
+            .imports = &.{
+                .{
+                    .name = "flatbuffers",
+                    .module = dep_flatbuffers.module("flatbuffers") 
+                },
+            },
+        },
+    );
+}
+
 /// main entry point for building wrinkles
 pub fn build(
     b: *std.Build,
@@ -419,6 +607,18 @@ pub fn build(
             debug_print_messages,
         );
 
+        const enable_tlb_timing = b.option(
+            bool,
+            "enable_tlb_timing",
+            "Enable TLB serialization timing output (default: false)",
+        ) orelse false;
+
+        build_options.addOption(
+            bool,
+            "enable_tlb_timing",
+            enable_tlb_timing,
+        );
+
         const write_test_wavs = b.option(
             bool,
             "write_sampling_test_wave_files",
@@ -442,11 +642,35 @@ pub fn build(
         ) orelse "/var/tmp";
 
         build_options.addOption(
-            []const u8, 
+            []const u8,
             "test_data_out_dir",
             test_data_out_dir,
         );
+
+        const include_production_tests = b.option(
+            bool,
+            "include_production_tests",
+            "Include production_test_files in roundtrip tests (large files, default: false)",
+        ) orelse false;
+
+        build_options.addOption(
+            bool,
+            "include_production_tests",
+            include_production_tests,
+        );
     }
+
+    const test_output = b.option(
+        bool,
+        "test_output",
+        "Show test output including roundtrip tests (default: false, tests run silently)",
+    ) orelse false;
+
+    build_options.addOption(
+        bool,
+        "test_output",
+        test_output,
+    );
 
     // create module turns the options into a module that can be linked into
     // stuff.  Bafflingly, without this you get "this is in multiple files"
@@ -476,6 +700,28 @@ pub fn build(
             .optimize = options.optimize,
         },
     ).module("wav_io");
+
+    const dep_ziggy = b.dependency(
+        "ziggy",
+        .{
+            .target = options.target,
+            .optimize = options.optimize,
+        }
+    );
+
+    const dep_flatbuffers = b.dependency(
+        "flatbuffers",
+        .{
+            .target = options.target,
+            .optimize = options.optimize,
+        }
+    );
+
+    const tlb_schema = update_tlb_schema(
+        b,
+        dep_flatbuffers,
+        options,
+    );
 
     const string_stuff = module_with_tests_and_artifact(
         "string_stuff",
@@ -714,52 +960,80 @@ pub fn build(
                 .{ .name = "treecode", .module = treecode },
                 .{ .name = "sampling", .module = sampling },
                 .{ .name = "build_options", .module = build_options_mod},
+                .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
+                .{ .name = "flatbuffers", .module = dep_flatbuffers.module("flatbuffers") },
+                .{ .name = "tlb_schema", .module = tlb_schema },
             },
         },
     );
 
+    // Helper to configure a C binding library module
+    const CLibraryConfig = struct {
+        lib: *std.Build.Step.Compile,
+
+        fn configure(
+            self: @This(),
+            b_inner: *std.Build,
+            opentime_mod: *std.Build.Module,
+            opentimelineio_mod: *std.Build.Module,
+            topology_mod: *std.Build.Module,
+        ) void
+        {
+            self.lib.addIncludePath(b_inner.path("src/language_bindings/c/"));
+            self.lib.root_module.addImport("opentime", opentime_mod);
+            self.lib.root_module.addImport("opentimelineio", opentimelineio_mod);
+            self.lib.root_module.addImport("topology", topology_mod);
+            self.lib.linkLibCpp();
+        }
+    };
+
+    // Dynamic library (for C/C++ executables)
     const opentimelineio_c = b.addLibrary(
         .{
             .name = "opentimelineio_c",
+            .linkage = .dynamic,
             .root_module = b.createModule(
                 .{
                     .target = options.target,
                     .optimize = options.optimize,
                     .root_source_file = b.path(
-                        "src/c_binding/opentimelineio_c.zig",
+                        "src/language_bindings/c/opentimelineio_c.zig",
                     ),
                 },
             ),
         },
     );
     {
-        opentimelineio_c.addIncludePath(b.path("src/c_binding/"));
-        opentimelineio_c.root_module.addImport(
-            "opentime",
-            opentime,
-        );
-        opentimelineio_c.root_module.addImport(
-            "opentimelineio",
-            opentimelineio
-        );
-        opentimelineio_c.root_module.addImport(
-            "topology",
-            topology
-        );
-        opentimelineio_c.linkLibCpp();
-        // @TODO: restore WASM build
-        // if (options.target.result.cpu.arch.isWasm())
-        // {
-        //     opentimelineio_c.addSystemIncludePath(
-        //         ziis.fetchEmSdkIncludePath(
-        //             options.dep_ziis.?,
-        //             options.optimize,
-        //             options.target,
-        //         )
-        //     );
-        // }
+        const cfg = CLibraryConfig{ .lib = opentimelineio_c };
+        cfg.configure(b, opentime, opentimelineio, topology);
         b.installArtifact(opentimelineio_c);
+    }
 
+    // Static library (for Python bindings and static linking)
+    const opentimelineio_c_static = b.addLibrary(
+        .{
+            .name = "opentimelineio_c_static",
+            .linkage = .static,
+            .root_module = b.createModule(
+                .{
+                    .target = options.target,
+                    .optimize = options.optimize,
+                    .root_source_file = b.path(
+                        "src/language_bindings/c/opentimelineio_c.zig",
+                    ),
+                },
+            ),
+        },
+    );
+    {
+        const cfg = CLibraryConfig{ .lib = opentimelineio_c_static };
+        cfg.configure(b, opentime, opentimelineio, topology);
+        // Bundle compiler-rt so consumers get __divtf3 and other soft-float symbols
+        opentimelineio_c_static.bundle_compiler_rt = true;
+        b.installArtifact(opentimelineio_c_static);
+    }
+
+    {
         const exe = b.addExecutable(
             .{
                 .name = "test_opentimelineio_c",
@@ -774,26 +1048,15 @@ pub fn build(
         exe.addCSourceFile(
             .{
                 .file = b.path(
-                    "src/c_binding/test_opentimelineio_c.c",
+                    "src/language_bindings/c/test_opentimelineio_c.c",
                 ),
                 .flags = &C_ARGS,
             },
         );
-        exe.addIncludePath(b.path("src/c_binding/"));
+        exe.addIncludePath(b.path("src/language_bindings/c"));
         exe.linkLibC();
-        // @TODO: fix WASM build
-        // if (options.target.result.cpu.arch.isWasm())
-        // {
-        //     exe.addSystemIncludePath(
-        //         ziis.fetchEmSdkIncludePath(
-        //             options.dep_ziis.?,
-        //             options.optimize,
-        //             options.target,
-        //         )
-        //     );
-        // }
+        exe.linkLibrary(opentimelineio_c_static);
 
-        exe.linkLibrary(opentimelineio_c);
         b.installArtifact(exe);
 
         const run_exe = b.addRunArtifact(exe);
@@ -882,6 +1145,7 @@ pub fn build(
     try executable(
         b,
         "curvet",
+        "Interactive curve editor and visualizer",
         "src/curvet.zig",
         options,
         common_deps,
@@ -890,6 +1154,7 @@ pub fn build(
     try executable(
         b,
         "sokol_test",
+        "Sokol graphics backend test",
         "src/sokol_test.zig",
         options,
         common_deps,
@@ -898,6 +1163,7 @@ pub fn build(
     try executable(
         b,
         "transformation_visualizer",
+        "Visualize time transformations between spaces",
         "src/transformation_visualizer.zig",
         options,
         common_deps,
@@ -906,6 +1172,7 @@ pub fn build(
     try executable(
         b,
         "wrinkles_visual_debugger",
+        "Visual debugger for wrinkles data structures",
         "src/wrinkles_visual_debugger.zig",
         options,
         common_deps,
@@ -914,6 +1181,7 @@ pub fn build(
     try executable(
         b,
         "otio_space_visualizer",
+        "Visualize OTIO timeline coordinate spaces",
         "src/otio_space_visualizer.zig",
         options,
         common_deps,
@@ -922,6 +1190,7 @@ pub fn build(
     try executable(
         b,
         "otio_leak_test",
+        "Memory leak detection test for OTIO parsing",
         "src/otio_leak_test.zig",
         options,
         common_deps,
@@ -930,6 +1199,7 @@ pub fn build(
     try executable(
         b,
         "otio_dump_graph",
+        "Dump OTIO file as a graphviz dot graph",
         "src/otio_dump_graph.zig",
         options,
         &.{
@@ -940,18 +1210,8 @@ pub fn build(
 
     try executable(
         b,
-        "otio_dump_json",
-        "src/otio_dump_json.zig",
-        options,
-        &.{
-            .{ .name = "string_stuff", .module = string_stuff },
-            .{ .name = "opentimelineio", .module = opentimelineio },
-        },
-    );
-
-    try executable(
-        b,
         "otio_measure_timeline",
+        "Measure and display OTIO timeline durations",
         "src/otio_measure_timeline.zig",
         options,
         &.{
@@ -960,4 +1220,274 @@ pub fn build(
             .{ .name = "opentime", .module = opentime },
         },
     );
+
+    try executable(
+        b,
+        "otio_hierarchy_view",
+        "Display OTIO file structure as a tree",
+        "src/otio_hierarchy_view.zig",
+        options,
+        &.{
+            .{ .name = "string_stuff", .module = string_stuff },
+            .{ .name = "opentimelineio", .module = opentimelineio },
+            .{ .name = "opentime", .module = opentime },
+            .{ .name = "sampling", .module = sampling },
+            .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
+        },
+    );
+
+    try executable(
+        b,
+        "otiocat",
+        "Convert files between formats (.otio, .tl*)",
+        "src/otiocat.zig",
+        options,
+        &.{
+            .{ .name = "string_stuff", .module = string_stuff },
+            .{ .name = "opentimelineio", .module = opentimelineio },
+            .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
+        },
+    );
+
+    try executable(
+        b,
+        "test_roundtrip_leak",
+        "Test roundtrip for memory leaks",
+        "src/tools/test_roundtrip_leak.zig",
+        options,
+        &.{
+            .{ .name = "opentimelineio", .module = opentimelineio },
+        },
+    );
+
+    //
+    // C++ binding library and examples - only build if not in Wasm mode
+    //
+    if (options.target.result.cpu.arch.isWasm() == false) 
+    {
+        // C++ binding library
+        const opentimelineio_cpp = b.addLibrary(
+            .{
+                .name = "opentimelineio_cpp",
+                .linkage = .static,
+                .root_module = b.createModule(
+                    .{
+                        .target = options.target,
+                        .optimize = options.optimize,
+                    },
+                ),
+            },
+        );
+
+        opentimelineio_cpp.addCSourceFile(
+            .{
+                .file = b.path(
+                    "src/language_bindings/cpp/src/opentimelineio.cpp"
+                ),
+                .flags = &.{"-std=c++17"},
+            },
+        );
+
+        opentimelineio_cpp.addIncludePath(b.path("src/language_bindings/cpp/include"));
+        opentimelineio_cpp.addIncludePath(b.path("src/language_bindings/c"));
+        opentimelineio_cpp.linkLibrary(opentimelineio_c_static);
+        opentimelineio_cpp.linkLibCpp();
+
+        b.installArtifact(opentimelineio_cpp);
+
+        // C++ example: otio_hierarchy_view_cpp
+        {
+            const exe = b.addExecutable(
+                .{
+                    .name = "otio_hierarchy_view_cpp",
+                    .root_module = b.createModule(
+                        .{
+                            .target = options.target,
+                            .optimize = options.optimize,
+                        },
+                    ),
+                },
+            );
+
+            exe.addCSourceFile(
+                .{
+                    .file = b.path(
+                        "src/cpp_examples/otio_hierarchy_view.cpp",
+                    ),
+                    .flags = &.{"-std=c++17"},
+                },
+            );
+
+            exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
+            exe.addIncludePath(b.path("src/language_bindings/c"));
+            exe.linkLibrary(opentimelineio_cpp);
+            exe.linkLibCpp();
+
+            const install_exe_step = b.addInstallArtifact(
+                exe,
+                .{},
+            );
+            b.getInstallStep().dependOn(&install_exe_step.step);
+
+            var run_step = b.step(
+                "run-otio_hierarchy_view_cpp",
+                "Run C++ timeline hierarchy viewer",
+            );
+            var run_cmd = b.addRunArtifact(exe);
+            run_step.dependOn(&run_cmd.step);
+            if (b.args) 
+                |args| 
+            {
+                run_cmd.addArgs(args);
+            }
+        }
+
+        // C++ example: otio_measure_timeline_cpp
+        {
+            const exe = b.addExecutable(
+                .{
+                    .name = "otio_measure_timeline_cpp",
+                    .root_module = b.createModule(
+                        .{
+                            .target = options.target,
+                            .optimize = options.optimize,
+                        },
+                    ),
+                },
+            );
+
+            exe.addCSourceFile(
+                .{
+                    .file = b.path(
+                        "src/cpp_examples/otio_measure_timeline.cpp"
+                    ),
+                    .flags = &.{"-std=c++17"},
+                },
+            );
+
+            exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
+            exe.addIncludePath(b.path("src/language_bindings/c"));
+            exe.linkLibrary(opentimelineio_cpp);
+            exe.linkLibCpp();
+
+            const install_exe_step = (
+                b.addInstallArtifact(exe, .{})
+            );
+            b.getInstallStep().dependOn(&install_exe_step.step);
+
+            var run_step = b.step(
+                "run-otio_measure_timeline_cpp",
+                "Run C++ timeline measurement tool",
+            );
+            var run_cmd = b.addRunArtifact(exe);
+            run_step.dependOn(&run_cmd.step);
+            if (b.args) 
+                |args| 
+            {
+                run_cmd.addArgs(args);
+            }
+        }
+
+        // C++ example: otiocat_cpp
+        {
+            const exe = b.addExecutable(
+                .{
+                    .name = "otiocat_cpp",
+                    .root_module = b.createModule(
+                        .{
+                            .target = options.target,
+                            .optimize = options.optimize,
+                        },
+                    ),
+                },
+            );
+
+            exe.addCSourceFile(
+                .{
+                    .file = b.path("src/cpp_examples/otiocat.cpp"),
+                    .flags = &.{"-std=c++17"},
+                },
+            );
+
+            exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
+            exe.addIncludePath(b.path("src/language_bindings/c"));
+            exe.linkLibrary(opentimelineio_cpp);
+            exe.linkLibCpp();
+
+            const install_exe_step = b.addInstallArtifact(
+                exe,
+                .{},
+            );
+            b.getInstallStep().dependOn(&install_exe_step.step);
+
+            var run_step = b.step(
+                "run-otiocat_cpp",
+                "Run C++ timeline format viewer",
+            );
+            var run_cmd = b.addRunArtifact(exe);
+            run_step.dependOn(&run_cmd.step);
+            if (b.args) 
+                |args| 
+            {
+                run_cmd.addArgs(args);
+            }
+        }
+
+        // C++ unit tests
+        {
+            const cpp_test_exe = b.addExecutable(
+                .{
+                    .name = "test_opentimelineio_cpp",
+                    .root_module = b.createModule(
+                        .{
+                            .target = options.target,
+                            .optimize = options.optimize,
+                        },
+                    ),
+                },
+            );
+
+            cpp_test_exe.addCSourceFile(
+                .{
+                    .file = b.path(
+                        "src/language_bindings/cpp/test/test_opentimelineio.cpp"
+                    ),
+                    .flags = &.{"-std=c++17"},
+                },
+            );
+
+            cpp_test_exe.addIncludePath(
+                b.path("src/language_bindings/cpp/include")
+            );
+            cpp_test_exe.addIncludePath(
+                b.path("src/language_bindings/c")
+            );
+            cpp_test_exe.linkLibrary(opentimelineio_cpp);
+            cpp_test_exe.linkLibCpp();
+
+            b.installArtifact(cpp_test_exe);
+
+            // Run the C++ tests with a sample file
+            const run_cpp_tests = b.addRunArtifact(cpp_test_exe);
+            run_cpp_tests.addArg("sample_otio_files/multiple_track.otio");
+
+            // expectExitCode(0) hides the output and just checks the exit code
+            if (!test_output)
+            {
+                run_cpp_tests.expectExitCode(0);
+            }
+
+            const cpp_test_step = b.step(
+                "test_cpp",
+                "Run C++ binding unit tests",
+            );
+            cpp_test_step.dependOn(&run_cpp_tests.step);
+
+            // @TODO: add a filter that can catch the CPP Tests
+            if (options.test_filter == null) 
+            {
+                options.test_step.dependOn(cpp_test_step);
+            }
+        }
+    }
 }

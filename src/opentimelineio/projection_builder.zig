@@ -171,19 +171,27 @@ pub fn ProjectionBuilder(
             const maybe_child_indices = (
                 tree_nodes.items(.child_indices)
             );
+            const space_items = tree.nodes.items(.item);
 
             // for each terminal space, build the topology to transform to that
             // space.  For each mapping in each topology, add the end points
             // for the mapping to the unsorted_vertices list
-            for (codes, maybe_child_indices, 0..)
-                |current_code, maybe_children, current_index|
+            for (codes, maybe_child_indices, space_items, 0..)
+                |current_code, maybe_children, current_item, current_index|
             {
+                // skip terminal spaces that are containers. Containers are
+                // unlikely to contain temporal information.
+                switch (current_item) {
+                    .gap, .clip => {},
+                    else => continue,
+                }
+
                 if (
-                    // only looking for terminal scopes (gaps, clips, etc)
+                    // only looking for terminal scopes (gaps, clips)
                     (maybe_children[0] != null or maybe_children[1] != null)
                     // skip all media spaces that don't have a path to source
                     or source_code.is_prefix_of(current_code) == false
-                ) 
+                )
                 {
                     continue;
                 }
@@ -704,11 +712,12 @@ pub fn ProjectionBuilder(
         {
             // sort endpoints so that the higher node is always the source
             var sorted_endpoints = endpoints;
-            const endpoints_were_swapped = try self.tree.sort_endpoint_indices(
-                &sorted_endpoints
+            const endpoints_were_swapped = (
+                try self.tree.sort_endpoint_indices(
+                    &sorted_endpoints,
+                )
             );
 
-            // var result = try build_projection_operator_assume_sorted(
             var result = (
                 try self.build_projection_operator_assume_sorted(
                     parent_allocator,
@@ -717,7 +726,10 @@ pub fn ProjectionBuilder(
             );
 
             // check to see if end points were inverted
-            if (endpoints_were_swapped and result.src_to_dst_topo.mappings.len > 0) 
+            if (
+                endpoints_were_swapped 
+                and result.src_to_dst_topo.mappings.len > 0
+            ) 
             {
                 const inverted_topologies = (
                     try result.src_to_dst_topo.inverted(parent_allocator)
@@ -725,7 +737,7 @@ pub fn ProjectionBuilder(
                 errdefer opentime.deinit_slice(
                     parent_allocator,
                     topology_m.Topology,
-                    inverted_topologies
+                    inverted_topologies,
                 );
 
                 if (inverted_topologies.len > 1) 

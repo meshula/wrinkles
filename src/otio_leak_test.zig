@@ -55,6 +55,7 @@ pub fn main(
             var otio_root = try otio.read_from_file(
                 inner_allocator,
                 fpath,
+                .{},
             );
             otio_root.deinit(inner_allocator);
 

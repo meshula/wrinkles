@@ -1,0 +1,440 @@
+// TLB (OTIO TimelineBinary file format) FlatBuffers Schema
+// Converted from tla_schema/tla.ziggy-schema
+//
+// Note: FlatBuffers/zig-flatbuffers doesn't support vectors of unions,
+// so we use a wrapper table with a type discriminator instead.
+
+namespace tlb;
+
+// File extension for this schema
+file_extension "tlb";
+
+// =============================================================================
+// Core Types
+// =============================================================================
+
+// Continuous interval bounds [start, end] in seconds
+struct ContinuousBounds {
+    start: double;
+    end: double;
+}
+
+// Discrete interval bounds [start, end] in sample indices
+struct DiscreteBounds {
+    start: int64;
+    end: int64;
+}
+
+// Control point for curves [in, out]
+struct ControlPoint {
+    in_val: double;
+    out_val: double;
+}
+
+// Affine transform parameters
+struct AffineTransform1D {
+    offset: double;
+    scale: double;
+}
+
+// =============================================================================
+// Rate and Sampling
+// =============================================================================
+
+// Integer rate (e.g., 48000 Hz)
+table IntRate {
+    value: uint32;
+}
+
+// Rational rate (e.g., 24000/1001 for 23.976 fps)
+table RationalRate {
+    num: uint32;
+    den: uint32;
+}
+
+union RateSpecifier {
+    IntRate,
+    RationalRate,
+}
+
+table SampleIndexGenerator {
+    sample_rate_hz: RateSpecifier;
+    start_index: int64 = 0;
+}
+
+// =============================================================================
+// Domain
+// =============================================================================
+
+enum DomainType : byte {
+    Time = 0,
+    Picture = 1,
+    Audio = 2,
+    Metadata = 3,
+    Other = 4,
+}
+
+table Domain {
+    domain_type: DomainType = Time;
+    // Only used when domain_type == Other
+    other_name: string;
+}
+
+// =============================================================================
+// Bounds (tagged union alternative using enum + both fields)
+// =============================================================================
+
+enum BoundsType : byte {
+    Continuous = 0,
+    Discrete = 1,
+}
+
+table Bounds {
+    bounds_type: BoundsType = Continuous;
+    continuous: ContinuousBounds;
+    discrete: DiscreteBounds;
+}
+
+// =============================================================================
+// Markers
+// =============================================================================
+
+table Marker {
+    name: string;
+    marked_range_start: double;
+    marked_range_end: double;
+    color: string (required);
+    comment: string;
+}
+
+// =============================================================================
+// Media References
+// =============================================================================
+
+table URIReference {
+    target_uri: string (required);
+}
+
+table ImageSequenceReference {
+    target_url_base: string (required);
+    name_prefix: string;
+    name_suffix: string;
+    start_frame: int32 = 1;
+    frame_step: int32 = 1;
+    frame_zero_padding: ubyte = 0;
+    rate: double = 24.0;
+    missing_frame_policy: string;
+}
+
+table SineSignal {
+    frequency_hz: double;
+}
+
+table LinearRampSignal {
+    // Empty - just a marker
+}
+
+union SignalGenerator {
+    SineSignal,
+    LinearRampSignal,
+}
+
+table SignalReference {
+    signal_generator: SignalGenerator;
+}
+
+// Null reference (no media)
+table NullReference {
+    // Empty table for null references
+}
+
+union MediaDataReference {
+    URIReference,
+    SignalReference,
+    ImageSequenceReference,
+    NullReference,
+}
+
+enum MediaInterpolationType : byte {
+    Interpolate = 0,
+    Snap = 1,
+    DefaultFromDomain = 2,
+}
+
+table MediaReference {
+    data_reference: MediaDataReference;
+    bounds: Bounds;
+    domain: Domain;
+    discrete_partition: SampleIndexGenerator;
+    interpolating: MediaInterpolationType;
+}
+
+// =============================================================================
+// Topology and Mappings
+// Workaround: Use wrapper table with type enum instead of union vector
+// =============================================================================
+
+enum MappingType : byte {
+    Affine = 0,
+    Linear = 1,
+    Empty = 2,
+}
+
+table MappingAffine {
+    input_bounds_start: double;
+    input_bounds_end: double;
+    transform: AffineTransform1D;
+}
+
+table MappingLinear {
+    input_bounds_start: double;
+    input_bounds_end: double;
+    knots: [ControlPoint];
+}
+
+// Wrapper table for Mapping (since vectors of unions aren't supported)
+table MappingWrapper {
+    mapping_type: MappingType = Affine;
+    affine: MappingAffine;
+    linear: MappingLinear;
+    // Empty has no data, just use the enum
+}
+
+table Topology {
+    mappings: [MappingWrapper];
+}
+
+// =============================================================================
+// Composables (Timeline Elements)
+// Workaround: Use wrapper table with type enum instead of union vector
+// =============================================================================
+
+enum ComposableType : byte {
+    Clip = 0,
+    Gap = 1,
+    Track = 2,
+    Stack = 3,
+    Warp = 4,
+    Transition = 5,
+}
+
+table Clip {
+    name: string;
+    bounds: Bounds;
+    media: MediaReference;
+    metadata_hash: ulong;
+    markers: [Marker];
+}
+
+table Gap {
+    name: string;
+    bounds_start: double;
+    bounds_end: double;
+    markers: [Marker];
+}
+
+// Forward declare these as they reference Composable
+table Track {
+    name: string;
+    bounds: Bounds;
+    children: [ComposableWrapper];
+    markers: [Marker];
+}
+
+table Stack {
+    name: string;
+    bounds: Bounds;
+    children: [ComposableWrapper];
+    markers: [Marker];
+}
+
+table Warp {
+    name: string;
+    child: ComposableWrapper;
+    transform: Topology;
+}
+
+table Transition {
+    name: string;
+    container: Stack;
+    kind: string (required);
+    bounds_start: double;
+    bounds_end: double;
+    has_bounds: bool = false;
+}
+
+// Wrapper table for Composable (since vectors of unions aren't supported)
+table ComposableWrapper {
+    comp_type: ComposableType = Clip;
+    clip: Clip;
+    gap: Gap;
+    track: Track;
+    stack: Stack;
+    warp: Warp;
+    transition: Transition;
+}
+
+// =============================================================================
+// Discrete Partitions
+// =============================================================================
+
+table DiscretePartitionDomainMap {
+    picture: SampleIndexGenerator;
+    audio: SampleIndexGenerator;
+}
+
+// =============================================================================
+// Metadata - High-Performance Columnar Format
+// =============================================================================
+//
+// Design goals:
+// 1. Minimize number of FlatBuffers tables (each table has vtable overhead)
+// 2. Use packed structs for scalar values (no vtable, inline storage)
+// 3. Batch similar types together in vectors
+// 4. Keep metadata at end of file for easy skipping
+//
+// Format: Columnar storage where keys, types, and values are stored separately
+// This allows efficient vectorized operations and minimal overhead.
+
+enum MetadataType : byte {
+    Null = 0,
+    Bool = 1,
+    Int = 2,
+    Float = 3,
+    String = 4,
+    Array = 5,
+    KV = 6,
+}
+
+// Packed scalar value - 17 bytes, stored inline in vectors
+// Used for bool, int, float values - NO table overhead!
+struct PackedScalar {
+    bool_val: bool;         // 1 byte
+    int_val: int64;         // 8 bytes
+    float_val: double;      // 8 bytes
+}
+
+// Columnar metadata block - stores many entries efficiently
+// Keys and values are parallel arrays (same index = same entry)
+// This dramatically reduces the number of tables needed.
+table MetadataBlock {
+    // Parallel arrays - all have same length
+    keys: [string];             // Entry keys
+    types: [MetadataType];      // Type of each entry (packed as bytes)
+
+    // Scalar values - packed struct array, no vtable per entry!
+    scalars: [PackedScalar];    // Bool/Int/Float values (index matches keys)
+
+    // String values stored separately (only for String type entries)
+    string_values: [string];    // String values
+    string_indices: [uint32];   // Maps key index -> string_values index
+
+    // Complex values (nested objects, arrays) - rare, stored as sub-blocks
+    nested_blocks: [MetadataBlock];  // Nested KV objects
+    nested_indices: [uint32];        // Maps key index -> nested_blocks index
+
+    // Array values - each array is a MetadataBlock
+    array_blocks: [MetadataBlock];   // Array contents
+    array_indices: [uint32];         // Maps key index -> array_blocks index
+}
+
+// =============================================================================
+// MetadataMap - Ultra-compact single-table columnar format
+// =============================================================================
+//
+// This format stores ALL metadata in a single table with parallel arrays,
+// eliminating vtable overhead from thousands of individual tables.
+//
+// For Incredibles-2 with 24,323 metadata entries:
+//   - Per-entry tables: ~48,646 tables × ~15 bytes vtable = ~730KB overhead
+//   - Single table: 1 table × ~50 bytes vtable = ~50 bytes overhead
+//
+// The flattened format uses block_offsets/block_lengths to demarcate where
+// each hash's data begins and ends in the flat arrays.
+
+table MetadataMap {
+    // Hash keys - one per metadata block
+    hashes: [string];
+
+    // Block boundaries: for hash[i], data spans from block_offsets[i]
+    // to block_offsets[i] + block_lengths[i] in the flat arrays below
+    block_offsets: [uint32];
+    block_lengths: [uint32];
+
+    // Flattened columnar data for ALL blocks combined
+    // Total length = sum of all block_lengths
+    all_keys: [string];
+    all_types: [ubyte];          // MetadataType as raw bytes for compactness
+    all_scalars: [PackedScalar]; // Inline scalars (bool/int/float)
+
+    // String values with mapping (only for String type entries)
+    string_values: [string];
+    string_key_indices: [uint32];  // Which flat key index has this string
+    string_value_indices: [uint32]; // Index into string_values for that key
+
+    // Nested KV objects (rare) - stored as separate MetadataBlock
+    nested_blocks: [MetadataBlock];
+    nested_key_indices: [uint32];  // Which flat key index has nested data
+    nested_block_indices: [uint32]; // Index into nested_blocks
+}
+
+// =============================================================================
+// Timeline (Root Type for .tlb)
+// =============================================================================
+
+table Timeline {
+    schema_version: uint32 = 1;
+    name: string;
+    children: [ComposableWrapper];
+    presentation_space_discrete_partitions: DiscretePartitionDomainMap;
+    // Single-table columnar metadata format (minimal vtable overhead)
+    metadata_map: MetadataMap;
+    markers: [Marker];
+}
+
+// =============================================================================
+// Collection (Root Type for .tlcb)
+// =============================================================================
+// A Collection groups related items (timelines, clips, etc.) without implying
+// any temporal relationship between them. Unlike a Timeline which arranges
+// children with defined timing, a Collection is purely organizational.
+
+// Type discriminator for CollectionItem
+enum CollectionItemType : byte {
+    TimelineItem = 0,
+    TrackItem = 1,
+    StackItem = 2,
+    ClipItem = 3,
+    GapItem = 4,
+    WarpItem = 5,
+    TransitionItem = 6,
+}
+
+// Wrapper table for CollectionItem (since vectors of unions aren't supported)
+// Collections can contain timelines and other composables as direct children.
+table CollectionItemWrapper {
+    item_type: CollectionItemType = TimelineItem;
+    timeline: Timeline;
+    track: Track;
+    stack: Stack;
+    clip: Clip;
+    gap: Gap;
+    warp: Warp;
+    transition: Transition;
+}
+
+table Collection {
+    schema_version: uint32 = 1;
+    name: string;
+    description: string;
+    children: [CollectionItemWrapper];
+    metadata_map: MetadataMap;
+}
+
+// Root type declaration - Timeline is the default root for .tlb files
+// Collection uses file_identifier "TLCB" to distinguish .tlcb files
+root_type Timeline;
+
+// File identifier for Collection files (.tlcb)
+// Note: This is separate from the default Timeline root_type
+// Applications should check the file_identifier to determine which type to read

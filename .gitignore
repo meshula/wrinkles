@@ -9,3 +9,4 @@ imgui.ini
 # symlink to otvis executable
 otvis
 .cache
+production_test_files

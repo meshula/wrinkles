@@ -163,7 +163,7 @@ pub fn DualOfNumberType(
         pub inline fn lt(
             self: @This(),
             rhs: @This()
-        ) @This() 
+        ) bool
         {
             return self.r < rhs.r;
         }
@@ -171,7 +171,7 @@ pub fn DualOfNumberType(
         pub inline fn gt(
             self: @This(),
             rhs: @This()
-        ) @This() 
+        ) bool
         {
             return self.r > rhs.r;
         }

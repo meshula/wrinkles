@@ -1,0 +1,207 @@
+{
+  "OTIO_SCHEMA": "Timeline.1",
+  "metadata": {
+    "project": "Test Project",
+    "editor": "Claude"
+  },
+  "name": "Figure 1 - Simple Cut List With Metadata",
+  "tracks": {
+    "OTIO_SCHEMA": "Stack.1",
+    "children": [
+      {
+        "OTIO_SCHEMA": "Track.1",
+        "children": [
+          {
+            "OTIO_SCHEMA": "Clip.1",
+            "effects": [],
+            "markers": [],
+            "enabled": true,
+            "media_reference": {
+              "OTIO_SCHEMA": "ExternalReference.1",
+              "available_range": {
+                "OTIO_SCHEMA": "TimeRange.1",
+                "duration": {
+                  "OTIO_SCHEMA": "RationalTime.1",
+                  "rate": 24,
+                  "value": 8
+                },
+                "start_time": {
+                  "OTIO_SCHEMA": "RationalTime.1",
+                  "rate": 24,
+                  "value": 0
+                }
+              },
+              "metadata": {},
+              "target_url": "file:///folder/titles.mov",
+              "name": "Media-001"
+            },
+            "metadata": {
+              "clip_info": {
+                "scene": "001",
+                "take": "1",
+                "camera": "A"
+              },
+              "colorist_notes": "Apply warm grade"
+            },
+            "name": "Clip-001",
+            "source_range": {
+              "OTIO_SCHEMA": "TimeRange.1",
+              "duration": {
+                "OTIO_SCHEMA": "RationalTime.1",
+                "rate": 24,
+                "value": 3
+              },
+              "start_time": {
+                "OTIO_SCHEMA": "RationalTime.1",
+                "rate": 24,
+                "value": 3
+              }
+            }
+          },
+          {
+            "OTIO_SCHEMA": "Clip.1",
+            "effects": [],
+            "markers": [],
+            "enabled": true,
+            "media_reference": {
+              "OTIO_SCHEMA": "ExternalReference.1",
+              "available_range": {
+                "OTIO_SCHEMA": "TimeRange.1",
+                "duration": {
+                  "OTIO_SCHEMA": "RationalTime.1",
+                  "rate": 24,
+                  "value": 8
+                },
+                "start_time": {
+                  "OTIO_SCHEMA": "RationalTime.1",
+                  "rate": 24,
+                  "value": 0
+                }
+              },
+              "metadata": {},
+              "target_url": "file:///folder/wind-up.mov",
+              "name": "Media-002"
+            },
+            "metadata": {
+              "clip_info": {
+                "scene": "002",
+                "take": "3",
+                "camera": "B"
+              },
+              "colorist_notes": "Match to previous shot"
+            },
+            "name": "Clip-002",
+            "source_range": {
+              "OTIO_SCHEMA": "TimeRange.1",
+              "duration": {
+                "OTIO_SCHEMA": "RationalTime.1",
+                "rate": 24,
+                "value": 6
+              },
+              "start_time": {
+                "OTIO_SCHEMA": "RationalTime.1",
+                "rate": 24,
+                "value": 2
+              }
+            }
+          },
+          {
+            "OTIO_SCHEMA": "Clip.1",
+            "effects": [],
+            "markers": [],
+            "enabled": true,
+            "media_reference": {
+              "OTIO_SCHEMA": "ExternalReference.1",
+              "available_range": {
+                "OTIO_SCHEMA": "TimeRange.1",
+                "duration": {
+                  "OTIO_SCHEMA": "RationalTime.1",
+                  "rate": 24,
+                  "value": 8
+                },
+                "start_time": {
+                  "OTIO_SCHEMA": "RationalTime.1",
+                  "rate": 24,
+                  "value": 0
+                }
+              },
+              "metadata": {},
+              "target_url": "file:///folder/punchline.mov",
+              "name": "Media-003"
+            },
+            "metadata": {
+              "clip_info": {
+                "scene": "003",
+                "take": "2",
+                "camera": "A"
+              },
+              "colorist_notes": "Boost shadows"
+            },
+            "name": "Clip-003",
+            "source_range": {
+              "OTIO_SCHEMA": "TimeRange.1",
+              "duration": {
+                "OTIO_SCHEMA": "RationalTime.1",
+                "rate": 24,
+                "value": 4
+              },
+              "start_time": {
+                "OTIO_SCHEMA": "RationalTime.1",
+                "rate": 24,
+                "value": 0
+              }
+            }
+          },
+          {
+            "OTIO_SCHEMA": "Clip.1",
+            "effects": [],
+            "markers": [],
+            "enabled": true,
+            "media_reference": {
+              "OTIO_SCHEMA": "ExternalReference.1",
+              "available_range": {
+                "OTIO_SCHEMA": "TimeRange.1",
+                "duration": {
+                  "OTIO_SCHEMA": "RationalTime.1",
+                  "rate": 24,
+                  "value": 6
+                },
+                "start_time": {
+                  "OTIO_SCHEMA": "RationalTime.1",
+                  "rate": 24,
+                  "value": 100
+                }
+              },
+              "metadata": {},
+              "target_url": "file:///folder/credits.mov",
+              "name": "Media-004"
+            },
+            "metadata": {
+              "clip_info": {
+                "scene": "credits",
+                "take": "1",
+                "camera": "static"
+              },
+              "colorist_notes": "Use standard credits grade"
+            },
+            "name": "Clip-004",
+            "source_range": null
+          }
+        ],
+        "effects": [],
+        "kind": "Video",
+        "markers": [],
+        "enabled": true,
+        "metadata": {},
+        "name": "Track-001",
+        "source_range": null
+      }
+    ],
+    "effects": [],
+    "markers": [],
+    "enabled": true,
+    "metadata": {},
+    "name": "tracks",
+    "source_range": null
+  }
+}

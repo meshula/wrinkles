@@ -459,66 +459,6 @@ pub fn BinaryTree(
             }
         }
 
-        /// Sort the endpoints in place and return whether they were switched
-        /// or not.  Sorting places parent-most node in the
-        /// `PathEndPointIndices.source` field and the child-most node in the
-        /// `PathEndPointIndices.destination` field.
-        ///
-        /// Returns an error if there is no path between the nodes, or if
-        /// either node is not present in the `BinaryTree`.
-        ///
-        /// This variation operates on `PathEndPoints`.
-        pub fn sort_endpoints(
-            self: @This(),
-            endpoints: *PathEndPoints,
-        ) !bool
-        {
-            const source_index = self.index_for_node(
-                endpoints.source
-            ) orelse return error.SourceNotInTree;
-            const dest_index = self.index_for_node(
-                endpoints.destination
-            ) orelse return error.DestinationNotInTree;
-
-            if (source_index == dest_index)
-            {
-                return false;
-            }
-
-            const source_code = self.tree_data.items(.code)[source_index];
-            const destination_code = self.tree_data.items(.code)[dest_index];
-
-            if (
-                treecode.path_exists(
-                    source_code,
-                    destination_code,
-                ) == false
-            )
-            {
-                errdefer std.debug.print(
-                    "ERROR \nERROR\nsource: {f} dest: {f}\n",
-                    .{
-                        source_code,
-                        destination_code,
-                    }
-                );
-                return error.NoPathBetweenNodes;
-            }
-
-            // inverted
-            if (source_code.code_length > destination_code.code_length)
-            {
-                const dest = endpoints.destination;
-                endpoints.destination = endpoints.source;
-                endpoints.source = dest;
-                return true;
-            }
-            else 
-            {
-                return false;
-            }
-        }
-
         /// Compute the path between the endpoints and return a caller-owned
         /// slice of the indices from the source to the destination, inclusive
         /// of the endpoints.

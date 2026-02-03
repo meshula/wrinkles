@@ -395,18 +395,6 @@ pub const ProjectionOperator = struct {
         self.src_to_dst_topo.deinit(allocator);
     }
 
-    /// Return true if lhs starts before rhs starts.
-    pub fn less_than_input_space_start_point(
-        lhs: @This(),
-        rhs: @This(),
-    ) bool
-    {
-        return (
-            lhs.src_to_dst_topo.input_bounds().start_time 
-            < rhs.src_to_dst_topo.input_bounds().start_time
-        );
-    }
-
     /// Create a caller-owned copy of this `ProjectionOperator`.
     pub fn clone(
         self: @This(),
@@ -1353,7 +1341,7 @@ test "otio projection: track with single clip"
     const media_source_range = test_data.T_INT_1_TO_9;
     const media_discrete_info = (
         sampling.SampleIndexGenerator{
-            .sample_rate_hz = .{ .Int = 4 },
+            .sample_rate_hz = .{ .Integer = 4 },
             .start_index = 0,
         }
     );
@@ -1530,7 +1518,7 @@ test "otio projection: track with single clip with transform"
     const media_source_range = test_data.T_INT_1_TO_9;
     const media_discrete_info = (
         sampling.SampleIndexGenerator{
-            .sample_rate_hz = .{ .Int = 4 },
+            .sample_rate_hz = .{ .Integer = 4 },
             .start_index = 0,
         }
     );
@@ -1574,7 +1562,7 @@ test "otio projection: track with single clip with transform"
         .discrete_space_partitions = .{ 
             .presentation = .{
                 .picture = .{
-                    .sample_rate_hz = .{ .Int = 24 },
+                    .sample_rate_hz = .{ .Integer = 24 },
                     .start_index = 12,
                 },
                 .audio = null,
@@ -2021,14 +2009,14 @@ test "ReferenceTopology: init_from_reference"
     // build timeline
     /////////////////////////////////////
     var cl = schema.Clip {
-        .maybe_name = "clip1",
+        .name = "clip1",
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
         .media = .{
             .data_reference = .null,
             .domain = .picture,
             .maybe_bounds_s = null,
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 24 },
+                .sample_rate_hz = .{ .Integer = 24 },
                 .start_index = 86400,
             } 
         }
@@ -2036,14 +2024,14 @@ test "ReferenceTopology: init_from_reference"
     const cl_ptr = cl.handle();
 
     var cl2 = schema.Clip {
-        .maybe_name = "clip2",
+        .name = "clip2",
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
         .media = .{
             .data_reference = .null,
             .domain = .picture,
             .maybe_bounds_s = null,
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 30 },
+                .sample_rate_hz = .{ .Integer = 30 },
                 .start_index = 0,
             },
         },
@@ -2058,16 +2046,16 @@ test "ReferenceTopology: init_from_reference"
 
     var cl3 = schema.Clip {
         .media = .null_picture,
-        .maybe_name = "clip3_warped",
+        .name = "clip3_warped",
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
     cl3.media.maybe_discrete_partition = .{
-        .sample_rate_hz = .{ .Int = 24 },
+        .sample_rate_hz = .{ .Integer = 24 },
         .start_index = 0,
     };
     const cl3_ptr = cl3.handle();
     var wp1 = schema.Warp {
-        .maybe_name = "Warp on Clip3",
+        .name = "Warp on Clip3",
         .child = cl3_ptr,
         .transform = .{
             .mappings = &.{ 
@@ -2098,7 +2086,7 @@ test "ReferenceTopology: init_from_reference"
         .discrete_space_partitions = .{ 
             .presentation = .{
                 .picture = .{
-                    .sample_rate_hz = .{ .Int = 24 },
+                    .sample_rate_hz = .{ .Integer = 24 },
                     .start_index = 86400,
                 },
                 .audio = null,
@@ -2137,7 +2125,7 @@ test "ReferenceTopology: init_from_reference"
     );
     try std.testing.expectEqual(
         @as(
-            usize,
+            sampling.sample_index_t,
             @intFromFloat(
                 @as(
                     opentime.Ordinate.InnerType,
@@ -2147,7 +2135,7 @@ test "ReferenceTopology: init_from_reference"
                     interval.end.v 
                     * @as(
                         opentime.Ordinate.InnerType,
-                        @floatFromInt(tl.discrete_space_partitions.presentation.picture.?.sample_rate_hz.Int)
+                        @floatFromInt(tl.discrete_space_partitions.presentation.picture.?.sample_rate_hz.Integer)
                     )
                 )
             )

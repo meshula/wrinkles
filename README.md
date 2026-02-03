@@ -4,13 +4,13 @@
 
 * `treecode`: library for encoding paths through graphs and a `BinaryTree` for
   which uses the treecodes to encode node locations
-* `opentime`: low level points, intervals and affine transforms, and
-  `Dual` for doing dual arithmetic/implicit differentiation.
+* `opentime`: low level points, intervals and affine transforms, and `Dual` for
+  doing dual arithmetic/implicit differentiation.
 * `curve`: structures and functions for making and manipulating linear and
   bezier splines
-* `sampling`: tools for dealing with discrete spaces, particularly sets of either
-  samples or sample indices.  Includes tools for transforming and resampling
-  such arrays.
+* `sampling`: tools for dealing with discrete spaces, particularly sets of
+  either samples or sample indices.  Includes tools for transforming and
+  resampling such arrays.
 * `Mapping`: linear, monontonic, composable transformation functions for
   continuous transformation
 * `Topology`: monotonic over their input spaces, use sets of Mappings to
@@ -49,6 +49,8 @@ temporal hierarchies of editorial documents.
 Example code snippet:
 
 ```zig
+const otio = @import("wrinkles").opentimelineio;
+
 pub fn main(
 ) !void
 {
@@ -66,7 +68,7 @@ pub fn main(
 
     const root_to_child = try builder.projection_operator_to(
         allocator,
-        otio_root.tracks.children[0].space(.media)
+        otio_root.tracks.children[0].space_node(.media)
     );
 
     const clip_indices = try root_to_child.project_range_cd(
@@ -115,10 +117,7 @@ There are some features that we didn't include in this prototype, because they
 didn't impact the deisgn or problems we were specifically solving.
 
 * Multiple media references (left eye/right eye)
-* Metadata
 * Spatial Coordinate Systems
-* Markers
-* Schema Versioning
 
 ### Omitted from OTIO
 
@@ -176,14 +175,13 @@ didn't impact the deisgn or problems we were specifically solving.
 * [Zig Learn](https://ziglearn.org/chapter-0/): Good starting place for a language overview
 * [Language Reference](https://ziglang.org/documentation/master/): Full Language Reference
 * [Stdlib Reference](https://ziglang.org/documentation/master/std/#A;std)
-* [Stdlib Source](https://github.com/ziglang/zig/tree/master/lib/std): I hate to admit it but often times its faster to just look at the source of the standard lib rather than going through the docs
+* [Stdlib Source](https://github.com/ziglang/zig/tree/master/lib/std): Zig stdlib is surprisingly readable and informative
 
 ## Places for demoing animated parameters on warped scopes
 
-* properties: one time configuration of information (IE, name, temporal
-  bounds, media_reference, discrete_info)
-* parameters: varying data over some domain (a mapping and an embedding
-  domain)
+* properties: one time configuration of information (IE, name, temporal bounds,
+  media_reference, discrete_info)
+* parameters: varying data over some domain (a mapping and an embedding domain)
 
 * lens parameters on a clip (ie an animated rack focus or aperture or something)
   * animated focus distance or aperture
@@ -232,26 +230,41 @@ didn't impact the deisgn or problems we were specifically solving.
 
 ## Todo List 11/14/25
 
-* [ ] Transition Schema
+* Big items
+    * Visualizer second pass (better handling of discrete spaces, organization,
+      muting/the full hierarchy
+        * curve visualizer program 2.0
+    * Serialization/interop with v1
+    * python test
+
+* [x] Transition Schema
     * [x] Add type
-    * [ ] Animated parameter for amount [0, 1)
-    * [ ] add a boundary to the transition
-* [ ] discrete space description
+    * **HOLD**
+        * [ ] Animated parameter for amount [0, 1)
+        * [ ] add a boundary to the transition
+* [x] discrete space description
     * [x] Clip specification
-    * [ ] description of bounds in either Continuous or Discrete space
+    * [x] description of bounds in either Continuous or Discrete space
 * [ ] OTIO 2.0 file format
-    * [ ] translator python script
-    * [ ] don't need a rational time based format anymore
-    * [ ] expressing points/ranges discrete/continuously
-    * [ ] describing discrete spaces
+    * [ ] Serialization schema
+    * [ ] .serializable() methods on `schema` structs
+    * [ ] Schema updating
+    * [ ] v1 -> v2 translator python script
+    * [x] don't need a rational time based format anymore
+    * [x] expressing points/ranges discrete/continuously
+    * [x] describing discrete spaces
     * [ ] Warp Schema: multi segment bezier / pt-tangent form
-* [ ] Serializer 
-* [ ] visualizer
+    * [ ] curve library: b-spline
+* [ ] visualizer second pass
+    * [ ] top down rewrite based on which kind of projection to present (rather
+          than all at once)
+    * [ ] Allow using regular file reads when building natively for large input
+          files
     * [ ] Normalized view that sorts by track and normalizes output range 0-1
           for each leaf
     * [ ] performance pass
-        * [ ] option to only show discrete space under mouse
-        * [ ] detect large timelines and default ^ to on for large timelines
+        * [x] option to only show discrete space under mouse
+        * [x] detect large timelines and default ^ to on for large timelines
     * [ ] UI to represent tracks?
         * [ ] raven-lite. would be nice to confirm the view for the feature
               timeline (feels like there is an offset in there?)
@@ -260,18 +273,25 @@ didn't impact the deisgn or problems we were specifically solving.
       * [ ] optionally plot intermediate scopes
     * [ ] add visibility controls over the hierarchy
 * [ ] code cleanup pass on projection_builder
-* [ ] C++ test API
-* [ ] Python test API (ziggy-pydust)
+* [x] C++ test API
+* [x] Python test API (ziggy-pydust)
 * [ ] project_*_cd should return an optional instead of an error?
-* [ ] building a projection operator should not require allocation from a
-      builder
-* [ ] look for tests that are manually comparing interval endpoints and just
-      compare the entire (optional) interval
+* [ ] ProjectionBuilder second pass
+    * [ ] building a projection operator should not require allocation from a
+          builder -- see projection_operator_to_index_cached
+    * [ ] mark construction as being done (or separate construction into a
+          function?) so that slices can be stored explicitly rather than MAL
+    * [ ] Arena-ify the lifetime of the cache?
+    * [ ] note that lifetimes of topologies from the cache (and in general,
+          from the builder) are owned by the builder, not the caller
+    * [ ] ...maybe add _leaky functions to return memory owned by the caller?
 * [x] remove defaults for prescribed initializers 
     * [x] ControlPoint
 * [ ] NTSC example
 * [ ]  what if not beziers internally but instead b-splines with bezier
         interfaces
+* [ ] look for tests that are manually comparing interval endpoints and just
+      compare the entire (optional) interval
 
 ## Todo List (10/9/25)
 
@@ -330,4 +350,112 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] do a scan to make sure that `opentime.Ordinate` is used in place of f32
   directly
 * [ ] integrate inside of raven
+
+## OTIO V2 Features Present
+
+* Including all the stuff
+    * Topologies
+    * Curves
+    * Binary tree
+    * Treecode
+    * Markers
+    * Metadata
+    * Etc.
+* Serialization
+    * Ascii: .tla, .tlca
+    * Binary: .tlb, tlcb
+    * Converter from latest .otio (read, not write)
+    * Z file: .TLZ (has variants where the playlist is in TLA or TLB,
+      analogous to .otioz
+* Tooling
+    * otiocat
+    * otio_space_visualizer
+    * otio_hierarchy_view
+    * Raven hacked up port that runs against the c++ binding (~/workspace/raven_wrinkles)
+* Language Bindings
+    * C
+    * C++ (real shaky)
+    * Python
+    * OTIO V1 Adapter Plugin (to and from .tl* and .tlc* files)
+        * **S** could streamline the build so that pip install gives you a
+          whole wrinkles installation in your python environment including
+          the adapter plugin. ( ~/workspace/otio_wrinkles_adapter/ )
+* Omissions
+    * Metadata is not reified into a type
+    * No algorithms.  No flattening, no filtering, no searching, no
+      iterating.
+        * **S** For this I think what I would do is include the simplest,
+          dumbest possible version of these algorithms rather that try and
+          be super batteries included.  The batteries cloud the simplicity
+          of the algorithm and make it harder for someone to make the right
+          loop for THEM.
+    * Multiple media references
+    * Muting or activation for gaps
+    * Spatial Coordinate Systems
+* Big decisions
+    * Serialization
+        * versioned at the root instead of at the leaf (IE no
+          `CORE_SCHEMA_MAP`)
+        * Formats explicitly specify either a collection (.tlc) or a
+          timeline (.tla) as a root object of the serialization
+        * Metadata is serialized separated from the objects for performance
+    * No runtime definable schemas in the hierarchy, explicit types
+    * No plugins
+    * Compiled language first (IE zig first, not python first)
+
+## TODO 1/17/2026
+
+* [x] SampleIndex should be a signed integer, not a usize. -> check to make
+      sure if this feature is necessary or desired, or should be handled by a
+      higher level thing (the discrete space partition)
+* [ ] Joshs' composition objects (generic stack/track thingy)
+* [ ] land serialization in main (IE review and land all the code that is in
+      flight on that branch serialization)
+    * [ ] add metadata_map to runtime types (not just serializable types)
+        * [x] otio.schema.Clip
+        * [ ] other types?
+    * [ ] removed unused functions
+    * [ ] remove unused binaries
+    * [x] update references to .ziggy files to refer to .tla
+    * [ ] clean up gitignore
+    * [x] Serialization gets wrapped up into a library
+        * [x] serialization.zig -> serialization/ascii.zig
+        * [x] binary_serialization_flatbufs.zig -> serialization/binary.zig
+        * [x] serialization schemas -> source tree
+    * [x] rearrange
+        * [x] remove .ziggy files
+        * [x] language bindings -> bindings directory
+    * [ ] style pass
+    * [x] figure out where the ERROR CONVERTING messages come from
+    * [x] C++ binaries need to be portable - fix the rpath issue
+    * [ ] refactor C++ build portion of build.zig into a cleaner state
+    * [x] confirm that the python bindings are not impacted by the relocatable
+          issue
+    * [ ] update the raven-wrinkles project
+    * [ ] add a FileFormat struct that maps formats to extensions and
+          serializers/deserializers.
+        * [ ] Maybe another way to put this is to reorganize the Serializer
+              library to have a clearer top down structure.  An Adapter[] which 
+              has a number of structs that know what the features of each
+              supported format is.
+    * [ ] specifically look for string matching to convert to enums and clean
+          that up
+    * [x] optional strings can just be empty strings unless there is a
+          meaningful difference.
+    * [ ] store metdata with a hash... doesn't need to be a hash string though (ascii.zig:963)
+    * [ ] preserve whether the user wants the bounds in continuous or discrete
+          bounds, not with the heuristic on whether there is a discrete 
+          partition or not
+    * [ ] serializer/optional/type conversion functions can probably be
+          collapsed
+    * [ ] double check v0 -> v1 translation in ascii.zig
+* [ ] Update the adapter to make sure its Read and Write, integrate into
+      project
+* [ ] a treecode (treecode.clone) test fails on --release=fast but no other
+      mode?
+* [ ] ImageSequenceReference: currently only a frame step of 1 is supported
+* [x] a second pass over sampling index type - when can it be signed vs. unsigned?
+
+* USD + OTIO (where clips point at USD files, render out a playblast)
+* Wrinkles MCP
 

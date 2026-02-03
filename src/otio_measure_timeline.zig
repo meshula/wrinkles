@@ -121,10 +121,11 @@ pub fn main(
             );
         }
 
-        // read the file
+        // read the file - skip metadata for faster reads
         var tl_ref = try otio.read_from_file(
             allocator,
             filepath,
+            .{ .file_contents_to_read = .all_except_metadata },
         );
         defer tl_ref.deinit(allocator);
 
@@ -138,7 +139,7 @@ pub fn main(
         std.debug.print(
             "Timeline {?s} has {d} tracks\nTracks:\n",
             .{
-                tl_ref.maybe_name(),
+                tl_ref.name(),
                 tl_ref.timeline.tracks.children.len 
             },
         );
@@ -153,7 +154,7 @@ pub fn main(
                 "  Track: {d}:{?s} has {d} children\n",
                 .{ 
                     track_ind,
-                    child.maybe_name(),
+                    child.name(),
                     children.len,
                 },
             );
@@ -167,7 +168,7 @@ pub fn main(
                     .{
                         ind,
                         @tagName(child_child),
-                        child_child.maybe_name(),
+                        child_child.name(),
                     }
                 );
             }
@@ -199,7 +200,7 @@ pub fn main(
         }
 
         tl_ref.timeline.discrete_space_partitions.presentation.picture = .{
-            .sample_rate_hz = .{ .Int = 24 },
+            .sample_rate_hz = .{ .Integer = 24 },
             .start_index = 86400,
         };
 

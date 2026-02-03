@@ -1,0 +1,72 @@
+{
+    "OTIO_SCHEMA": "Timeline.1",
+    "metadata": {},
+    "name": "simple_image_sequence",
+    "tracks": {
+        "OTIO_SCHEMA": "Stack.1",
+        "children": [
+            {
+                "OTIO_SCHEMA": "Track.1",
+                "children": [
+                    {
+                        "OTIO_SCHEMA": "Clip.2",
+                        "effects": [],
+                        "markers": [],
+                        "media_reference": {
+                            "OTIO_SCHEMA": "ImageSequenceReference.1",
+                            "available_range": {
+                                "OTIO_SCHEMA": "TimeRange.1",
+                                "duration": {
+                                    "OTIO_SCHEMA": "RationalTime.1",
+                                    "rate": 24.0,
+                                    "value": 100.0
+                                },
+                                "start_time": {
+                                    "OTIO_SCHEMA": "RationalTime.1",
+                                    "rate": 24.0,
+                                    "value": 1001.0
+                                }
+                            },
+                            "metadata": {},
+                            "name": "frames",
+                            "target_url_prefix": "/renders/shot_010/",
+                            "name_prefix": "frame_",
+                            "name_suffix": ".exr",
+                            "start_frame": 1001,
+                            "frame_step": 1,
+                            "rate": 24.0,
+                            "frame_zero_padding": 4,
+                            "missing_frame_policy": "hold"
+                        },
+                        "metadata": {},
+                        "name": "Image Sequence Clip",
+                        "source_range": {
+                            "OTIO_SCHEMA": "TimeRange.1",
+                            "duration": {
+                                "OTIO_SCHEMA": "RationalTime.1",
+                                "rate": 24.0,
+                                "value": 48.0
+                            },
+                            "start_time": {
+                                "OTIO_SCHEMA": "RationalTime.1",
+                                "rate": 24.0,
+                                "value": 0.0
+                            }
+                        }
+                    }
+                ],
+                "effects": [],
+                "kind": "Video",
+                "markers": [],
+                "metadata": {},
+                "name": "Video Track",
+                "source_range": null
+            }
+        ],
+        "effects": [],
+        "markers": [],
+        "metadata": {},
+        "name": "tracks",
+        "source_range": null
+    }
+}

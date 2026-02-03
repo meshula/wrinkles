@@ -60,6 +60,17 @@ const lerp_math = @import("lerp.zig");
 pub const lerp = lerp_math.lerp;
 pub const invlerp = lerp_math.invlerp;
 
+// timecode @{
+pub const timecode = @import("timecode.zig");
+pub const Timecode = timecode.Timecode;
+pub const TimecodeRate = timecode.TimecodeRate;
+pub const TimecodeError = timecode.TimecodeError;
+pub const from_timecode = timecode.from_timecode;
+pub const to_timecode = timecode.to_timecode;
+pub const timecode_to_ordinate = timecode.timecode_to_ordinate;
+pub const ordinate_to_timecode = timecode.ordinate_to_timecode;
+// @}
+
 /// Clone return a new slice with each thing in the slice having been .cloned()
 /// from the thing in the original list.  Assumes that clone takes an allocator
 /// argument and returns in the same order.
@@ -108,5 +119,6 @@ test {
     _ = dual;
     _ = comath_wrapper;
     _ = projection_result;
+    _ = timecode;
 }
 

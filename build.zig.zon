@@ -21,8 +21,16 @@
             .hash = "zig_wav_io-0.1.0-PYygzNEMAQDo94KcwXYc99epSh1go4VSYgIdCmPB02Kr",
         },
         .zgui_cimgui_implot_sokol = .{
-            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#68cbce413883e6d8806c5da304a4a6f3c93cf125",
+            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol#68cbce413883e6d8806c5da304a4a6f3c93cf125",
             .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXtkNCAAVNEezE-MaA8CWf_y3Ms9vWk_teKoXW-jG",
+        },
+        .ziggy = .{
+            .url = "git+https://github.com/ssteinbach/ziggy#ddeed2f372f2fbd9db74fdf7ac12a62e3826abf0",
+            .hash = "ziggy-0.1.0-kTg8v6xfBgAoHwFLhSFnmwpTc7_qO3rQ3ixqqyKHwSq0",
+        },
+        .flatbuffers = .{
+            .url = "git+https://github.com/ssteinbach/zig-flatbuffers.git#b67833b4886b4864f3fe62bb6bfba1b5d2cf4fee",
+            .hash = "flatbuffers-0.1.2-Ntd6Di8pAgB0hYjVEbQ2k0-MBotZRGHb3MP-gJgw9t0v",
         },
     },
     .paths = .{

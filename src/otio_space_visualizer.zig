@@ -14,6 +14,7 @@ const cimgui = ziis.cimgui;
 
 const opentime = @import("opentime");
 const otio = @import("opentimelineio");
+const otio_serialization = @import("opentimelineio").serialization;
 const topology = @import("topology");
 const treecode = @import("treecode");
 
@@ -83,7 +84,243 @@ const STATE = struct {
             always,
         } = .always,
     } = .{};
+
+    /// Timeline view state (raven-like)
+    var timeline: struct {
+        scale: f32 = 100.0,  // Pixels per second
+        track_height: f32 = 30.0,
+        playhead: f32 = 0.0,  // Playhead position in seconds
+        scroll_to_playhead: bool = false,
+        start: f32 = 0.0,  // Timeline start time in seconds
+        duration: f32 = 10.0,  // Timeline duration in seconds
+        inspector_width: f32 = 200.0,  // Inspector panel width (resizable)
+    } = .{};
 };
+
+/// Colors for timeline view (raven-style)
+const TimelineColors = struct {
+    const background: u32 = 0xFF141414;
+    const track_label: u32 = 0xFF2A2A2A;
+    const track_label_hover: u32 = 0xFF3A3A3A;
+    const track_label_selected: u32 = 0xFF176B42;
+    // Video item colors - greenish like raven
+    const item: u32 = 0xFF355535;  // Muted green
+    const item_hover: u32 = 0xFF456545;  // Brighter green on hover
+    const item_selected: u32 = 0xFF176B42;  // Bright green when selected
+    // Audio item colors - bluish like raven
+    const audio_item: u32 = 0xFF3A3A5A;  // Muted blue
+    const audio_item_hover: u32 = 0xFF4A4A7A;  // Brighter blue on hover
+    const gap: u32 = 0xFF1E1E1E;  // Darker than track, visible as empty space
+    const gap_hover: u32 = 0xFF2E2E2E;
+    // Transition/effect badge - gold/yellow
+    const transition_badge: u32 = 0xFFC8A020;  // Gold color for transition markers
+    const effect_badge: u32 = 0xFFCC4444;  // Red for effects
+    // Playhead - gold/yellow like raven
+    const playhead: u32 = 0x80C8A020;  // Semi-transparent gold
+    const playhead_line: u32 = 0xFFC8A020;  // Solid gold line
+    const tick_major: u32 = 0xFF808080;
+    const tick_minor: u32 = 0xFF404040;
+    const label: u32 = 0xFFF0F0F0;
+    // Inspector
+    const inspector_bg: u32 = 0xFF1A1A1A;
+    const inspector_header: u32 = 0xFF2A2A2A;
+
+    // Marker colors (ABGR format for ImGui)
+    fn marker_color(color: otio.marker.MarkerColor) u32 {
+        return switch (color) {
+            .pink => 0xFFCB7CCB,
+            .red => 0xFF4444FF,
+            .orange => 0xFF44A5FF,
+            .yellow => 0xFF44FFFF,
+            .green => 0xFF44FF44,
+            .cyan => 0xFFFFFF44,
+            .blue => 0xFFFF4444,
+            .purple => 0xFFFF44A5,
+            .magenta => 0xFFFF44FF,
+            .black => 0xFF000000,
+            .white => 0xFFFFFFFF,
+        };
+    }
+};
+
+/// Track kind enum for display purposes
+const TrackKind = enum {
+    video,
+    audio,
+
+    /// Determine track kind from a track handle by checking:
+    /// 1. Track name (if contains "audio" case-insensitive)
+    /// 2. First clip's media domain (audio vs picture)
+    fn from_track(
+        allocator: std.mem.Allocator,
+        track_handle: otio.CompositionItemHandle,
+    ) TrackKind {
+        const track_ptr = switch (track_handle) {
+            .track => |t| t,
+            else => return .video,
+        };
+
+        // First check track name
+        if (from_name(if (track_ptr.name.len > 0) track_ptr.name else null) == .audio) {
+            return .audio;
+        }
+
+        // Check first clip's media domain
+        const children = track_handle.children_refs(allocator) catch return .video;
+        defer allocator.free(children);
+
+        for (children) |child| {
+            switch (child) {
+                .clip => |clip_ptr| {
+                    switch (clip_ptr.media.domain) {
+                        .audio => return .audio,
+                        else => return .video,
+                    }
+                },
+                else => {},
+            }
+        }
+
+        return .video;
+    }
+
+    fn from_name(name: ?[]const u8) TrackKind {
+        if (name) |n| {
+            // Check if name contains "audio" (case-insensitive)
+            if (n.len >= 5) {
+                var i: usize = 0;
+                while (i + 4 < n.len) : (i += 1) {
+                    if (std.ascii.toLower(n[i]) == 'a' and
+                        std.ascii.toLower(n[i + 1]) == 'u' and
+                        std.ascii.toLower(n[i + 2]) == 'd' and
+                        std.ascii.toLower(n[i + 3]) == 'i' and
+                        std.ascii.toLower(n[i + 4]) == 'o')
+                    {
+                        return .audio;
+                    }
+                }
+            }
+        }
+        return .video;
+    }
+
+    fn prefix(self: TrackKind) u8 {
+        return switch (self) {
+            .video => 'V',
+            .audio => 'A',
+        };
+    }
+};
+
+/// Results of categorizing tracks from an OTIO timeline
+const CategorizedTracks = struct {
+    video_tracks: std.ArrayListUnmanaged(otio.CompositionItemHandle),
+    audio_tracks: std.ArrayListUnmanaged(otio.CompositionItemHandle),
+
+    fn deinit(self: *@This(), allocator: std.mem.Allocator) void {
+        self.video_tracks.deinit(allocator);
+        self.audio_tracks.deinit(allocator);
+    }
+};
+
+/// Collect and categorize tracks from the OTIO root into video and audio groups.
+/// Video tracks are collected in visual order (first track in file = bottom visually).
+/// Audio tracks are collected in file order.
+fn categorize_tracks(
+    allocator: std.mem.Allocator,
+    root: otio.CompositionItemHandle,
+) !CategorizedTracks {
+    var video_tracks: std.ArrayListUnmanaged(otio.CompositionItemHandle) = .empty;
+    var audio_tracks: std.ArrayListUnmanaged(otio.CompositionItemHandle) = .empty;
+
+    const root_children = try root.children_refs(allocator);
+    defer allocator.free(root_children);
+
+    for (root_children) |child| {
+        switch (child) {
+            .track => {
+                const kind = TrackKind.from_track(allocator, child);
+                if (kind == .audio) {
+                    try audio_tracks.append(allocator, child);
+                } else {
+                    try video_tracks.append(allocator, child);
+                }
+            },
+            .stack => {
+                const stack_children = try child.children_refs(allocator);
+                defer allocator.free(stack_children);
+                for (stack_children) |stack_child| {
+                    switch (stack_child) {
+                        .track => {
+                            const kind = TrackKind.from_track(allocator, stack_child);
+                            if (kind == .audio) {
+                                try audio_tracks.append(allocator, stack_child);
+                            } else {
+                                try video_tracks.append(allocator, stack_child);
+                            }
+                        },
+                        else => {},
+                    }
+                }
+            },
+            else => {},
+        }
+    }
+
+    return .{
+        .video_tracks = video_tracks,
+        .audio_tracks = audio_tracks,
+    };
+}
+
+/// Generate track labels for display.
+/// Video tracks: V<n> where n counts down from total video tracks (top=highest, bottom=1)
+/// Audio tracks: A<n> where n counts up from 1 (top=1, bottom=highest)
+const TrackLabel = struct {
+    prefix: u8,
+    number: usize,
+    name: ?[]const u8,
+
+    fn format(
+        self: @This(),
+        buf: []u8,
+    ) []const u8 {
+        return std.fmt.bufPrint(
+            buf,
+            "{c}{d}: {s}",
+            .{ self.prefix, self.number, self.name orelse "" },
+        ) catch "?";
+    }
+};
+
+/// Get the display label for a video track at the given visual row.
+/// row 0 = topmost video track = highest number (e.g., V4)
+/// row n-1 = bottommost video track = V1
+fn video_track_label(
+    row: usize,
+    total_video_tracks: usize,
+    track_name: ?[]const u8,
+) TrackLabel {
+    // row 0 -> V<total>, row 1 -> V<total-1>, ... row n-1 -> V1
+    return .{
+        .prefix = 'V',
+        .number = total_video_tracks - row,
+        .name = track_name,
+    };
+}
+
+/// Get the display label for an audio track at the given visual row.
+/// row 0 = topmost audio track = A1
+fn audio_track_label(
+    row: usize,
+    track_name: ?[]const u8,
+) TrackLabel {
+    return .{
+        .prefix = 'A',
+        .number = row + 1,
+        .name = track_name,
+    };
+}
 
 
 fn struct_editor_ui(
@@ -523,13 +760,17 @@ fn fill_topdown_point_buffers(
             try result.*.?.ensureTotalCapacity(
                 allocator, 
                 // two points per index to create horizontal line
-                2 * buffer_length,
+                @intCast(2 * buffer_length),
             );
 
-            for (discrete_info.start_index.. (discrete_info.start_index + buffer_length))
+            const start_ind: usize = @intCast(discrete_info.start_index);
+
+            for (start_ind .. start_ind + buffer_length)
                 |index|
             {
-                const ord = discrete_info.ord_interval_for_index(index);
+                const ord = (
+                    discrete_info.ord_interval_for_index(@intCast(index))
+                );
 
                 result.*.?.appendAssumeCapacity(
                     .{
@@ -871,9 +1112,942 @@ fn child_tree(
     }
 }
 
+// ============================================================================
+// Timeline View (raven-like)
+// ============================================================================
+
+/// Convert time in seconds to pixel position
+fn time_to_pixel(time_seconds: f32, scale: f32) f32 {
+    return (time_seconds - STATE.timeline.start) * scale;
+}
+
+/// Convert pixel position to time in seconds
+fn pixel_to_time(pixel: f32, scale: f32) f32 {
+    return STATE.timeline.start + pixel / scale;
+}
+
+/// Format time as timecode string HH:MM:SS:FF (assuming 24fps)
+fn format_timecode(buf: []u8, time_seconds: f32) []const u8 {
+    const fps: f32 = 24.0;
+    const total_frames: u32 = @intFromFloat(@abs(time_seconds) * fps);
+    const frames = total_frames % 24;
+    const total_seconds = total_frames / 24;
+    const seconds = total_seconds % 60;
+    const total_minutes = total_seconds / 60;
+    const minutes = total_minutes % 60;
+    const hours = total_minutes / 60;
+
+    return std.fmt.bufPrint(
+        buf,
+        "{d:0>2}:{d:0>2}:{d:0>2}:{d:0>2}",
+        .{ hours, minutes, seconds, frames },
+    ) catch "00:00:00:00";
+}
+
+/// Draw the timecode ruler at the top of the timeline
+fn draw_timecode_ruler(
+    origin: [2]f32,
+    width: f32,
+    height: f32,
+    scale: f32,
+) void
+{
+    const draw_list = zgui.getWindowDrawList();
+
+    // Calculate tick interval based on zoom level
+    const pixels_per_second = scale;
+    var tick_interval: f32 = 1.0; // Start at 1 second
+    const min_tick_width: f32 = 100.0;
+
+    // Adjust tick interval based on zoom
+    if (pixels_per_second * tick_interval < min_tick_width) {
+        tick_interval = 2.0;
+    }
+    if (pixels_per_second * tick_interval < min_tick_width) {
+        tick_interval = 5.0;
+    }
+    if (pixels_per_second * tick_interval < min_tick_width) {
+        tick_interval = 10.0;
+    }
+    if (pixels_per_second * tick_interval > min_tick_width * 5) {
+        tick_interval = 0.5;
+    }
+    if (pixels_per_second * tick_interval > min_tick_width * 5) {
+        tick_interval = 0.25;
+    }
+
+    // Draw background
+    draw_list.addRectFilled(
+        .{
+            .pmin = .{ origin[0], origin[1] },
+            .pmax = .{ origin[0] + width, origin[1] + height },
+            .col = TimelineColors.background,
+        },
+    );
+
+    // Draw tick marks
+    var time: f32 = STATE.timeline.start;
+    while (time < STATE.timeline.start + STATE.timeline.duration + tick_interval) : (time += tick_interval) {
+        const x = origin[0] + time_to_pixel(time, scale);
+        if (x < origin[0] or x > origin[0] + width) continue;
+
+        // Draw tick line
+        draw_list.addLine(
+            .{
+                .p1 = .{ x, origin[1] + height * 0.6 },
+                .p2 = .{ x, origin[1] + height },
+                .col = TimelineColors.tick_major,
+                .thickness = 1.0,
+            },
+        );
+
+        // Draw time label in timecode format
+        var tc_buf: [16]u8 = undefined;
+        const tc_str = format_timecode(&tc_buf, time);
+        draw_list.addText(
+            .{ x + 3, origin[1] + 2 },
+            TimelineColors.label,
+            "{s}",
+            .{tc_str},
+        );
+    }
+}
+
+/// Draw a track label in the left column (legacy function, kept for compatibility)
+fn draw_track_label(
+    track_name: []const u8,
+    _: []const u8,  // track_kind - unused, we always show "V" prefix
+    index: usize,
+    height: f32,
+    is_selected: bool,
+) void
+{
+    const width = zgui.getContentRegionAvail()[0];
+
+    zgui.beginGroup();
+    defer zgui.endGroup();
+
+    _ = zgui.invisibleButton(
+        "##TrackLabel",
+        .{ .w = width, .h = height },
+    );
+
+    const p0 = zgui.getItemRectMin();
+    const p1 = zgui.getItemRectMax();
+
+    var fill_color = TimelineColors.track_label;
+    if (zgui.isItemHovered(.{})) {
+        fill_color = TimelineColors.track_label_hover;
+    }
+    if (is_selected) {
+        fill_color = TimelineColors.track_label_selected;
+    }
+
+    const draw_list = zgui.getWindowDrawList();
+    draw_list.addRectFilled(
+        .{
+            .pmin = p0,
+            .pmax = p1,
+            .col = fill_color,
+        },
+    );
+
+    // Draw label text - format like raven: "V1: Track-00"
+    var buf: [64]u8 = undefined;
+    const label = std.fmt.bufPrintZ(
+        &buf,
+        "V{d}: {s}",
+        .{
+            index,
+            track_name,
+        },
+    ) catch "?";
+
+    draw_list.addText(
+        .{ p0[0] + 5, p0[1] + 5 },
+        TimelineColors.label,
+        "{s}",
+        .{label},
+    );
+}
+
+/// Draw a single item (clip or gap) on the timeline
+fn draw_timeline_item(
+    item: otio.CompositionItemHandle,
+    start_time: f32,
+    duration_seconds: f32,
+    origin: [2]f32,
+    height: f32,
+    scale: f32,
+    track_kind: TrackKind,
+    has_transition_before: bool,
+    has_transition_after: bool,
+) void
+{
+    if (duration_seconds <= 0) return;
+
+    // start_time is relative to track start (not absolute timeline time)
+    // so we just multiply by scale directly, don't use time_to_pixel
+    const x = origin[0] + (start_time * scale);
+    const width = duration_seconds * scale;
+
+    if (width < 1) return;
+
+    // Calculate screen-space rectangle for this item
+    const p0 = [2]f32{ x, origin[1] };
+    const p1 = [2]f32{ x + width, origin[1] + height };
+
+    // Use manual hit-testing instead of invisible buttons to avoid coordinate issues
+    const mouse_pos = zgui.getMousePos();
+    const is_hovered = (
+        mouse_pos[0] >= p0[0] and mouse_pos[0] < p1[0] and
+        mouse_pos[1] >= p0[1] and mouse_pos[1] < p1[1]
+    );
+    const is_clicked = is_hovered and zgui.isMouseClicked(.left);
+
+    // Determine colors based on item type, track kind, and state
+    var fill_color: u32 = undefined;
+    var hover_color: u32 = undefined;
+    var show_label = true;
+    const is_gap = item == .gap;
+    const is_audio = track_kind == .audio;
+
+    switch (item) {
+        .gap => {
+            fill_color = TimelineColors.gap;
+            hover_color = TimelineColors.gap_hover;
+            show_label = false;
+        },
+        .clip => {
+            fill_color = if (is_audio) TimelineColors.audio_item else TimelineColors.item;
+            hover_color = if (is_audio) TimelineColors.audio_item_hover else TimelineColors.item_hover;
+        },
+        .transition => {
+            fill_color = TimelineColors.transition_badge;
+            hover_color = TimelineColors.transition_badge;
+        },
+        else => {
+            fill_color = if (is_audio) TimelineColors.audio_item else TimelineColors.item;
+            hover_color = if (is_audio) TimelineColors.audio_item_hover else TimelineColors.item_hover;
+        },
+    }
+
+    if (is_hovered) {
+        fill_color = hover_color;
+    }
+
+    if (STATE.maybe_current_selected_object) |selected| {
+        if (std.meta.eql(selected, item)) {
+            fill_color = TimelineColors.item_selected;
+        }
+    }
+
+    // Handle click
+    if (is_clicked) {
+        STATE.maybe_current_selected_object = item;
+    }
+
+    const draw_list = zgui.getWindowDrawList();
+
+    // Draw rectangle - rounded for clips, square for gaps
+    if (is_gap) {
+        // Gaps: simple rectangle with no rounding
+        draw_list.addRectFilled(
+            .{
+                .pmin = p0,
+                .pmax = p1,
+                .col = fill_color,
+                .rounding = 0,
+            },
+        );
+    } else {
+        // Clips: rounded rectangle (top-left, bottom-right corners rounded)
+        const rounding: f32 = 5.0;
+        draw_list.addRectFilled(
+            .{
+                .pmin = p0,
+                .pmax = p1,
+                .col = fill_color,
+                .rounding = rounding,
+                .flags = .{
+                    .round_corners_top_left = true,
+                    .round_corners_bottom_right = true,
+                },
+            },
+        );
+
+        // Draw transition badges (diagonal marks) if adjacent to transitions
+        const badge_size: f32 = @min(height * 0.4, 8.0);
+        if (has_transition_before) {
+            // Draw small diagonal mark at left edge
+            draw_list.addTriangleFilled(
+                .{
+                    .p1 = .{ p0[0], p0[1] },
+                    .p2 = .{ p0[0] + badge_size, p0[1] },
+                    .p3 = .{ p0[0], p0[1] + badge_size },
+                    .col = TimelineColors.transition_badge,
+                },
+            );
+        }
+        if (has_transition_after) {
+            // Draw small diagonal mark at right edge
+            draw_list.addTriangleFilled(
+                .{
+                    .p1 = .{ p1[0], p0[1] },
+                    .p2 = .{ p1[0] - badge_size, p0[1] },
+                    .p3 = .{ p1[0], p0[1] + badge_size },
+                    .col = TimelineColors.transition_badge,
+                },
+            );
+        }
+    }
+
+    // Draw label if there's room
+    if (show_label and width > 20) {
+        const name = item.name() orelse "";
+        if (name.len > 0) {
+            draw_list.addText(
+                .{ p0[0] + 5, p0[1] + 5 },
+                TimelineColors.label,
+                "{s}",
+                .{name},
+            );
+        }
+    }
+
+    // Draw markers as small flags at the top of the item
+    const markers: []const otio.Marker = switch (item) {
+        .clip => |clip| clip.markers,
+        .gap => |gap_ptr| gap_ptr.markers,
+        .track => |track_ptr| track_ptr.markers,
+        .stack => |stack_ptr| stack_ptr.markers,
+        else => &.{},
+    };
+
+    if (markers.len > 0) {
+        const marker_height: f32 = @min(height * 0.4, 10.0);
+        const marker_width: f32 = 6.0;
+
+        for (markers) |marker| {
+            // Calculate marker position - use start of marked range
+            const marker_start = marker.marked_range.start.as(f32);
+            const marker_x = x + (marker_start * scale);
+
+            // Skip if marker is outside visible area
+            if (marker_x < p0[0] or marker_x > p1[0]) continue;
+
+            const marker_color = TimelineColors.marker_color(marker.color);
+
+            // Draw flag shape (triangle + rectangle stem)
+            const flag_top = p0[1];
+            const flag_bottom = p0[1] + marker_height;
+
+            // Flag triangle
+            draw_list.addTriangleFilled(
+                .{
+                    .p1 = .{ marker_x, flag_top },
+                    .p2 = .{ marker_x + marker_width, flag_top + marker_height * 0.4 },
+                    .p3 = .{ marker_x, flag_top + marker_height * 0.8 },
+                    .col = marker_color,
+                },
+            );
+
+            // Flag stem (small vertical line)
+            draw_list.addLine(
+                .{
+                    .p1 = .{ marker_x, flag_top },
+                    .p2 = .{ marker_x, flag_bottom },
+                    .col = marker_color,
+                    .thickness = 2.0,
+                },
+            );
+        }
+    }
+
+    // Tooltip on hover (using manual hit-test result)
+    if (is_hovered) {
+        zgui.setNextWindowPos(.{
+            .x = mouse_pos[0] + 15,
+            .y = mouse_pos[1] + 15,
+        });
+        if (zgui.beginTooltip()) {
+            defer zgui.endTooltip();
+
+            zgui.text("{s}: {s}", .{
+                @tagName(item),
+                item.name() orelse "(unnamed)",
+            });
+            zgui.text("Duration: {d:.2}s", .{duration_seconds});
+        }
+    }
+}
+
+/// Draw a single track's content
+fn draw_track_content(
+    allocator: std.mem.Allocator,
+    track: otio.CompositionItemHandle,
+    origin: [2]f32,
+    full_width: f32,
+    height: f32,
+    scale: f32,
+    track_kind: TrackKind,
+) !void
+{
+    _ = full_width;
+
+    // Get track children
+    const children = try track.children_refs(allocator);
+    defer allocator.free(children);
+
+    // Calculate positions for each child
+    var current_time: f32 = 0.0;
+
+    for (children, 0..) |child, i| {
+        // Get duration of this item using bounds_of
+        const bounds = child.bounds_of(allocator, .presentation) catch null;
+        const duration_seconds: f32 = if (bounds) |b| b.duration().as(f32) else 1.0;
+
+        // Check for adjacent transitions
+        const has_transition_before = if (i > 0)
+            children[i - 1] == .transition
+        else
+            false;
+        const has_transition_after = if (i + 1 < children.len)
+            children[i + 1] == .transition
+        else
+            false;
+
+        // Draw the item
+        draw_timeline_item(
+            child,
+            current_time,
+            duration_seconds,
+            origin,
+            height,
+            scale,
+            track_kind,
+            has_transition_before,
+            has_transition_after,
+        );
+
+        current_time += duration_seconds;
+    }
+}
+
+/// Draw the playhead indicator
+fn draw_playhead(
+    origin: [2]f32,
+    height: f32,
+    scale: f32,
+    track_height: f32,
+) void
+{
+    const playhead_x = origin[0] + time_to_pixel(STATE.timeline.playhead, scale);
+
+    const draw_list = zgui.getWindowDrawList();
+
+    // Draw vertical line
+    draw_list.addLine(
+        .{
+            .p1 = .{ playhead_x, origin[1] },
+            .p2 = .{ playhead_x, origin[1] + height },
+            .col = TimelineColors.playhead_line,
+            .thickness = 2.0,
+        },
+    );
+
+    // Draw triangle at top
+    const arrow_size: f32 = @min(track_height / 2, 12);
+    draw_list.addTriangleFilled(
+        .{
+            .p1 = .{ playhead_x - arrow_size / 2, origin[1] },
+            .p2 = .{ playhead_x + arrow_size / 2, origin[1] },
+            .p3 = .{ playhead_x, origin[1] + arrow_size },
+            .col = TimelineColors.playhead_line,
+        },
+    );
+
+    // Draw time label
+    draw_list.addText(
+        .{ playhead_x + 5, origin[1] + 2 },
+        TimelineColors.label,
+        "{d:.2}s",
+        .{STATE.timeline.playhead},
+    );
+}
+
+/// Draw inspector tab content for selected object
+fn draw_inspector_tab() void {
+    if (STATE.maybe_current_selected_object) |selected| {
+        // Name
+        zgui.text("Name", .{});
+        zgui.sameLine(.{ .offset_from_start_x = 100 });
+        zgui.text("{s}", .{selected.name() orelse "(unnamed)"});
+
+        zgui.spacing();
+
+        // Schema (type)
+        zgui.text("Schema", .{});
+        zgui.sameLine(.{ .offset_from_start_x = 100 });
+        zgui.text("{s}", .{@tagName(selected)});
+
+        zgui.spacing();
+        zgui.separatorText("Trimmed Range");
+
+        // Try to get bounds
+        if (selected.bounds_of(STATE.allocator, .presentation)) |bounds| {
+            var tc_buf1: [16]u8 = undefined;
+            var tc_buf2: [16]u8 = undefined;
+            var tc_buf3: [16]u8 = undefined;
+
+            zgui.text("Start", .{});
+            zgui.sameLine(.{ .offset_from_start_x = 100 });
+            zgui.text("{s}", .{format_timecode(&tc_buf1, bounds.start.as(f32))});
+
+            zgui.text("Duration", .{});
+            zgui.sameLine(.{ .offset_from_start_x = 100 });
+            zgui.text("{s}", .{format_timecode(&tc_buf2, bounds.duration().as(f32))});
+
+            zgui.text("End", .{});
+            zgui.sameLine(.{ .offset_from_start_x = 100 });
+            zgui.text("{s}", .{format_timecode(&tc_buf3, bounds.end.as(f32))});
+        } else |_| {
+            zgui.text("(no bounds)", .{});
+        }
+    } else {
+        zgui.textDisabled("No selection", .{});
+    }
+}
+
+/// Draw JSON tab content - shows raw OTIO JSON for selected object
+fn draw_json_tab() void {
+    if (STATE.maybe_current_selected_object) |selected| {
+        // Show the tag name and item details
+        zgui.text("{s}", .{@tagName(selected)});
+        if (selected.name()) |name| {
+            zgui.text("name: \"{s}\"", .{name});
+        }
+        // TODO: Add actual JSON serialization of the selected object
+        zgui.textDisabled("(Full JSON serialization not yet implemented)", .{});
+    } else {
+        zgui.textDisabled("No selection", .{});
+    }
+}
+
+/// Draw Markers tab content - shows markers on selected object
+fn draw_markers_tab() void {
+    if (STATE.maybe_current_selected_object) |selected| {
+        // TODO: Add marker support when CompositionItemHandle gains markers() API
+        zgui.text("Selected: {s}", .{@tagName(selected)});
+        zgui.textDisabled("(Marker listing not yet implemented)", .{});
+    } else {
+        zgui.textDisabled("No selection", .{});
+    }
+}
+
+/// Draw Settings tab content - timeline display settings
+fn draw_settings_tab() void {
+    zgui.separatorText("Timeline Display");
+
+    zgui.text("Track Height", .{});
+    zgui.sameLine(.{ .offset_from_start_x = 100 });
+    zgui.setNextItemWidth(80);
+    _ = zgui.sliderFloat(
+        "##TrackHeight",
+        .{
+            .v = &STATE.timeline.track_height,
+            .min = 20.0,
+            .max = 60.0,
+            .cfmt = "%.0f px",
+        },
+    );
+
+    zgui.text("Zoom", .{});
+    zgui.sameLine(.{ .offset_from_start_x = 100 });
+    zgui.setNextItemWidth(80);
+    _ = zgui.sliderFloat(
+        "##ZoomSetting",
+        .{
+            .v = &STATE.timeline.scale,
+            .min = 10.0,
+            .max = 500.0,
+            .cfmt = "%.0f",
+            .flags = .{ .logarithmic = true },
+        },
+    );
+}
+
+/// Draw the complete inspector panel with tabs
+fn draw_inspector_panel(_: std.mem.Allocator) void {
+    if (zgui.beginTabBar("InspectorTabs", .{})) {
+        defer zgui.endTabBar();
+
+        if (zgui.beginTabItem("Inspector", .{})) {
+            defer zgui.endTabItem();
+            draw_inspector_tab();
+        }
+
+        if (zgui.beginTabItem("JSON", .{})) {
+            defer zgui.endTabItem();
+            draw_json_tab();
+        }
+
+        if (zgui.beginTabItem("Markers", .{})) {
+            defer zgui.endTabItem();
+            draw_markers_tab();
+        }
+
+        if (zgui.beginTabItem("Settings", .{})) {
+            defer zgui.endTabItem();
+            draw_settings_tab();
+        }
+    }
+}
+
+/// Draw the timeline view tab content
+fn draw_timeline_tab(
+    allocator: std.mem.Allocator,
+) !void
+{
+    // Update timeline duration from the loaded OTIO
+    if (STATE.maybe_proj_builder) |builder| {
+        if (builder.input_bounds()) |bounds| {
+            STATE.timeline.start = bounds.start.as(f32);
+            STATE.timeline.duration = bounds.duration().as(f32);
+        }
+    }
+
+    const scale = STATE.timeline.scale;
+    const track_height = STATE.timeline.track_height;
+    const track_label_width: f32 = 80.0;
+    const splitter_width: f32 = 8.0;
+    const min_inspector_width: f32 = 150.0;
+    const max_inspector_width: f32 = 400.0;
+
+    // Get available size for timeline
+    const avail = zgui.getContentRegionAvail();
+
+    // Calculate timeline area width based on resizable inspector
+    const timeline_area_width = avail[0] - STATE.timeline.inspector_width - splitter_width;
+    const content_width = timeline_area_width - track_label_width - 20;
+
+    // Calculate timeline content width - use at least the visible width
+    const timeline_content_width = @max(content_width, STATE.timeline.duration * scale);
+
+    // Collect and categorize tracks using shared function
+    var categorized = try categorize_tracks(allocator, STATE.otio_root);
+    defer categorized.deinit(allocator);
+
+    const video_tracks = categorized.video_tracks.items;
+    const audio_tracks = categorized.audio_tracks.items;
+    const num_tracks = video_tracks.len + audio_tracks.len;
+
+    // Add gap row between video and audio if both present
+    const has_av_gap = video_tracks.len > 0 and audio_tracks.len > 0;
+    const gap_row_height: f32 = if (has_av_gap) track_height * 0.5 else 0;
+
+    // Main horizontal layout: Timeline | Inspector
+    // Timeline area (left)
+    if (zgui.beginChild(
+        "TimelineArea",
+        .{
+            .w = timeline_area_width,
+            .h = avail[1],
+        },
+    )) {
+        defer zgui.endChild();
+
+        const controls_height: f32 = 30.0;  // Height for transport controls at bottom
+
+        // Timeline scroll area (takes remaining space above controls)
+        const timeline_avail = zgui.getContentRegionAvail();
+        if (zgui.beginChild(
+            "TimelineScrollArea",
+            .{
+                .w = timeline_avail[0],
+                .h = timeline_avail[1] - controls_height - 5,  // Leave space for controls
+                .window_flags = .{
+                    .horizontal_scrollbar = true,
+                },
+            },
+        )) {
+            defer zgui.endChild();
+
+            const window_pos = zgui.getCursorScreenPos();
+            const draw_list = zgui.getWindowDrawList();
+
+            // Total height = ruler + video tracks + gap + audio tracks
+            const total_height = @as(f32, @floatFromInt(num_tracks + 1)) * track_height + gap_row_height;
+            draw_list.addRectFilled(
+                .{
+                    .pmin = window_pos,
+                    .pmax = .{
+                        window_pos[0] + track_label_width + timeline_content_width,
+                        window_pos[1] + total_height,
+                    },
+                    .col = TimelineColors.background,
+                },
+            );
+
+            const ruler_origin: [2]f32 = .{
+                window_pos[0] + track_label_width,
+                window_pos[1],
+            };
+
+            // Timeline label
+            draw_list.addRectFilled(
+                .{
+                    .pmin = window_pos,
+                    .pmax = .{ window_pos[0] + track_label_width, window_pos[1] + track_height },
+                    .col = TimelineColors.track_label,
+                },
+            );
+            draw_list.addText(
+                .{ window_pos[0] + 5, window_pos[1] + 5 },
+                TimelineColors.label,
+                "Timeline",
+                .{},
+            );
+
+            draw_timecode_ruler(ruler_origin, timeline_content_width, track_height, scale);
+
+            // Ruler click-to-seek
+            zgui.setCursorScreenPos(ruler_origin);
+            _ = zgui.invisibleButton("##RulerSeek", .{ .w = timeline_content_width, .h = track_height });
+            if (zgui.isItemActive()) {
+                const mouse_pos = zgui.getMousePos();
+                STATE.timeline.playhead = pixel_to_time(mouse_pos[0] - ruler_origin[0], scale);
+                STATE.timeline.playhead = @max(
+                    STATE.timeline.start,
+                    @min(STATE.timeline.start + STATE.timeline.duration, STATE.timeline.playhead),
+                );
+            }
+
+            var row: usize = 1;
+            var row_y_offset: f32 = track_height; // Start after ruler row
+
+            // Draw video tracks in REVERSE order (last in file = highest number = drawn first at top)
+            // So if file has [V1, V2, V3, V4], we iterate backwards to draw V4, V3, V2, V1 top-to-bottom
+            // The label shows the track's position in file (1-indexed), which matches visual convention
+            const total_video = video_tracks.len;
+            var vid_idx: usize = video_tracks.len;
+            while (vid_idx > 0) {
+                vid_idx -= 1;
+                const child = video_tracks[vid_idx];
+                switch (child) {
+                    .track => |track_ptr| {
+                        const row_y = window_pos[1] + row_y_offset;
+                        const label_p0: [2]f32 = .{ window_pos[0], row_y };
+                        const label_p1: [2]f32 = .{ window_pos[0] + track_label_width, row_y + track_height };
+
+                        const is_selected = if (STATE.maybe_current_selected_object) |sel|
+                            std.meta.eql(sel, child)
+                        else
+                            false;
+
+                        draw_list.addRectFilled(
+                            .{
+                                .pmin = label_p0,
+                                .pmax = label_p1,
+                                .col = if (is_selected) TimelineColors.track_label_selected else TimelineColors.track_label,
+                            },
+                        );
+
+                        // Label uses 1-indexed position in file (vid_idx + 1)
+                        // Track at vid_idx=3 (last in file of 4) = V4 = displayed at top
+                        var label_buf: [64]u8 = undefined;
+                        const label = video_track_label(
+                            total_video - 1 - vid_idx,  // visual row: 0 for top track
+                            total_video,
+                            if (track_ptr.name.len > 0) track_ptr.name else null,
+                        );
+                        const track_label_str = label.format(&label_buf);
+
+                        draw_list.addText(.{ label_p0[0] + 5, label_p0[1] + 8 }, TimelineColors.label, "{s}", .{track_label_str});
+
+                        zgui.setCursorScreenPos(label_p0);
+                        zgui.pushPtrId(track_ptr);
+                        _ = zgui.invisibleButton("##TrackLabel", .{ .w = track_label_width, .h = track_height });
+                        if (zgui.isItemClicked(.left)) {
+                            STATE.maybe_current_selected_object = child;
+                        }
+                        zgui.popId();
+
+                        const content_origin: [2]f32 = .{ window_pos[0] + track_label_width, row_y };
+                        try draw_track_content(allocator, child, content_origin, timeline_content_width, track_height, scale, .video);
+
+                        row += 1;
+                        row_y_offset += track_height;
+                    },
+                    else => {},
+                }
+            }
+
+            // Add visual gap between video and audio tracks
+            if (has_av_gap) {
+                row_y_offset += gap_row_height;
+            }
+
+            // Draw audio tracks (in order, A1 at top of audio section)
+            for (audio_tracks, 0..) |child, aud_idx| {
+                switch (child) {
+                    .track => |track_ptr| {
+                        const row_y = window_pos[1] + row_y_offset;
+                        const label_p0: [2]f32 = .{ window_pos[0], row_y };
+                        const label_p1: [2]f32 = .{ window_pos[0] + track_label_width, row_y + track_height };
+
+                        const is_selected = if (STATE.maybe_current_selected_object) |sel|
+                            std.meta.eql(sel, child)
+                        else
+                            false;
+
+                        draw_list.addRectFilled(
+                            .{
+                                .pmin = label_p0,
+                                .pmax = label_p1,
+                                .col = if (is_selected) TimelineColors.track_label_selected else TimelineColors.track_label,
+                            },
+                        );
+
+                        var label_buf: [64]u8 = undefined;
+                        const label = audio_track_label(aud_idx, if (track_ptr.name.len > 0) track_ptr.name else null);
+                        const track_label_str = label.format(&label_buf);
+
+                        draw_list.addText(.{ label_p0[0] + 5, label_p0[1] + 8 }, TimelineColors.label, "{s}", .{track_label_str});
+
+                        zgui.setCursorScreenPos(label_p0);
+                        zgui.pushPtrId(track_ptr);
+                        _ = zgui.invisibleButton("##TrackLabel", .{ .w = track_label_width, .h = track_height });
+                        if (zgui.isItemClicked(.left)) {
+                            STATE.maybe_current_selected_object = child;
+                        }
+                        zgui.popId();
+
+                        const content_origin: [2]f32 = .{ window_pos[0] + track_label_width, row_y };
+                        try draw_track_content(allocator, child, content_origin, timeline_content_width, track_height, scale, .audio);
+
+                        row += 1;
+                        row_y_offset += track_height;
+                    },
+                    else => {},
+                }
+            }
+
+            // Calculate actual total height including gap
+            const total_height_with_gap = row_y_offset;
+            draw_playhead(ruler_origin, total_height_with_gap, scale, track_height);
+
+            zgui.setCursorScreenPos(.{
+                window_pos[0] + track_label_width + timeline_content_width,
+                window_pos[1] + total_height,
+            });
+            zgui.dummy(.{ .w = 1, .h = 1 });
+        }
+
+        // Transport controls at bottom
+        zgui.spacing();
+        {
+            var tc_buf: [16]u8 = undefined;
+            const tc_str = format_timecode(&tc_buf, STATE.timeline.playhead);
+            zgui.text("{s}", .{tc_str});
+
+            zgui.sameLine(.{});
+            zgui.setNextItemWidth(120);
+            _ = zgui.sliderFloat(
+                "##Zoom",
+                .{
+                    .v = &STATE.timeline.scale,
+                    .min = 10.0,
+                    .max = 500.0,
+                    .cfmt = "Zoom: %.0f",
+                    .flags = .{ .logarithmic = true },
+                },
+            );
+
+            zgui.sameLine(.{});
+            if (zgui.button("Fit", .{})) {
+                if (STATE.timeline.duration > 0) {
+                    STATE.timeline.scale = content_width / STATE.timeline.duration;
+                }
+            }
+        }
+    }
+
+    zgui.sameLine(.{});
+
+    // Splitter/resize handle between timeline and inspector
+    {
+        const cursor_pos = zgui.getCursorScreenPos();
+        const draw_list = zgui.getWindowDrawList();
+
+        // Draw splitter bar
+        const splitter_color: u32 = 0xFF3A3A3A;
+        const splitter_hover_color: u32 = 0xFF5A5A5A;
+
+        _ = zgui.invisibleButton(
+            "##TimelineInspectorSplitter",
+            .{ .w = splitter_width, .h = avail[1] },
+        );
+
+        const is_splitter_hovered = zgui.isItemHovered(.{});
+        const is_splitter_active = zgui.isItemActive();
+
+        // Draw visual splitter
+        draw_list.addRectFilled(
+            .{
+                .pmin = cursor_pos,
+                .pmax = .{ cursor_pos[0] + splitter_width, cursor_pos[1] + avail[1] },
+                .col = if (is_splitter_hovered or is_splitter_active)
+                    splitter_hover_color
+                else
+                    splitter_color,
+            },
+        );
+
+        // Handle dragging to resize
+        if (is_splitter_active) {
+            const mouse_delta = zgui.getMouseDragDelta(.left, .{});
+            if (mouse_delta[0] != 0) {
+                // Dragging left increases inspector width, dragging right decreases it
+                STATE.timeline.inspector_width = @max(
+                    min_inspector_width,
+                    @min(
+                        max_inspector_width,
+                        STATE.timeline.inspector_width - mouse_delta[0],
+                    ),
+                );
+                zgui.resetMouseDragDelta(.left);
+            }
+        }
+
+        // Change cursor to resize cursor when hovering
+        if (is_splitter_hovered or is_splitter_active) {
+            zgui.setMouseCursor(.resize_ew);
+        }
+    }
+
+    zgui.sameLine(.{});
+
+    // Inspector panel (right)
+    if (zgui.beginChild(
+        "InspectorPanel",
+        .{
+            .w = STATE.timeline.inspector_width,
+            .h = avail[1],
+            .child_flags = .{
+                .border = true,
+            },
+        },
+    )) {
+        defer zgui.endChild();
+
+        draw_inspector_panel(allocator);
+    }
+}
+
 /// draw the UI
 fn draw(
-) !void 
+) !void
 {
     const vp = zgui.getMainViewport();
     const size = vp.getSize();
@@ -1198,8 +2372,15 @@ fn draw(
                     .{ STATE.target_otio_file }
                 );
                 zgui.separator();
-                
+
                 zgui.textUnformatted(STATE.maybe_file_read_query.?.data);
+            }
+
+            // Timeline tab (raven-like view)
+            if (zgui.beginTabItem("Timeline", .{}))
+            {
+                defer zgui.endTabItem();
+                try draw_timeline_tab(allocator);
             }
         }
 
@@ -1861,9 +3042,13 @@ pub fn main(
                 .{STATE.target_otio_file},
             );
         }
+
+        // Read timeline file - supports .otio, .tla, .tlb, .tlz
+        // Skip metadata for faster visualization
         STATE.otio_root = try otio.read_from_file(
             STATE.allocator,
             STATE.target_otio_file,
+            .{ .file_contents_to_read = .all_except_metadata },
         );
 
         // read the file contents
@@ -1904,7 +3089,7 @@ pub fn main(
 /// Usage message for argument parsing.
 pub fn usage(
     msg: []const u8,
-) void 
+) void
 {
     std.debug.print(
         \\
@@ -1912,9 +3097,19 @@ pub fn usage(
         \\
         \\usage:
         \\  otio_space_visualizer path/to/somefile.otio
+        \\  otio_space_visualizer path/to/somefile.tla
         \\
         \\arguments:
         \\  -h --help: print this message and exit
+        \\
+        \\Supported formats:
+        \\  .otio  - OpenTimelineIO JSON format
+        \\  .tla   - TLA (Timeline ASCII) text format
+        \\  .tlb   - Binary FlatBuffers based format
+        \\  .tlz   - TLZ bundle (ZIP archive)
+        \\
+        \\Note:
+        \\  .tlc   - (Container) formats are not supported presently (TODO)
         \\
         \\{s}
         \\
@@ -1974,4 +3169,146 @@ fn _parse_args(
     return .{
         .input_otio = input_otio_fpath,
     };
+}
+
+// ============================================================================
+// Unit Tests
+// ============================================================================
+
+test "TrackKind.from_name: audio track detection" {
+    // Tracks with "audio" in the name should be detected as audio
+    try std.testing.expectEqual(TrackKind.audio, TrackKind.from_name("Audio"));
+    try std.testing.expectEqual(TrackKind.audio, TrackKind.from_name("audio"));
+    try std.testing.expectEqual(TrackKind.audio, TrackKind.from_name("AUDIO"));
+    try std.testing.expectEqual(TrackKind.audio, TrackKind.from_name("Audio Track 1"));
+    try std.testing.expectEqual(TrackKind.audio, TrackKind.from_name("My Audio"));
+
+    // Tracks without "audio" should be video
+    try std.testing.expectEqual(TrackKind.video, TrackKind.from_name("Video"));
+    try std.testing.expectEqual(TrackKind.video, TrackKind.from_name("Track-001"));
+    try std.testing.expectEqual(TrackKind.video, TrackKind.from_name("Sequence"));
+    try std.testing.expectEqual(TrackKind.video, TrackKind.from_name(null));
+    try std.testing.expectEqual(TrackKind.video, TrackKind.from_name(""));
+    try std.testing.expectEqual(TrackKind.video, TrackKind.from_name("aud")); // too short
+}
+
+test "video_track_label: correct numbering for display" {
+    // With 4 video tracks, from top to bottom: V4, V3, V2, V1
+    const total = 4;
+
+    // Row 0 (top) = V4
+    const label0 = video_track_label(0, total, "Track A");
+    try std.testing.expectEqual(@as(u8, 'V'), label0.prefix);
+    try std.testing.expectEqual(@as(usize, 4), label0.number);
+
+    // Row 1 = V3
+    const label1 = video_track_label(1, total, "Track B");
+    try std.testing.expectEqual(@as(u8, 'V'), label1.prefix);
+    try std.testing.expectEqual(@as(usize, 3), label1.number);
+
+    // Row 2 = V2
+    const label2 = video_track_label(2, total, "Track C");
+    try std.testing.expectEqual(@as(u8, 'V'), label2.prefix);
+    try std.testing.expectEqual(@as(usize, 2), label2.number);
+
+    // Row 3 (bottom of video section) = V1
+    const label3 = video_track_label(3, total, "Track D");
+    try std.testing.expectEqual(@as(u8, 'V'), label3.prefix);
+    try std.testing.expectEqual(@as(usize, 1), label3.number);
+}
+
+test "audio_track_label: correct numbering for display" {
+    // Audio tracks go A1, A2, A3, A4 from top to bottom
+    const label0 = audio_track_label(0, "Audio 1");
+    try std.testing.expectEqual(@as(u8, 'A'), label0.prefix);
+    try std.testing.expectEqual(@as(usize, 1), label0.number);
+
+    const label1 = audio_track_label(1, "Audio 2");
+    try std.testing.expectEqual(@as(u8, 'A'), label1.prefix);
+    try std.testing.expectEqual(@as(usize, 2), label1.number);
+
+    const label3 = audio_track_label(3, null);
+    try std.testing.expectEqual(@as(u8, 'A'), label3.prefix);
+    try std.testing.expectEqual(@as(usize, 4), label3.number);
+}
+
+test "TrackLabel.format: generates correct string" {
+    var buf: [64]u8 = undefined;
+
+    const video_label = TrackLabel{ .prefix = 'V', .number = 4, .name = "MyTrack" };
+    const video_str = video_label.format(&buf);
+    try std.testing.expectEqualStrings("V4: MyTrack", video_str);
+
+    const audio_label = TrackLabel{ .prefix = 'A', .number = 1, .name = null };
+    const audio_str = audio_label.format(&buf);
+    try std.testing.expectEqualStrings("A1: ", audio_str);
+}
+
+test "categorize_tracks: loads and categorizes multiple_track.tla" {
+    const allocator = std.testing.allocator;
+
+    // Load the test file
+    const root = try otio.read_from_file(
+        allocator,
+        "otio_sample_data/multiple_track.tla",
+        .{ .file_contents_to_read = .all_except_metadata },
+    );
+    defer {
+        var r = root;
+        r.deinit(allocator);
+    }
+
+    var categorized = try categorize_tracks(allocator, root);
+    defer categorized.deinit(allocator);
+
+    // multiple_track.tla has 3 video tracks (Track-001, Track-002, Track-003)
+    // and 0 audio tracks
+    try std.testing.expectEqual(@as(usize, 3), categorized.video_tracks.items.len);
+    try std.testing.expectEqual(@as(usize, 0), categorized.audio_tracks.items.len);
+
+    // Check labels - from top to bottom: V3, V2, V1
+    // Video tracks are displayed with highest number at top
+    const total_video = categorized.video_tracks.items.len;
+    for (categorized.video_tracks.items, 0..) |track, row| {
+        const label = video_track_label(row, total_video, track.name());
+        const expected_number = total_video - row; // 3, 2, 1
+        try std.testing.expectEqual(expected_number, label.number);
+    }
+}
+
+test "categorize_tracks: loads and categorizes mixed_tracks.tla" {
+    const allocator = std.testing.allocator;
+
+    // Load the test file with 4 video + 4 audio tracks
+    const root = try otio.read_from_file(
+        allocator,
+        "otio_sample_data/mixed_tracks.tla",
+        .{ .file_contents_to_read = .all_except_metadata },
+    );
+    defer {
+        var r = root;
+        r.deinit(allocator);
+    }
+
+    var categorized = try categorize_tracks(allocator, root);
+    defer categorized.deinit(allocator);
+
+    // mixed_tracks.tla has 4 video tracks and 4 audio tracks
+    try std.testing.expectEqual(@as(usize, 4), categorized.video_tracks.items.len);
+    try std.testing.expectEqual(@as(usize, 4), categorized.audio_tracks.items.len);
+
+    // Video tracks: V4, V3, V2, V1 from top to bottom (reverse order for display)
+    const total_video = categorized.video_tracks.items.len;
+    for (categorized.video_tracks.items, 0..) |_, row| {
+        const label = video_track_label(row, total_video, null);
+        const expected_number = total_video - row; // 4, 3, 2, 1
+        try std.testing.expectEqual(expected_number, label.number);
+    }
+
+    // Audio tracks: A1, A2, A3, A4 from top to bottom (normal order)
+    for (0..categorized.audio_tracks.items.len) |row| {
+        const label = audio_track_label(row, null);
+        const expected_number = row + 1; // 1, 2, 3, 4
+        try std.testing.expectEqual(expected_number, label.number);
+    }
 }

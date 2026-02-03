@@ -135,7 +135,7 @@ pub const Topology = struct {
         };
     }
 
-    /// build a topology with a single identittopologyover the range
+    /// build a topology with a single identity topology over the range
     /// specified
     pub fn init_identity(
         allocator: std.mem.Allocator,

@@ -1,0 +1,259 @@
+.schema_version = 1,
+.name = "Production Asset Collection",
+.description = "A collection of production assets with metadata for color grading workflow",
+.children = [
+    timeline {
+        .schema_version = 1,
+        .name = "Episode 1 - Final Cut",
+        .children = [
+            track {
+                .name = "V1 - Main Video",
+                .children = [
+                    clip {
+                        .name = "INT_KITCHEN_001A",
+                        .bounds_s = continuous [
+                            0.0,
+                            5.5,
+                        ],
+                        .media = {
+                            .data_reference = uri {
+                                .target_uri = "file:///media/ep01/INT_KITCHEN_001A.mov",
+                            },
+                            .bounds_s = continuous [
+                                2.0,
+                                7.5,
+                            ],
+                            .domain = picture {},
+                        },
+                        .metadata_hash = "a1b2c3d4e5f60001",
+                        .markers = [
+                        ],
+                    },
+                    clip {
+                        .name = "INT_KITCHEN_002B",
+                        .bounds_s = continuous [
+                            0.0,
+                            3.25,
+                        ],
+                        .media = {
+                            .data_reference = uri {
+                                .target_uri = "file:///media/ep01/INT_KITCHEN_002B.mov",
+                            },
+                            .bounds_s = continuous [
+                                0.0,
+                                8.0,
+                            ],
+                            .domain = picture {},
+                        },
+                        .metadata_hash = "a1b2c3d4e5f60002",
+                        .markers = [
+                        ],
+                    },
+                    clip {
+                        .name = "EXT_STREET_005C",
+                        .bounds_s = continuous [
+                            0.0,
+                            12.0,
+                        ],
+                        .media = {
+                            .data_reference = uri {
+                                .target_uri = "file:///media/ep01/EXT_STREET_005C.mov",
+                            },
+                            .bounds_s = continuous [
+                                0.0,
+                                15.0,
+                            ],
+                            .domain = picture {},
+                        },
+                        .metadata_hash = "a1b2c3d4e5f60003",
+                        .markers = [
+                        ],
+                    },
+                ],
+                .markers = [
+                ],
+            },
+            track {
+                .name = "A1 - Dialog",
+                .children = [
+                    gap {
+                        .name = "sync_gap",
+                        .bounds_s = [
+                            0.0,
+                            0.5,
+                        ],
+                        .markers = [
+                        ],
+                    },
+                    clip {
+                        .name = "INT_KITCHEN_001A_audio",
+                        .bounds_s = continuous [
+                            0.0,
+                            8.25,
+                        ],
+                        .media = {
+                            .data_reference = uri {
+                                .target_uri = "file:///media/ep01/audio/INT_KITCHEN_001A.wav",
+                            },
+                            .bounds_s = continuous [
+                                2.0,
+                                10.25,
+                            ],
+                            .domain = audio {},
+                        },
+                        .metadata_hash = "b2c3d4e5f6a70001",
+                        .markers = [
+                        ],
+                    },
+                ],
+                .markers = [
+                ],
+            },
+        ],
+        .presentation_space_discrete_partitions = {},
+        .metadata_map = {
+            "a1b2c3d4e5f60001": {
+                "clip_info": {
+                    "scene": "INT_KITCHEN",
+                    "shot": "001",
+                    "take": "A",
+                    "camera": "ARRI Alexa Mini",
+                    "lens": "32mm Cooke S4",
+                },
+                "color_pipeline": {
+                    "input_transform": "ARRI LogC4",
+                    "working_space": "ACEScg",
+                    "cdl_slope_r": 1.1,
+                    "cdl_slope_g": 1.0,
+                    "cdl_slope_b": 0.95,
+                    "cdl_offset_r": 0.01,
+                    "cdl_offset_g": 0.0,
+                    "cdl_offset_b": -0.02,
+                    "cdl_power_r": 1.0,
+                    "cdl_power_g": 1.0,
+                    "cdl_power_b": 1.0,
+                    "cdl_saturation": 1.05,
+                },
+                "notes": "Hero shot - ensure skin tones match reference",
+            },
+            "a1b2c3d4e5f60002": {
+                "clip_info": {
+                    "scene": "INT_KITCHEN",
+                    "shot": "002",
+                    "take": "B",
+                    "camera": "ARRI Alexa Mini",
+                    "lens": "50mm Cooke S4",
+                },
+                "color_pipeline": {
+                    "input_transform": "ARRI LogC4",
+                    "working_space": "ACEScg",
+                },
+                "notes": "Close-up - match to 001A",
+            },
+            "a1b2c3d4e5f60003": {
+                "clip_info": {
+                    "scene": "EXT_STREET",
+                    "shot": "005",
+                    "take": "C",
+                    "camera": "RED V-Raptor",
+                    "lens": "85mm Zeiss Supreme",
+                },
+                "color_pipeline": {
+                    "input_transform": "RED IPP2 Log3G10",
+                    "working_space": "ACEScg",
+                    "lut_path": "/luts/day_exterior_v2.cube",
+                },
+                "notes": "Day exterior - use standard day LUT, watch highlights",
+                "vfx_required": true,
+                "vfx_vendor": "ILM",
+            },
+            "b2c3d4e5f6a70001": {
+                "audio_info": {
+                    "recorder": "Sound Devices 888",
+                    "sample_rate": 48000,
+                    "bit_depth": 24,
+                    "channels": "stereo boom",
+                },
+                "notes": "Clean dialog, minimal background noise",
+            },
+        },
+        .markers = [
+        ],
+    },
+    clip {
+        .name = "B-Roll: City Establishing",
+        .bounds_s = continuous [
+            0.0,
+            8.0,
+        ],
+        .media = {
+            .data_reference = uri {
+                .target_uri = "file:///media/broll/city_establishing_4k.mov",
+            },
+            .bounds_s = continuous [
+                0.0,
+                30.0,
+            ],
+            .domain = picture {},
+        },
+        .metadata_hash = "c3d4e5f6a7b80001",
+        .markers = [
+        ],
+    },
+    clip {
+        .name = "B-Roll: Traffic Timelapse",
+        .bounds_s = continuous [
+            0.0,
+            15.0,
+        ],
+        .media = {
+            .data_reference = uri {
+                .target_uri = "file:///media/broll/traffic_timelapse.mov",
+            },
+            .bounds_s = continuous [
+                0.0,
+                60.0,
+            ],
+            .domain = picture {},
+        },
+        .metadata_hash = "c3d4e5f6a7b80002",
+        .markers = [
+        ],
+    },
+],
+.metadata_map = {
+    "c3d4e5f6a7b80001": {
+        "clip_info": {
+            "location": "Downtown Los Angeles",
+            "time_of_day": "Golden Hour",
+            "camera": "Sony FX6",
+            "lens": "24-70mm GM",
+        },
+        "licensing": {
+            "source": "Stock Library",
+            "license_type": "Royalty Free",
+            "expiration": "perpetual",
+        },
+        "notes": "Wide establishing shot - use for episode openers",
+    },
+    "c3d4e5f6a7b80002": {
+        "clip_info": {
+            "location": "Highway 101",
+            "time_of_day": "Day to Night",
+            "camera": "RED Komodo",
+            "lens": "50mm Sigma Art",
+            "interval_seconds": 2,
+            "total_frames": 1800,
+        },
+        "licensing": {
+            "source": "In-house Production",
+            "license_type": "Work for Hire",
+            "project": "City Series 2024",
+        },
+        "post_processing": {
+            "speed_ramp": true,
+            "color_grade": "cinematic_blue",
+        },
+        "notes": "Timelapse with speed ramp - good for transitions",
+    },
+},

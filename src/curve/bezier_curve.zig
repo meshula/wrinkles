@@ -1239,7 +1239,7 @@ pub const Bezier = struct {
             self,
             .{},
             &writer.writer,
-        ); 
+        );
         return writer.toOwnedSlice();
     }
 
