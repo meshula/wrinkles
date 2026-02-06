@@ -21,8 +21,8 @@
             .hash = "zig_wav_io-0.1.0-PYygzNEMAQDo94KcwXYc99epSh1go4VSYgIdCmPB02Kr",
         },
         .zgui_cimgui_implot_sokol = .{
-            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol#68cbce413883e6d8806c5da304a4a6f3c93cf125",
-            .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXtkNCAAVNEezE-MaA8CWf_y3Ms9vWk_teKoXW-jG",
+            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol#95dcaa47ff6f1e6f4233c975b6c9a431a07f96cc",
+            .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXq5sCQBOlN0qqksv-2HBPeE6qaLhJolAmFldWhO4",
         },
         .ziggy = .{
             .url = "git+https://github.com/ssteinbach/ziggy#ddeed2f372f2fbd9db74fdf7ac12a62e3826abf0",
