@@ -3204,21 +3204,9 @@ test "timeline serialization: tla round-trip"
 // ----------------------------------------------------------------------------
 
 
-/// Supported file format types for read/write operations
-pub const FileFormat = enum {
-    /// OpenTimelineIO v1 legacy JSON format
-    otio,
-    /// TLA (Timeline ASCII) text format
-    tla,
-    /// TLB (Timeline Binary) flatbuffers-based binary format
-    tlb,
-    /// TLZ bundle (ZIP archive of playlist + media)
-    tlz,
-    /// TLCA (Timeline Collection ASCII) text format
-    tlca,
-    /// TLCB (Timeline Collection Binary) flatbuffers-based binary format
-    tlcb,
-};
+/// Supported file format types for read/write operations.
+/// Re-exported from adapter for backward compatibility.
+pub const FileFormat = adapter.FileFormat;
 
 /// Read a timeline from a buffer into SerializableTimeline.
 /// Supports: .otio (JSON), .tla, .tlb (FlatBuffers)
@@ -3271,7 +3259,7 @@ pub fn read_from_buffer(
             // TLZ is a ZIP archive that requires file system access
             return error.TlzRequiresFileAccess;
         },
-        .tlca, .tlcb => {
+        .tlca, .tlcb, .tlcz => {
             // Collection formats are not timelines
             return error.NotATimelineFormat;
         },
@@ -3412,7 +3400,7 @@ pub fn write_serializable_to_writer(
         .tlz => {
             return error.TlzRequiresFileAccess;
         },
-        .tlca, .tlcb => {
+        .tlca, .tlcb, .tlcz => {
             // Collection formats are not timelines - use write_collection_to_writer instead
             return error.NotATimelineFormat;
         },

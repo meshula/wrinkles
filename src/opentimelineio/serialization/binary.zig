@@ -31,6 +31,7 @@ const references = @import("../references.zig");
 // local
 const legacy_json = @import("legacy_json.zig");
 const ascii = @import("ascii.zig");
+const adapter = @import("adapter.zig");
 
 /// Alias for the composable union type used by schema types
 const CompositionItemHandle = references.CompositionItemHandle;
@@ -4392,15 +4393,19 @@ test "roundtrip: production_test_files (optional)"
     try std.testing.expect(failed == 0);
 }
 
-// Bridge fucntions to Adapter API
+// Bridge functions to Adapter API
 ///////////////////////////////////////////////////////////////////////////////
 
 /// Bridge function for reading binary collection (TLCB) format from a reader.
+/// Conforms to adapter.fn_read_collection_from_reader signature.
 pub fn read_binary_collection_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
+    metadata_mode: adapter.MetadataOptions.Read,
 ) anyerror!ascii.SerializableCollection
 {
+    _ = metadata_mode; // Binary format doesn't support metadata filtering
+
     const buffer = try reader.readAlloc(
         allocator,
         std.math.maxInt(u32),
@@ -4414,14 +4419,16 @@ pub fn read_binary_collection_from_reader(
 }
 
 /// Bridge function for writing binary collection (TLCB) format to a writer.
+/// Conforms to adapter.fn_write_collection_to_writer signature.
 pub fn write_binary_collection_to_writer(
     allocator: std.mem.Allocator,
     collection: ascii.SerializableCollection,
     writer: *std.Io.Writer,
-    options: anytype,
+    metadata_mode: adapter.MetadataOptions.Write,
 ) anyerror!void
 {
-    _ = options;
+    _ = metadata_mode; // Binary format always includes all metadata
+
     return serialize_collection(
         collection,
         allocator,
@@ -4430,14 +4437,16 @@ pub fn write_binary_collection_to_writer(
 }
 
 /// Bridge function for writing binary (TLB) format to a writer.
+/// Conforms to adapter.fn_write_timeline_to_writer signature.
 pub fn write_binary_serializable_to_writer(
     allocator: std.mem.Allocator,
     intermediate_tl: ascii.SerializableTimeline,
     writer: *std.Io.Writer,
-    options: anytype,
+    metadata_mode: adapter.MetadataOptions.Write,
 ) anyerror!void
 {
-    _ = options;
+    _ = metadata_mode; // Binary format always includes all metadata
+
     return serialize_from_serializable_timeline(
         intermediate_tl,
         allocator,
@@ -4446,11 +4455,15 @@ pub fn write_binary_serializable_to_writer(
 }
 
 /// Bridge function for reading binary (TLB) format from a reader.
+/// Conforms to adapter.fn_read_timeline_from_reader signature.
 pub fn read_binary_timeline_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
+    metadata_mode: adapter.MetadataOptions.Read,
 ) anyerror!ascii.SerializableTimeline
 {
+    _ = metadata_mode; // Binary format doesn't support metadata filtering
+
     const buffer = try reader.readAlloc(
         allocator,
         std.math.maxInt(u32),

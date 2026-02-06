@@ -29,8 +29,8 @@ const serialization = otio.serialization;
 
 const builtin = @import("builtin");
 
-/// Re-export MetadataMode from serialization for argument parsing
-const MetadataMode = serialization.MetadataMode;
+/// Use the new unified WriteOptions.MetadataMode
+const MetadataMode = serialization.WriteOptions.MetadataMode;
 
 const State = struct {
     input_path: []const u8,
@@ -320,7 +320,7 @@ pub fn main(
     );
 
     const output_format = std.meta.stringToEnum(
-        serialization.ascii.FileFormat,
+        serialization.FileFormat,
         output_ext[1..],  // Skip the leading dot
     ) orelse {
         std.log.err(
@@ -494,9 +494,9 @@ pub fn main(
             {
                 try serialization.write_to_file(
                     allocator,
-                    tl_ref.timeline,
+                    tl_ref,
                     path,
-                    state.metadata_mode,
+                    .{ .metadata_mode = state.metadata_mode },
                 );
             }
             else
@@ -507,12 +507,12 @@ pub fn main(
                 var file_writer = out_file.writer(&file_writer_buffer);
                 const writer = &file_writer.interface;
 
-                try serialization.ascii.write_timeline_to_writer(
+                try serialization.write_to_writer(
                     allocator,
-                    tl_ref.timeline,
-                    output_format,
-                    state.metadata_mode,
+                    tl_ref,
                     writer,
+                    output_format,
+                    .{ .metadata_mode = state.metadata_mode },
                 );
 
                 try writer.flush();
