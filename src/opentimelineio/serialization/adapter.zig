@@ -53,21 +53,23 @@ const ascii = @import("ascii.zig");
 const binary = @import("binary.zig");
 const bundle = @import("bundle.zig");
 const legacy_json = @import("legacy_json.zig");
+const references = @import("../references.zig");
 
 // Configuration Enums
 ///////////////////////////////////////////////////////////////////////////////
 
 pub const MetadataOptions = struct {
-    pub const Write = ascii.MetadataMode;
-    // pub const Write = enum {
-    //     hash_reference,
-    //     no_metadata,
-    //
-    //     // only used for serializing to stdout
-    //     inline_metadata,
-    //
-    //     pub const default = .hash_reference;
-    // };
+    /// Controls how metadata is output in TLA format
+    pub const Write = enum {
+        /// Default behavior: use hash references with metadata_map
+        hash_reference,
+        /// Omit all metadata from output
+        no_metadata,
+        /// Print metadata inline on each clip
+        inline_metadata,
+
+        pub const default: Write = .hash_reference;
+    };
 
     pub const Read = enum {
         all,
@@ -128,7 +130,7 @@ const SerializableFormat = struct {
     _read_collection_from_reader: ?*const fn_read_collection_from_reader = null,
 
     pub fn write_timeline_to_writer(
-        self: *SerializableFormat,
+        self: *const SerializableFormat,
         allocator: std.mem.Allocator,
         ser_timeline: ascii.SerializableTimeline,
         writer: *std.Io.Writer,
@@ -150,10 +152,10 @@ const SerializableFormat = struct {
     }
 
     pub fn read_timeline_from_reader(
-        self: *SerializableFormat,
+        self: *const SerializableFormat,
         allocator: std.mem.Allocator,
         reader: *std.Io.Reader,
-        metadata_mode: MetadataOptions.Reader,
+        metadata_mode: MetadataOptions.Read,
     ) anyerror ! ascii.SerializableTimeline
     {
         if (self._read_timeline_from_reader)
@@ -170,7 +172,7 @@ const SerializableFormat = struct {
     }
 
     pub fn write_collection_to_writer(
-        self: *SerializableFormat,
+        self: *const SerializableFormat,
         allocator: std.mem.Allocator,
         ser_collection: ascii.SerializableCollection,
         writer: *std.Io.Writer,
@@ -192,7 +194,7 @@ const SerializableFormat = struct {
     }
 
     pub fn read_collection_from_reader(
-        self: *SerializableFormat,
+        self: *const SerializableFormat,
         allocator: std.mem.Allocator,
         reader: *std.Io.Reader,
         metadata_mode: MetadataOptions.Reader,
@@ -222,25 +224,23 @@ pub const TLA_Adapter: SerializableFormat = .{
     ._read_collection_from_reader = ascii.read_ascii_collection_from_reader,
 };
 
-pub const TLB_Adapter: SerializableFormat = .{
-    .suffix = "tlb",
-    .description = "Native binary format (FlatBuffers) with a timeline root",
-
-    ._write_timeline_to_writer = binary.write_binary_serializable_to_writer,
-    ._read_timeline_from_reader = binary.read_binary_timeline_from_reader,
-
-._write_collection_to_writer = binary.write_binary_collection_to_writer,
-    ._read_collection_from_reader = binary.read_binary_collection_from_reader,
-};
-
-pub const OTIO_Adapter: SerializableFormat = .{
-    .suffix = "otio",
-    .description = "OpenTimelineIO v1 JSON format (read-only)",
-
-    // OTIO is read-only - writing is not supported
-    ._write_timeline_to_writer = null,
-    ._read_timeline_from_reader = legacy_json.read_otio_timeline_from_reader,
-};
+// pub const TLB_Adapter: SerializableFormat = .{
+//     .description = "Native binary format (FlatBuffers) with a timeline root",
+//
+//     ._write_timeline_to_writer = binary.write_binary_serializable_to_writer,
+//     ._read_timeline_from_reader = binary.read_binary_timeline_from_reader,
+//
+// ._write_collection_to_writer = binary.write_binary_collection_to_writer,
+//     ._read_collection_from_reader = binary.read_binary_collection_from_reader,
+// };
+//
+// pub const OTIO_Adapter: SerializableFormat = .{
+//     .description = "OpenTimelineIO v1 JSON format (read-only)",
+//
+//     // OTIO is read-only - writing is not supported
+//     ._write_timeline_to_writer = null,
+//     ._read_timeline_from_reader = legacy_json.read_otio_timeline_from_reader,
+// };
 
 /// Mapping of Suffix to FormatAdapter
 pub const FormatSuffix = struct {
@@ -249,15 +249,15 @@ pub const FormatSuffix = struct {
     pub const tlac = TLA_Adapter;
 
     // TLB Formats
-    pub const tlb = TLB_Adapter;
-    pub const tlbc = TLB_Adapter;
+    // pub const tlb = TLB_Adapter;
+    // pub const tlbc = TLB_Adapter;
 
     // bundle
     pub const tlz = TLA_Adapter;
     pub const tlcz = TLA_Adapter;
 
     // OTIO
-    pub const otio = OTIO_Adapter;
+    // pub const otio = OTIO_Adapter;
 };
 
 // Utility
@@ -409,8 +409,8 @@ pub fn read_serializable_timeline_from_reader(
 {
     const adapter = switch (format) {
         .tla => FormatSuffix.tla,
-        .tlb => FormatSuffix.tlb,
-        .otio => FormatSuffix.otio,
+        // .tlb => FormatSuffix.tlb,
+        // .otio => FormatSuffix.otio,
         else => return error.NotImplemented,
     };
 
@@ -424,7 +424,7 @@ pub fn read_serializable_timeline_from_reader(
 pub fn read_serializable_timeline_from_file(
     allocator: std.mem.Allocator,
     file_path: []const u8,
-    metadata_mode: MetadataOptions.Reader,
+    metadata_mode: MetadataOptions.Read,
 ) ! ascii.SerializableTimeline
 {
     const format = try format_for_file(file_path);
@@ -439,15 +439,15 @@ pub fn read_serializable_timeline_from_file(
     const file = try std.fs.cwd().createFile(file_path, .{});
     defer file.close();
 
-    const file_reader_buffer: [16*1024]u8 = undefined;
-    var file_reader = file.reader(file_reader_buffer);
+    var file_reader_buffer: [16*1024]u8 = undefined;
+    var file_reader = file.reader(&file_reader_buffer);
     const reader = &file_reader.interface;
 
-    try read_serializable_timeline_from_reader(
+    return try read_serializable_timeline_from_reader(
         allocator,
+        reader,
         format,
         metadata_mode,
-        reader,
     );
 }
 
@@ -495,3 +495,20 @@ pub fn read_collection_from_bundle(
 {
     // implement this
 }
+
+pub const read = struct {
+    pub fn from_file(
+    ) references.CompositionItemHandle
+    {
+    }
+
+    pub const serializable
+
+    pub const timeline = struct {
+        pub fn from_file(
+        ) schema.
+    };
+
+    pub const collection = struct {
+    };
+};

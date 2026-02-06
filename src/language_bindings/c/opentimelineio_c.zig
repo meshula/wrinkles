@@ -143,7 +143,7 @@ pub export fn write_timeline_to_file(
         allocator,
         timeline,
         filepath,
-        .{}, // default options
+        .hash_reference, // default options
     ) catch |err| {
         std.log.err("write_timeline_to_file: couldn't write file '{s}': {any}\n", .{filepath, err});
         return -1;

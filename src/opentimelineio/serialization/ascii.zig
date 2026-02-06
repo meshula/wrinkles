@@ -43,7 +43,7 @@ pub fn write_timeline_to_writer(
     allocator: std.mem.Allocator,
     timeline: *schema.Timeline,
     format: FileFormat,
-    options: WriteOptions,
+    metadata_mode: adapter.MetadataOptions.Write,
     writer: anytype,
 ) !void
 {
@@ -54,7 +54,7 @@ pub fn write_timeline_to_writer(
         allocator,
         ser_timeline,
         format,
-        options,
+        metadata_mode,
         writer,
     );
 }
@@ -3326,7 +3326,7 @@ pub fn read_from_file(
 /// Options for writing timeline files
 pub const WriteOptions = struct {
     /// Controls how metadata is output in TLA format
-    metadata_mode: MetadataMode = .hash_reference,
+    metadata_mode: adapter.MetadataOptions.Write = .hash_reference,
 
     /// TLZ bundle format (tla or tlb inside the bundle)
     bundle_format: bundle_utils.BundleFormat = .tla,
@@ -3336,16 +3336,6 @@ pub const WriteOptions = struct {
 
     /// Base directory for resolving media paths (for TLZ bundles)
     media_base_dir: ?[]const u8 = null,
-};
-
-/// Controls how metadata is output in TLA format
-pub const MetadataMode = enum {
-    /// Default behavior: use hash references with metadata_map
-    hash_reference,
-    /// Omit all metadata from output
-    no_metadata,
-    /// Print metadata inline on each clip
-    inline_metadata,
 };
 
 /// Write a SerializableTimeline to an allocated buffer.
@@ -3360,7 +3350,7 @@ pub fn write_to_buffer(
     allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
     format: FileFormat,
-    options: WriteOptions,
+    metadata_mode: adapter.MetadataOptions.Write,
 ) ![]u8
 {
     switch (format)
@@ -3381,7 +3371,7 @@ pub fn write_to_buffer(
         allocator,
         intermediate_tl,
         format,
-        options,
+        metadata_mode,
         &buffer.writer,
     );
 
@@ -3396,7 +3386,7 @@ pub fn write_serializable_to_writer(
     allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
     format: FileFormat,
-    options: WriteOptions,
+    metadata_mode: adapter.MetadataOptions.Write,
     writer: anytype,
 ) anyerror!void
 {
@@ -3405,7 +3395,7 @@ pub fn write_serializable_to_writer(
             try write_tla_with_metadata_mode(
                 allocator,
                 intermediate_tl,
-                options.metadata_mode,
+                metadata_mode,
                 writer,
             );
         },
@@ -3433,7 +3423,7 @@ pub fn write_serializable_to_writer(
 fn write_tla_with_metadata_mode(
     allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
-    metadata_mode: MetadataMode,
+    metadata_mode: adapter.MetadataOptions.Write,
     writer: anytype,
 ) !void
 {
@@ -3563,7 +3553,7 @@ pub fn read_collection_from_file(
 /// Options for writing collection files (subset of WriteOptions relevant to collections)
 pub const CollectionWriteOptions = struct {
     /// Controls how metadata is output in TLCA format
-    metadata_mode: MetadataMode = .hash_reference,
+    metadata_mode: adapter.MetadataOptions.Write = .hash_reference,
 };
 
 /// Write a SerializableCollection to a buffer.
@@ -3573,14 +3563,20 @@ pub fn write_collection_to_buffer(
     allocator: std.mem.Allocator,
     collection: SerializableCollection,
     format: FileFormat,
-    options: CollectionWriteOptions,
+    metadata_mode: adapter.MetadataOptions.Write,
 ) ![]u8
 {
     // Use an allocating writer to build the buffer
     var buffer = std.Io.Writer.Allocating.init(allocator);
     errdefer buffer.deinit();
 
-    try write_collection_to_writer(allocator, collection, format, options, &buffer.writer);
+    try write_collection_to_writer(
+        allocator,
+        collection,
+        format,
+        metadata_mode,
+        &buffer.writer,
+    );
 
     return try buffer.toOwnedSlice();
 }
@@ -3592,7 +3588,7 @@ pub fn write_collection_to_file(
     allocator: std.mem.Allocator,
     collection: SerializableCollection,
     file_path: []const u8,
-    options: CollectionWriteOptions,
+    options: adapter.MetadataOptions.Write,
 ) !void
 {
     // Check file extension to determine format
@@ -3613,7 +3609,13 @@ pub fn write_collection_to_file(
     var file_writer = file.writer(&file_writer_buffer);
     const writer = &file_writer.interface;
 
-    try write_collection_to_writer(allocator, collection, format, options, writer);
+    try write_collection_to_writer(
+        allocator,
+        collection,
+        format,
+        options,
+        writer,
+    );
 
     try writer.flush();
 }
@@ -3623,7 +3625,7 @@ pub fn write_collection_to_writer(
     allocator: std.mem.Allocator,
     collection: SerializableCollection,
     format: FileFormat,
-    options: CollectionWriteOptions,
+    metadata_mode: adapter.MetadataOptions.Write,
     writer: anytype,
 ) !void
 {
@@ -3632,7 +3634,7 @@ pub fn write_collection_to_writer(
             try write_tlca_with_metadata_mode(
                 allocator,
                 collection,
-                options.metadata_mode,
+                metadata_mode,
                 writer,
             );
         },
@@ -3652,7 +3654,7 @@ pub fn write_collection_to_writer(
 fn write_tlca_with_metadata_mode(
     allocator: std.mem.Allocator,
     collection: SerializableCollection,
-    metadata_mode: MetadataMode,
+    metadata_mode: adapter.MetadataOptions.Write,
     writer: anytype,
 ) !void
 {
@@ -4035,11 +4037,20 @@ test "collection serialization: tlca round-trip"
     };
 
     // Serialize to TLCA
-    const buffer = try write_collection_to_buffer(allocator, original, .tlca, .{});
+    const buffer = try write_collection_to_buffer(
+        allocator,
+        original,
+        .tlca,
+        .hash_reference
+    );
     defer allocator.free(buffer);
 
     // Deserialize back
-    var roundtrip = try read_collection_from_buffer(allocator, buffer, .tlca);
+    var roundtrip = try read_collection_from_buffer(
+        allocator,
+        buffer,
+        .tlca,
+    );
     defer roundtrip.deinit(allocator);
 
     // Verify
@@ -4072,7 +4083,12 @@ test "collection serialization: tlcb round-trip"
     };
 
     // Serialize to TLCB
-    const buffer = try write_collection_to_buffer(allocator, original, .tlcb, .{});
+    const buffer = try write_collection_to_buffer(
+        allocator,
+        original,
+        .tlcb,
+        .hash_reference,
+    );
     defer allocator.free(buffer);
 
     // Deserialize back
@@ -4112,7 +4128,12 @@ test "collection serialization: tlca to tlcb cross-format"
     };
 
     // Serialize to TLCA first
-    const tlca_buffer = try write_collection_to_buffer(allocator, original, .tlca, .{});
+    const tlca_buffer = try write_collection_to_buffer(
+        allocator,
+        original,
+        .tlca,
+        .hash_reference,
+    );
     defer allocator.free(tlca_buffer);
 
     // Read TLCA back
@@ -4120,7 +4141,12 @@ test "collection serialization: tlca to tlcb cross-format"
     defer from_tlca.deinit(allocator);
 
     // Convert to TLCB
-    const tlcb_buffer = try write_collection_to_buffer(allocator, from_tlca, .tlcb, .{});
+    const tlcb_buffer = try write_collection_to_buffer(
+        allocator,
+        from_tlca,
+        .tlcb,
+        .hash_reference,
+    );
     defer allocator.free(tlcb_buffer);
 
     // Read TLCB back
@@ -4136,28 +4162,35 @@ test "collection serialization: tlca to tlcb cross-format"
 pub fn read_timeline_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
+    metadata_mode: adapter.MetadataOptions.Read,
 ) anyerror!SerializableTimeline
 {
+    _ = metadata_mode;
+
     const buffer = try reader.readAlloc(
         allocator,
         std.math.maxInt(u32),
     );
 
-    return try read_from_buffer(allocator, buffer, .tla);
+    return try read_from_buffer(
+        allocator,
+        buffer,
+        .tla,
+    );
 }
 
 pub fn write_ascii_serializable_to_writer(
     allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
     writer: *std.Io.Writer,
-    options: anytype,
+    metadata_mode: adapter.MetadataOptions.Write,
 ) anyerror!void
 {
     return write_serializable_to_writer(
         allocator,
         intermediate_tl,
         .tla,
-        options,
+        metadata_mode,
         writer,
     );
 }
@@ -4166,8 +4199,11 @@ pub fn write_ascii_serializable_to_writer(
 pub fn read_ascii_collection_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
+    metadata_mode: adapter.MetadataOptions.Read,
 ) anyerror!SerializableCollection
 {
+    _ = metadata_mode;
+
     const buffer = try reader.readAlloc(
         allocator,
         std.math.maxInt(u32),
@@ -4186,14 +4222,14 @@ pub fn write_ascii_collection_to_writer(
     allocator: std.mem.Allocator,
     collection: SerializableCollection,
     writer: *std.Io.Writer,
-    options: anytype,
+    metadata_mode: adapter.MetadataOptions.Write,
 ) anyerror!void
 {
     return write_collection_to_writer(
         allocator,
         collection,
         .tlca,
-        .{ .metadata_mode = options.metadata_mode },
+        metadata_mode,
         writer,
     );
 }

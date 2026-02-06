@@ -4068,7 +4068,7 @@ fn run_roundtrip_test_from_paths(
         allocator,
         timeline_from_tla,
         .tla,
-        .{},
+        .hash_reference,
     );
     defer allocator.free(tla_output);
 
@@ -4095,7 +4095,7 @@ fn run_roundtrip_test_from_paths(
         allocator,
         timeline_from_tlb,
         .tla,
-        .{},
+        .hash_reference,
     );
     defer allocator.free(tlb_output);
 

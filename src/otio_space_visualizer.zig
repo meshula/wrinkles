@@ -2098,10 +2098,13 @@ fn draw(
         else {
             // fire off the callback to load the file
             STATE.maybe_file_read_query = (
-                try app_wrapper.fetch_resource_from_path(
+                try app_wrapper.fetch_resource(
                     STATE.allocator,
                     STATE.target_otio_file, 
-                    null,
+                    .{
+                        // if there is compression, handle it in the OTIO layer
+                        .compression = .auto_detect,
+                    },
                 )
             );
         }
@@ -2373,7 +2376,10 @@ fn draw(
                 );
                 zgui.separator();
 
-                zgui.textUnformatted(STATE.maybe_file_read_query.?.data);
+                // @TODO: this should only display when ascii data is loaded
+                zgui.textUnformatted(
+                    STATE.maybe_file_read_query.?.result_data_buffer,
+                );
             }
 
             // Timeline tab (raven-like view)

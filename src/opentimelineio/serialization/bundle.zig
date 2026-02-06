@@ -107,7 +107,7 @@ pub fn readFromFile(
         return TlzError.InvalidArchive;
 
     // Iterate through central directory entries
-    var cd_offset: u64 = end_record.central_directory_offset;
+    var cd_offset: usize = end_record.central_directory_offset;
 
     for (0..end_record.record_count_total)
         |_|

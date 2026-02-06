@@ -47,7 +47,12 @@ const State = struct {
     ) void
     {
         allocator.free(self.input_path);
-        if (self.output_path) |path| allocator.free(path);
+
+        if (self.output_path) 
+            |path| 
+        {
+            allocator.free(path);
+        }
     }
 };
 
@@ -228,12 +233,18 @@ fn get_extension(
     path: []const u8,
 ) ?[]const u8
 {
-    const ext_start = std.mem.lastIndexOfScalar(u8, path, '.') orelse return null;
+    const ext_start = std.mem.lastIndexOfScalar(
+        u8,
+        path,
+        '.',
+    ) orelse return null;
+
     return path[ext_start..];
 }
 
 
-pub fn main() !void
+pub fn main(
+) !void
 {
     // Use the debug allocator in debug builds, otherwise use smp
     const parent_allocator = if (builtin.mode == .Debug) alloc: {
@@ -257,7 +268,10 @@ pub fn main() !void
     const read_prog = parent_prog.start("Reading input file...", 0);
 
     var found = true;
-    std.fs.cwd().access(state.input_path, .{}) catch |e| switch (e) {
+    std.fs.cwd().access(
+        state.input_path,
+        .{}
+    ) catch |e| switch (e) {
         error.FileNotFound => found = false,
         else => return e,
     };
@@ -290,15 +304,20 @@ pub fn main() !void
 
     const is_collection = input_format == .tlca or input_format == .tlcb;
 
-    // Check output extension (default to .tla/.tlca for stdout based on input type)
+    // Check output extension (default to .tla/.tlca for stdout based on input
+    // type)
     const default_output_ext = if (is_collection) ".tlca" else ".tla";
-    const output_ext = if (state.output_path) |path|
-        get_extension(path) orelse {
-            std.log.err("Output file must have an extension", .{});
-            std.process.exit(1);
-        }
-    else
-        default_output_ext;
+    const output_ext = (
+        if (state.output_path) |path|
+            get_extension(path) orelse {
+                std.log.err(
+                    "Output file must have an extension",
+                    .{},
+                );
+                std.process.exit(1);
+            }
+        else default_output_ext
+    );
 
     const output_format = std.meta.stringToEnum(
         serialization.ascii.FileFormat,
@@ -312,7 +331,10 @@ pub fn main() !void
     };
 
     // Validate format compatibility
-    const output_is_collection = output_format == .tlca or output_format == .tlcb;
+    const output_is_collection = (
+        output_format == .tlca or output_format == .tlcb
+    );
+
     if (is_collection != output_is_collection) {
         std.log.err(
             "Cannot convert between timeline and collection formats. " ++
@@ -329,25 +351,31 @@ pub fn main() !void
         std.process.exit(1);
     }
 
-    if (is_collection) {
+    if (is_collection) 
+    {
         // Handle collection formats
-        const ser_collection = try serialization.read_collection_from_file(allocator, state.input_path);
+        const ser_collection = try serialization.read_collection_from_file(
+            allocator,
+            state.input_path,
+        );
 
         read_prog.end();
 
-        const convert_prog = parent_prog.start("Converting collection...", 0);
-
-        // Build collection write options from state
-        const collection_write_options = (
-            serialization.ascii.CollectionWriteOptions{
-                .metadata_mode = state.metadata_mode,
-            }
+        const convert_prog = parent_prog.start(
+            "Converting collection...",
+            0,
         );
 
         // Write collection output
-        if (state.output_path) |path|
+        if (state.output_path) 
+            |path|
         {
-            try serialization.ascii.write_collection_to_file(allocator, ser_collection, path, collection_write_options);
+            try serialization.ascii.write_collection_to_file(
+                allocator,
+                ser_collection,
+                path,
+                state.metadata_mode,
+            );
         }
         else
         {
@@ -361,7 +389,7 @@ pub fn main() !void
                 allocator,
                 ser_collection,
                 output_format,
-                collection_write_options,
+                state.metadata_mode,
                 writer,
             );
 
@@ -369,30 +397,42 @@ pub fn main() !void
         }
 
         convert_prog.end();
-    } else {
+    } 
+    else 
+    {
+        // @TODO: needs to be hooked up for bundle support
         // Determine input directory for media references
         const input_dir = (
             std.fs.path.dirname(state.input_path)
             orelse "."
         );
-
-        // Build write options from state
-        const write_options = serialization.ascii.WriteOptions{
-            .metadata_mode = state.metadata_mode,
-            .bundle_format = state.bundle_format,
-            .media_policy = state.media_policy,
-            .media_base_dir = input_dir,
-        };
+        _ = input_dir;
 
         // For TLA/TLB/TLZ formats, use SerializableTimeline directly to preserve
         // metadata_hash and metadata_map. Only go through schema.Timeline for
         // OTIO JSON input which requires the JSON parsing infrastructure.
-        if (input_format == .tla or input_format == .tlb or input_format == .tlz)
+        if (
+            // @TODO: use the Adapter's types to get more information (like
+            // root type)
+            input_format == .tla 
+            or input_format == .tlb 
+            or input_format == .tlz
+        )
         {
+            const input_metadata_mode: serialization.adapter.MetadataOptions.Read = (
+                switch (state.metadata_mode) {
+                    .no_metadata => .no_metadata,
+                    else => .all,
+                }
+            );
+
             // Read directly to SerializableTimeline (preserves metadata)
-            var ser_timeline = try serialization.ascii.read_from_file(
-                allocator,
-                state.input_path,
+            var ser_timeline = (
+                try serialization.adapter.read_serializable_timeline_from_file(
+                    allocator,
+                    state.input_path,
+                    input_metadata_mode,
+                )
             );
             defer ser_timeline.deinit(allocator);
 
@@ -409,7 +449,7 @@ pub fn main() !void
                     allocator,
                     ser_timeline,
                     path,
-                    write_options,
+                    state.metadata_mode,
                 );
             }
             else
@@ -424,7 +464,7 @@ pub fn main() !void
                     allocator,
                     ser_timeline,
                     output_format,
-                    write_options,
+                    state.metadata_mode,
                     writer,
                 );
 
@@ -456,7 +496,7 @@ pub fn main() !void
                     allocator,
                     tl_ref.timeline,
                     path,
-                    write_options,
+                    state.metadata_mode,
                 );
             }
             else
@@ -471,7 +511,7 @@ pub fn main() !void
                     allocator,
                     tl_ref.timeline,
                     output_format,
-                    write_options,
+                    state.metadata_mode,
                     writer,
                 );
 

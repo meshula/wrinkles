@@ -6,7 +6,7 @@ pub const legacy_json = @import("legacy_json.zig");
 pub const adapter = @import("adapter.zig");
 
 pub const SerializableCollection = ascii.SerializableCollection;
-pub const MetadataMode = ascii.MetadataMode;
+pub const MetadataMode = adapter.MetadataOptions.Write;
 
 pub const write_timeline_to_file = adapter.write_timeline_to_file;
 pub const read_collection_from_file = ascii.read_collection_from_file;
