@@ -3054,7 +3054,7 @@ pub fn main(
         STATE.otio_root = try otio.read_from_file(
             STATE.allocator,
             STATE.target_otio_file,
-            .{ .file_contents_to_read = .all_except_metadata },
+            .{ .content_filter = .all_except_metadata },
         );
 
         // read the file contents
@@ -3257,7 +3257,7 @@ test "categorize_tracks: loads and categorizes multiple_track.tla" {
     const root = try otio.read_from_file(
         allocator,
         "otio_sample_data/multiple_track.tla",
-        .{ .file_contents_to_read = .all_except_metadata },
+        .{ .content_filter = .all_except_metadata },
     );
     defer {
         var r = root;
@@ -3289,7 +3289,7 @@ test "categorize_tracks: loads and categorizes mixed_tracks.tla" {
     const root = try otio.read_from_file(
         allocator,
         "otio_sample_data/mixed_tracks.tla",
-        .{ .file_contents_to_read = .all_except_metadata },
+        .{ .content_filter = .all_except_metadata },
     );
     defer {
         var r = root;

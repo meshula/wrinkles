@@ -1,39 +1,70 @@
-const std = @import("std");
-const ascii = @import("opentimelineio").serialization.ascii;
-const binary = @import("opentimelineio").serialization.binary;
+//! Round trip leak test
 
-fn testRoundtrip(allocator: std.mem.Allocator, tla_path: []const u8, tlb_path: []const u8) !bool {
-    // Parse TLA
-    var timeline_from_tla = try ascii.read_from_file(allocator, tla_path);
+const std = @import("std");
+const serialization = @import("opentimelineio").serialization;
+
+fn testRoundtrip(
+    allocator: std.mem.Allocator,
+    tla_path: []const u8,
+    tlb_path: []const u8,
+) !bool
+{
+    // Parse TLA using the serializable API
+    const ser_tl = try serialization.serializable.read_from_file(
+        allocator,
+        tla_path,
+        .{},
+    );
+
+    var timeline_from_tla = switch (ser_tl) {
+        .timeline => |t| t,
+        .collection => return error.UnexpectedCollection,
+    };
     defer timeline_from_tla.deinit(allocator);
 
-    // Serialize TLA to string
-    const tla_output = try ascii.write_to_buffer(
+    // Serialize TLA to string using an allocating writer
+    var tla_buffer = std.Io.Writer.Allocating.init(allocator);
+    defer tla_buffer.deinit();
+
+    try serialization.ascii.write_serializable_to_writer(
         allocator,
         timeline_from_tla,
         .tla,
-        .default,
+        .hash_reference,
+        &tla_buffer.writer,
     );
+    const tla_output = try tla_buffer.toOwnedSlice();
     defer allocator.free(tla_output);
 
     // Parse TLB
-    const tlb_content = try std.fs.cwd().readFileAlloc(allocator, tlb_path, std.math.maxInt(usize));
+    const tlb_content = try std.fs.cwd().readFileAlloc(
+        allocator,
+        tlb_path,
+        std.math.maxInt(usize),
+    );
     defer allocator.free(tlb_content);
 
-    var timeline_from_tlb = try binary.deserialize_to_serializable_timeline(
-        allocator,
-        tlb_content,
-        .{},
+    var timeline_from_tlb = (
+        try serialization.binary.deserialize_to_serializable_timeline(
+            allocator,
+            tlb_content,
+            .{},
+        )
     );
     defer timeline_from_tlb.deinit(allocator);
 
-    // Serialize TLB to string
-    const tlb_output = try ascii.write_to_buffer(
+    // Serialize TLB to string using an allocating writer
+    var tlb_buffer = std.Io.Writer.Allocating.init(allocator);
+    defer tlb_buffer.deinit();
+
+    try serialization.ascii.write_serializable_to_writer(
         allocator,
         timeline_from_tlb,
         .tla,
-        .default,
+        .hash_reference,
+        &tlb_buffer.writer,
     );
+    const tlb_output = try tlb_buffer.toOwnedSlice();
     defer allocator.free(tlb_output);
 
     // Compare

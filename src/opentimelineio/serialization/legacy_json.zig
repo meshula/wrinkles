@@ -53,17 +53,6 @@ const TransformTypes = enum {
     BezierCurve1D,
 };
 
-// in case you need to dump json object
-// fn debug_print() void
-// {
-//     const fmt = std.json.fmt(my_struct, .{ .whitespace = .indent_2 });
-//
-//     var writer = std.Io.Writer.Allocating.init(allocator);
-//     try fmt.format(&writer.writer);
-//
-//     const json_string = try writer.toOwnedSlice();
-// }
-
 fn maybe_object(
     maybe_obj: ?std.json.Value
 ) ?std.json.ObjectMap
@@ -788,49 +777,62 @@ fn read_markers(
     var markers = try allocator.alloc(otio.Marker, markers_array.items.len);
     errdefer allocator.free(markers);
 
-    for (markers_array.items, 0..) |marker_val, i| {
+    for (markers_array.items, 0..)
+        |marker_val, i|
+    {
         const marker_obj = switch (marker_val) {
             .object => |o| o,
             else => continue,
         };
 
         // Read marker name
-        const marker_name = if (marker_obj.get("name")) |name_val|
+        const marker_name = (
+            if (marker_obj.get("name"))
+                |name_val|
             switch (name_val) {
                 .string => |s| try allocator.dupe(u8, s),
                 .null => try allocator.dupe(u8, ""),
                 else => try allocator.dupe(u8, ""),
             }
-        else
-            try allocator.dupe(u8, "");
+            else try allocator.dupe(u8, "")
+        );
 
         // Read marked_range
-        const marked_range = if (marker_obj.get("marked_range")) |range_val|
+        const marked_range = (
+            if (marker_obj.get("marked_range"))
+                |range_val|
             switch (range_val) {
-                .object => |range_obj| read_time_range(range_obj) orelse opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 }),
+                .object => |range_obj| (
+                    read_time_range(range_obj)
+                    orelse opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 })
+                ),
                 else => opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 }),
             }
-        else
-            opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 });
+            else opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 })
+        );
 
         // Read color
-        const color = if (marker_obj.get("color")) |color_val|
+        const color = (
+            if (marker_obj.get("color"))
+                |color_val|
             switch (color_val) {
                 .string => |s| otio.MarkerColor.from_string(s) orelse .red,
                 else => .red,
             }
-        else
-            .red;
+            else .red
+        );
 
         // Read comment
-        const comment = if (marker_obj.get("comment")) |comment_val|
+        const comment = (
+            if (marker_obj.get("comment"))
+                |comment_val|
             switch (comment_val) {
                 .string => |s| if (s.len > 0) try allocator.dupe(u8, s) else "",
                 .null => "",
                 else => "",
             }
-        else
-            "";
+            else ""
+        );
 
         markers[i] = .{
             .name = marker_name,
@@ -941,13 +943,15 @@ fn read_otio_object(
             }
 
             // Read markers if present
-            const markers = if (obj.get("markers")) |markers_val|
+            const markers = (
+                if (obj.get("markers"))
+                    |markers_val|
                 switch (markers_val) {
                     .array => |arr| try read_markers(allocator, arr),
                     else => try allocator.alloc(otio.Marker, 0),
                 }
-            else
-                try allocator.alloc(otio.Marker, 0);
+                else try allocator.alloc(otio.Marker, 0)
+            );
 
             tl.* = .{
                 .name = name,
@@ -962,13 +966,15 @@ fn read_otio_object(
         },
         .Stack => {
             // Read markers if present
-            const markers = if (obj.get("markers")) |markers_val|
+            const markers = (
+                if (obj.get("markers"))
+                    |markers_val|
                 switch (markers_val) {
                     .array => |arr| try read_markers(allocator, arr),
                     else => try allocator.alloc(otio.Marker, 0),
                 }
-            else
-                try allocator.alloc(otio.Marker, 0);
+                else try allocator.alloc(otio.Marker, 0)
+            );
 
             var st = try allocator.create(otio.Stack);
             st.* = otio.Stack{
@@ -991,13 +997,15 @@ fn read_otio_object(
         },
         .Track => {
             // Read markers if present
-            const markers = if (obj.get("markers")) |markers_val|
+            const markers = (
+                if (obj.get("markers"))
+                    |markers_val|
                 switch (markers_val) {
                     .array => |arr| try read_markers(allocator, arr),
                     else => try allocator.alloc(otio.Marker, 0),
                 }
-            else
-                try allocator.alloc(otio.Marker, 0);
+                else try allocator.alloc(otio.Marker, 0)
+            );
 
             var tr = try allocator.create(otio.Track);
             tr.* = otio.Track{
@@ -1029,33 +1037,42 @@ fn read_otio_object(
 
             // Read metadata if present (store raw JSON value)
             // Skip if options specify all_except_metadata
-            const maybe_metadata: ?std.json.Value = if (options.file_contents_to_read == .all_except_metadata)
-                null
-            else if (obj.get("metadata")) |meta_val| blk: {
-                // Only store non-empty metadata objects
-                if (std.meta.activeTag(meta_val) == .object and meta_val.object.count() > 0) {
-                    break :blk meta_val;
+            const maybe_metadata: ?std.json.Value = (
+                if (options.file_contents_to_read == .all_except_metadata)
+                    null
+                else if (obj.get("metadata"))
+                    |meta_val|
+                blk: {
+                    // Only store non-empty metadata objects
+                    if (std.meta.activeTag(meta_val) == .object and meta_val.object.count() > 0) {
+                        break :blk meta_val;
+                    }
+                    break :blk null;
                 }
-                break :blk null;
-            } else null;
+                else null
+            );
 
             // Read markers if present
-            const markers = if (obj.get("markers")) |markers_val|
+            const markers = (
+                if (obj.get("markers"))
+                    |markers_val|
                 switch (markers_val) {
                     .array => |arr| try read_markers(allocator, arr),
                     else => try allocator.alloc(otio.Marker, 0),
                 }
-            else
-                try allocator.alloc(otio.Marker, 0);
+                else try allocator.alloc(otio.Marker, 0)
+            );
 
             // Read media reference if present
-            const media_ref = if (obj.get("media_reference")) |mr_val|
+            const media_ref = (
+                if (obj.get("media_reference"))
+                    |mr_val|
                 switch (mr_val) {
                     .object => |mr_obj| try read_media_reference(allocator, mr_obj),
                     else => otio.schema.MediaReference.null_picture,
                 }
-            else
-                otio.schema.MediaReference.null_picture;
+                else otio.schema.MediaReference.null_picture
+            );
 
             var cl = try allocator.create(otio.Clip);
             cl.* = .{
@@ -1067,7 +1084,9 @@ fn read_otio_object(
             };
 
             // Set discrete partition from rate if available and not already set
-            if (maybe_rate) |rate| {
+            if (maybe_rate)
+                |rate|
+            {
                 if (cl.media.maybe_discrete_partition == null) {
                     cl.media.maybe_discrete_partition = .{
                         .sample_rate_hz = .{ .Integer = rate },
@@ -1081,13 +1100,15 @@ fn read_otio_object(
             const source_range = _read_range(obj);
 
             // Read markers if present
-            const markers = if (obj.get("markers")) |markers_val|
+            const markers = (
+                if (obj.get("markers"))
+                    |markers_val|
                 switch (markers_val) {
                     .array => |arr| try read_markers(allocator, arr),
                     else => try allocator.alloc(otio.Marker, 0),
                 }
-            else
-                try allocator.alloc(otio.Marker, 0);
+                else try allocator.alloc(otio.Marker, 0)
+            );
 
             const gp = try allocator.create(otio.Gap);
             gp.* = .{
@@ -1117,38 +1138,42 @@ fn read_otio_object(
 
             return .{ .warp = wp };
         },
-        // else => {
-        //     errdefer std.log.err("Not implemented yet: {s}\n", .{ schema_str });
-        //     return error.NotImplemented;
-        // }
         .Transition => {
             const tx = try allocator.create(otio.Transition);
 
             // Handle missing container field (v0 -> v1 upgrade)
-            const container = if (obj.get("container")) |container_value| blk: {
-                const container_json = try read_otio_object(
-                    allocator,
-                    container_value.object,
-                    options,
-                );
-                const result = otio.Stack {
-                    .name = container_json.stack.name,
-                    .children = container_json.stack.children,
-                };
-                allocator.destroy(container_json.stack);
-                break :blk result;
-            } else otio.Stack {
-                .name = "",
-                .children = &.{},
-            };
+            const container = (
+                if (obj.get("container"))
+                    |container_value|
+                blk: {
+                    const container_json = try read_otio_object(
+                        allocator,
+                        container_value.object,
+                        options,
+                    );
+                    const result = otio.Stack {
+                        .name = container_json.stack.name,
+                        .children = container_json.stack.children,
+                    };
+                    allocator.destroy(container_json.stack);
+                    break :blk result;
+                }
+                else otio.Stack {
+                    .name = "",
+                    .children = &.{},
+                }
+            );
 
             // Handle missing kind field (use transition_type or default)
-            const kind = if (try maybe_string(allocator, obj, "kind")) |k|
+            const kind = (
+                if (try maybe_string(allocator, obj, "kind"))
+                    |k|
                 k
-            else if (try maybe_string(allocator, obj, "transition_type")) |tt|
+                else if (try maybe_string(allocator, obj, "transition_type"))
+                    |tt|
                 tt
-            else
-                try allocator.dupe(u8, "SMPTE_Dissolve");
+                else try allocator.dupe(u8, "SMPTE_Dissolve")
+            );
 
             tx.* = .{
                 .name = name,
@@ -1230,7 +1255,7 @@ pub fn read_from_file(
     if (std.mem.eql(u8, extension, ".tlz"))
     {
 
-        const ser_timeline = try bundle.readFromFile(
+        const ser_timeline = try bundle.read_from_file(
             in_allocator,
             file_path,
             .{},

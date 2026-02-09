@@ -38,39 +38,6 @@ pub const read_from_file = serialization.read_from_file;
 /// File format types for serialization operations
 pub const FileFormat = serialization.FileFormat;
 
-/// Read timeline from buffer to SerializableTimeline.
-/// Supports: .otio (JSON), .tla, .tlb (FlatBuffers)
-/// Note: .tlz format requires file access; use read_from_file instead.
-/// Useful for sokol_fetch callbacks or network transfers.
-pub const read_from_buffer = serialization.read_from_buffer;
-
-/// Write timeline from SerializableTimeline to buffer.
-/// Supports: .tla, .tlb (FlatBuffers)
-/// Note: .tlz format requires file access; use write_to_file instead.
-/// Returns an allocated buffer that the caller must free.
-pub const write_to_buffer = serialization.write_to_buffer;
-
-// Collection format support (.tlca, .tlcb)
-
-/// Read collection from file to SerializableCollection.
-/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
-pub const read_collection_from_file = serialization.read_collection_from_file;
-
-/// Read collection from buffer to SerializableCollection.
-/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
-pub const read_collection_from_buffer = serialization.read_collection_from_buffer;
-
-/// Write collection from SerializableCollection to file.
-/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
-pub const write_collection_to_file = serialization.write_collection_to_file;
-
-/// Write collection from SerializableCollection to buffer.
-/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
-/// Returns an allocated buffer that the caller must free.
-pub const write_collection_to_buffer = serialization.write_collection_to_buffer;
-
-/// Options for writing collection files
-pub const CollectionWriteOptions = serialization.CollectionWriteOptions;
 
 test {
     const otio_highlevel_tests = @import(

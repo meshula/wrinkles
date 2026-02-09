@@ -71,27 +71,3 @@ pub const bundle = @import("bundle.zig");
 pub const bundle_utils = @import("bundle_utils.zig");
 pub const legacy_json = @import("legacy_json.zig");
 
-// ============================================================================
-// Legacy API (deprecated - use new unified API above)
-// ============================================================================
-
-/// Deprecated: Use WriteOptions.MetadataMode instead
-pub const MetadataMode = adapter.MetadataOptions.Write;
-
-/// Deprecated: Use write_to_file() instead
-pub const write_timeline_to_file = adapter.write_timeline_to_file;
-
-/// Deprecated: Use serializable.read_from_file() for collections
-pub const read_collection_from_file = ascii.read_collection_from_file;
-
-/// Deprecated: Use read_from_file() or serializable types
-pub const SerializableCollection = ascii.SerializableCollection;
-
-/// Deprecated: Use buffer-based operations via serializable submodule
-pub const read_from_buffer = ascii.read_from_buffer;
-
-/// Deprecated: Use buffer-based operations via serializable submodule
-pub const write_to_buffer = ascii.write_to_buffer;
-
-/// Deprecated: Use buffer-based operations via serializable submodule
-pub const read_collection_from_buffer = ascii.read_collection_from_buffer;

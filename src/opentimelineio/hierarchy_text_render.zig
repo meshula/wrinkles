@@ -594,7 +594,7 @@ pub fn format_serializable_bounds(
 /// Render a SerializableCollection hierarchy
 pub fn render_serializable_collection(
     allocator: std.mem.Allocator,
-    collection: serialization.SerializableCollection,
+    collection: serialization.ascii.SerializableCollection,
     chars: TreeChars,
     show_metadata: bool,
 ) void

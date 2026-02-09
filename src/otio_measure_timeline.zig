@@ -125,7 +125,7 @@ pub fn main(
         var tl_ref = try otio.read_from_file(
             allocator,
             filepath,
-            .{ .file_contents_to_read = .all_except_metadata },
+            .{ .content_filter = .all_except_metadata },
         );
         defer tl_ref.deinit(allocator);
 

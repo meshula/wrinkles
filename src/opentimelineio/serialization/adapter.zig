@@ -210,9 +210,6 @@ pub const ReadOptions = struct {
     /// If null, media paths point into the bundle.
     extract_to_directory: ?[]const u8 = null,
 
-    /// Deprecated: Use content_filter instead. Kept for backward compatibility.
-    file_contents_to_read: ContentFilter = .all,
-
     pub const ContentFilter = enum {
         /// Read everything including metadata
         all,
@@ -220,25 +217,9 @@ pub const ReadOptions = struct {
         all_except_metadata,
         /// Read only metadata, skip timeline structure
         only_metadata,
+
+        pub const default: ContentFilter = .all;
     };
-
-    /// Convert to legacy MetadataOptions.Read for backward compatibility
-    pub fn to_metadata_read_mode(
-        self: ReadOptions,
-    ) MetadataOptions.Read
-    {
-        // Check both fields, preferring the new one if explicitly set
-        const filter = if (self.content_filter != .all)
-            self.content_filter
-        else
-            self.file_contents_to_read;
-
-        return switch (filter) {
-            .all => .all,
-            .all_except_metadata => .no_metadata,
-            .only_metadata => .only_metadata,
-        };
-    }
 };
 
 /// Options for writing timeline/collection files.
@@ -253,8 +234,17 @@ pub const WriteOptions = struct {
     /// Bundle-specific options. Ignored for non-bundle formats.
     bundle_options: ?BundleOptions = null,
 
-    /// Use same type as MetadataOptions.Write for compatibility
-    pub const MetadataMode = MetadataOptions.Write;
+    /// Controls how metadata is output in TLA format
+    pub const MetadataMode = enum {
+        /// Default behavior: use hash references with metadata_map
+        hash_reference,
+        /// Omit all metadata from output
+        no_metadata,
+        /// Print metadata inline on each clip
+        inline_metadata,
+
+        pub const default: MetadataMode = .hash_reference;
+    };
 
     pub const BundleOptions = struct {
         /// Format for the timeline/collection within the bundle
@@ -274,47 +264,10 @@ pub const WriteOptions = struct {
         };
     };
 
-    /// Convert to legacy MetadataOptions.Write for backward compatibility
-    pub fn to_metadata_write_mode(
-        self: WriteOptions,
-    ) MetadataOptions.Write
-    {
-        return switch (self.metadata_mode) {
-            .hash_reference => .hash_reference,
-            .inline_metadata => .inline_metadata,
-            .no_metadata => .no_metadata,
-        };
-    }
 };
 
 // Alias for backward compatibility with existing code
 pub const CompositionItemHandle = references.CompositionItemHandle;
-
-// ============================================================================
-// Legacy Configuration Types (for backward compatibility)
-// ============================================================================
-
-pub const MetadataOptions = struct {
-    /// Controls how metadata is output in TLA format
-    pub const Write = enum {
-        /// Default behavior: use hash references with metadata_map
-        hash_reference,
-        /// Omit all metadata from output
-        no_metadata,
-        /// Print metadata inline on each clip
-        inline_metadata,
-
-        pub const default: Write = .hash_reference;
-    };
-
-    pub const Read = enum {
-        all,
-        no_metadata,
-        only_metadata,
-
-        pub const default = .all;
-    };
-};
 
 // Interface function prototypes
 ///////////////////////////////////////////////////////////////////////////////
@@ -325,13 +278,13 @@ const fn_write_timeline_to_writer = fn (
     allocator: std.mem.Allocator,
     ser_timeline: ascii.SerializableTimeline,
     writer: *std.Io.Writer,
-    metadata_mode: MetadataOptions.Write,
+    metadata_mode: WriteOptions.MetadataMode,
 ) anyerror!void;
 
-pub const fn_read_timeline_from_reader = fn (
+const fn_read_timeline_from_reader = fn (
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
-    metadata_mode: MetadataOptions.Read,
+    metadata_mode: ReadOptions.ContentFilter,
 ) anyerror!ascii.SerializableTimeline;
 
 // Collection
@@ -340,13 +293,13 @@ const fn_write_collection_to_writer = fn (
     allocator: std.mem.Allocator,
     collection: ascii.SerializableCollection,
     writer: *std.Io.Writer,
-    metadata_mode: MetadataOptions.Write,
+    metadata_mode: WriteOptions.MetadataMode,
 ) anyerror!void;
 
-pub const fn_read_collection_from_reader = fn (
+const fn_read_collection_from_reader = fn (
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
-    metadata_mode: MetadataOptions.Read,
+    metadata_mode: ReadOptions.ContentFilter,
 ) anyerror!ascii.SerializableCollection;
 
 // ----------------------------------------------------------------------------
@@ -370,7 +323,7 @@ const SerializableFormat = struct {
         allocator: std.mem.Allocator,
         ser_timeline: ascii.SerializableTimeline,
         writer: *std.Io.Writer,
-        metadata_mode: MetadataOptions.Write,
+        metadata_mode: WriteOptions.MetadataMode,
     ) anyerror ! void
     {
         if (self._write_timeline_to_writer)
@@ -391,7 +344,7 @@ const SerializableFormat = struct {
         self: *const SerializableFormat,
         allocator: std.mem.Allocator,
         reader: *std.Io.Reader,
-        metadata_mode: MetadataOptions.Read,
+        metadata_mode: ReadOptions.ContentFilter,
     ) anyerror ! ascii.SerializableTimeline
     {
         if (self._read_timeline_from_reader)
@@ -412,7 +365,7 @@ const SerializableFormat = struct {
         allocator: std.mem.Allocator,
         ser_collection: ascii.SerializableCollection,
         writer: *std.Io.Writer,
-        metadata_mode: MetadataOptions.Write,
+        metadata_mode: WriteOptions.MetadataMode,
     ) anyerror ! void
     {
         if (self._write_collection_to_writer)
@@ -433,7 +386,7 @@ const SerializableFormat = struct {
         self: *const SerializableFormat,
         allocator: std.mem.Allocator,
         reader: *std.Io.Reader,
-        metadata_mode: MetadataOptions.Read,
+        metadata_mode: ReadOptions.ContentFilter,
     ) anyerror ! ascii.SerializableCollection
     {
         if (self._read_collection_from_reader)
@@ -470,14 +423,6 @@ pub const TLB_Adapter: SerializableFormat = .{
     ._read_collection_from_reader = binary.read_binary_collection_from_reader,
 };
 
-// pub const OTIO_Adapter: SerializableFormat = .{
-//     .description = "OpenTimelineIO v1 JSON format (read-only)",
-//
-//     // OTIO is read-only - writing is not supported
-//     ._write_timeline_to_writer = null,
-//     ._read_timeline_from_reader = legacy_json.read_otio_timeline_from_reader,
-// };
-
 /// Mapping of Suffix to FormatAdapter
 pub const FormatSuffix = struct {
     // TLA Formats
@@ -496,18 +441,6 @@ pub const FormatSuffix = struct {
     // pub const otio = OTIO_Adapter;
 };
 
-// Utility
-///////////////////////////////////////////////////////////////////////////////
-
-/// Find the associated file format for a file.
-/// Deprecated: Use FileFormat.from_path() instead.
-pub fn format_for_file(
-    file_path: []const u8,
-) !FileFormat
-{
-    return FileFormat.from_path(file_path);
-}
-
 // Write Timeline
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -521,27 +454,15 @@ pub fn write_serializable_timeline_to_file(
     allocator: std.mem.Allocator,
     intermediate_tl: ascii.SerializableTimeline,
     file_path: []const u8,
-    metadata_mode: MetadataOptions.Write,
+    metadata_mode: WriteOptions.MetadataMode,
 ) !void
 {
-    const format = try format_for_file(file_path);
+    const format = try FileFormat.from_path(file_path);
 
     // Handle .tlz separately since it manages its own file writing
     if (format == .tlz)
     {
         return error.UseBundleInterfaceForWritingBundles;
-
-        // // @TODO: clean up bundle naming and whatnot
-        // try bundle.writeToFile(
-        //     allocator,
-        //     intermediate_tl,
-        //     file_path,
-        //     bundle_options.? orelse .{
-        //         .bundle_format = .tla,
-        //         .media_policy = .ErrorIfNotFile,
-        //     },
-        // );
-        // return;
     }
 
     // For other formats, open file and write
@@ -571,7 +492,7 @@ pub fn write_serializable_to_writer(
     allocator: std.mem.Allocator,
     intermediate_tl: ascii.SerializableTimeline,
     format: FileFormat,
-    options: MetadataOptions.Write,
+    options: WriteOptions.MetadataMode,
     writer: *std.Io.Writer,
 ) !void
 {
@@ -604,7 +525,7 @@ pub fn write_timeline_to_file(
     allocator: std.mem.Allocator,
     timeline: *schema.Timeline,
     file_path: []const u8,
-    metadata_mode: MetadataOptions.Write,
+    metadata_mode: WriteOptions.MetadataMode,
 ) !void
 {
     var ser_timeline = try ascii.SerializableTimeline.from(
@@ -628,7 +549,7 @@ pub fn read_serializable_timeline_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
     format: FileFormat,
-    metadata_mode: MetadataOptions.Read,
+    metadata_mode: ReadOptions.ContentFilter,
 ) !ascii.SerializableTimeline
 {
     const adapter = switch (format) {
@@ -648,17 +569,17 @@ pub fn read_serializable_timeline_from_reader(
 pub fn read_serializable_timeline_from_file(
     allocator: std.mem.Allocator,
     file_path: []const u8,
-    metadata_mode: MetadataOptions.Read,
+    metadata_mode: ReadOptions.ContentFilter,
 ) !ascii.SerializableTimeline
 {
     _ = metadata_mode;
 
-    const format = try format_for_file(file_path);
+    const format = try FileFormat.from_path(file_path);
 
     // Handle .tlz separately since it manages its own file reading
     if (format == .tlz)
     {
-        return try bundle.readFromFile(allocator, file_path, .{});
+        return try bundle.read_from_file(allocator, file_path, .{});
     }
 
     // For other formats, use the ascii.read_from_file which handles
@@ -669,7 +590,7 @@ pub fn read_serializable_timeline_from_file(
 pub fn read_timeline_from_file(
     allocator: std.mem.Allocator,
     file_path: []const u8,
-    metadata_mode: MetadataOptions.Read,
+    metadata_mode: ReadOptions.ContentFilter,
 ) !*schema.timeline
 {
     const ser_timeline = try read_serializable_timeline_from_file(
@@ -682,33 +603,6 @@ pub fn read_timeline_from_file(
         allocator, 
         ser_timeline
     );
-}
-
-// Bundle Formats
-///////////////////////////////////////////////////////////////////////////////
-
-pub fn write_timeline_to_bundle(
-) !void
-{
-    // implement this
-}
-
-pub fn read_timeline_from_bundle(
-) !void
-{
-    // implement this
-}
-
-pub fn write_collection_to_bundle(
-) !void
-{
-    // implement this
-}
-
-pub fn read_collection_from_bundle(
-) !void
-{
-    // implement this
 }
 
 // ============================================================================
@@ -724,7 +618,6 @@ pub fn read_from_file(
 ) !CompositionItemHandle
 {
     const format = try FileFormat.from_path(file_path);
-    const metadata_mode = options.to_metadata_read_mode();
 
     if (format.is_bundle()) {
         return error.BundleReadNotYetImplemented;
@@ -738,7 +631,7 @@ pub fn read_from_file(
     var ser_timeline = try read_serializable_timeline_from_file(
         allocator,
         file_path,
-        metadata_mode,
+        options.content_filter,
     );
     defer ser_timeline.deinit(allocator);
 
@@ -779,7 +672,7 @@ pub fn write_to_file(
         allocator,
         timeline,
         file_path,
-        options.to_metadata_write_mode(),
+        options.metadata_mode,
     );
 }
 
@@ -803,7 +696,7 @@ pub fn read_from_reader(
         allocator,
         reader,
         format,
-        options.to_metadata_read_mode(),
+        options.content_filter,
     );
     defer ser_timeline.deinit(allocator);
 
@@ -844,7 +737,7 @@ pub fn write_to_writer(
         allocator,
         ser_timeline,
         format,
-        options.to_metadata_write_mode(),
+        options.metadata_mode,
         writer,
     );
 }
@@ -863,7 +756,6 @@ pub const serializable = struct {
     ) !SerializableRoot
     {
         const format = try FileFormat.from_path(file_path);
-        const metadata_mode = options.to_metadata_read_mode();
 
         if (format.is_bundle()) {
             return error.BundleReadNotYetImplemented;
@@ -876,7 +768,7 @@ pub const serializable = struct {
         const ser_timeline = try read_serializable_timeline_from_file(
             allocator,
             file_path,
-            metadata_mode,
+            options.content_filter,
         );
 
         return .{ .timeline = ser_timeline };
@@ -906,7 +798,7 @@ pub const serializable = struct {
                     allocator,
                     t,
                     file_path,
-                    options.to_metadata_write_mode(),
+                    options.metadata_mode,
                 );
             },
             .collection => {

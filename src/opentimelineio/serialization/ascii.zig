@@ -30,20 +30,13 @@ const binary = @import("binary.zig");
 const bundle = @import("bundle.zig");
 const adapter = @import("adapter.zig");
 
-/// Re-export ReadOptions for convenience
-pub const ReadOptions = legacy_json.ReadOptions;
-
-// Re-export adapter functions for backwards compatibility
-pub const write_timeline_to_file = adapter.write_timeline_to_file;
-pub const write_serializable_to_file = adapter.write_serializable_timeline_to_file;
-
 /// Write a Timeline to a writer in the specified format.
 /// Converts to serializable format internally.
-pub fn write_timeline_to_writer(
+fn write_timeline_to_writer(
     allocator: std.mem.Allocator,
     timeline: *schema.Timeline,
     format: FileFormat,
-    metadata_mode: adapter.MetadataOptions.Write,
+    metadata_mode: adapter.WriteOptions.MetadataMode,
     writer: anytype,
 ) !void
 {
@@ -991,7 +984,7 @@ pub const SerializableTimeline = struct {
 };
 
 /// Variant of SerializableTimeline that skips metadata_map during parsing.
-/// Used when ReadOptions.file_contents_to_read == .all_except_metadata.
+/// Used when legacy_json.ReadOptions.file_contents_to_read == .all_except_metadata.
 /// This uses ziggy's skip_fields feature to completely skip parsing the
 /// metadata_map field, providing significant performance gains for large files.
 pub const SerializableTimelineNoMetadata = struct {
@@ -1747,7 +1740,7 @@ fn upgrade_timeline_v0_to_v1(
 // Conversion Functions: Serializable → Schema
 // ----------------------------------------------------------------------------
 
-pub fn serializable_to_domain(
+fn serializable_to_domain(
     allocator: std.mem.Allocator,
     ser_dom: SerializableDomain,
 ) !domain_mod.Domain
@@ -1763,7 +1756,7 @@ pub fn serializable_to_domain(
     };
 }
 
-pub fn serializable_to_media_data_reference(
+fn serializable_to_media_data_reference(
     allocator: std.mem.Allocator,
     ser_ref: SerializableMediaDataReference,
 ) !schema.MediaDataReference
@@ -1811,7 +1804,7 @@ pub fn serializable_to_media_data_reference(
     };
 }
 
-pub fn serializable_to_signal_generator(
+fn serializable_to_signal_generator(
     allocator: std.mem.Allocator,
     ser_gen: SerializableSignalGenerator,
 ) !sampling.SignalGenerator
@@ -1833,7 +1826,7 @@ pub fn serializable_to_signal_generator(
     };
 }
 
-pub fn serializable_to_media_reference(
+fn serializable_to_media_reference(
     allocator: std.mem.Allocator,
     ser_ref: SerializableMediaReference,
 ) !schema.MediaReference
@@ -1869,7 +1862,7 @@ pub fn serializable_to_media_reference(
     };
 }
 
-pub fn serializable_to_topology(
+fn serializable_to_topology(
     allocator: std.mem.Allocator,
     ser_topo: SerializableTopology,
 ) !topology_m.Topology
@@ -1891,7 +1884,7 @@ pub fn serializable_to_topology(
     return .{ .mappings = mappings };
 }
 
-pub fn serializable_to_mapping(
+fn serializable_to_mapping(
     allocator: std.mem.Allocator,
     ser_mapping: SerializableMapping,
 ) !topology_m.mapping.Mapping
@@ -1936,7 +1929,7 @@ pub fn serializable_to_mapping(
     };
 }
 
-pub fn serializable_to_clip(
+fn serializable_to_clip(
     allocator: std.mem.Allocator,
     ser_clip: SerializableClip,
 ) !*schema.Clip
@@ -1973,7 +1966,7 @@ pub fn serializable_to_clip(
     return clip_ptr;
 }
 
-pub fn serializable_to_gap(
+fn serializable_to_gap(
     allocator: std.mem.Allocator,
     ser_gap: SerializableGap,
 ) !*schema.Gap
@@ -1992,7 +1985,7 @@ pub fn serializable_to_gap(
     return gap_ptr;
 }
 
-pub fn serializable_to_warp(
+fn serializable_to_warp(
     allocator: std.mem.Allocator,
     ser_warp: SerializableWarp,
 ) !*schema.Warp
@@ -2012,7 +2005,7 @@ pub fn serializable_to_warp(
     return warp_ptr;
 }
 
-pub fn serializable_to_track(
+fn serializable_to_track(
     allocator: std.mem.Allocator,
     ser_track: SerializableTrack,
 ) !*schema.Track
@@ -2047,7 +2040,7 @@ pub fn serializable_to_track(
     return track_ptr;
 }
 
-pub fn serializable_to_stack(
+fn serializable_to_stack(
     allocator: std.mem.Allocator,
     ser_stack: SerializableStack,
 ) !*schema.Stack
@@ -2082,7 +2075,7 @@ pub fn serializable_to_stack(
     return stack_ptr;
 }
 
-pub fn serializable_to_transition(
+fn serializable_to_transition(
     allocator: std.mem.Allocator,
     ser_trans: SerializableTransition,
 ) !*schema.Transition
@@ -2108,7 +2101,7 @@ pub fn serializable_to_transition(
     return trans_ptr;
 }
 
-pub fn serializable_to_composable(
+fn serializable_to_composable(
     allocator: std.mem.Allocator,
     ser_comp: SerializableComposable,
 ) error{ OutOfMemory, MissingDiscretePartition }!schema.references.CompositionItemHandle
@@ -2175,7 +2168,7 @@ pub fn serializable_to_timeline(
 // ----------------------------------------------------------------------------
 
 /// Convert curve.Bezier to serializable format
-pub fn bezier_curve_to_serializable(
+fn bezier_curve_to_serializable(
     allocator: std.mem.Allocator,
     bezier: curve.Bezier,
 ) !SerializableBezierCurve
@@ -2203,7 +2196,7 @@ pub fn bezier_curve_to_serializable(
 }
 
 /// Convert serializable format to curve.Bezier
-pub fn serializable_to_bezier_curve(
+fn serializable_to_bezier_curve(
     allocator: std.mem.Allocator,
     ser_bezier: SerializableBezierCurve,
 ) !curve.Bezier
@@ -2240,7 +2233,7 @@ pub fn serializable_to_bezier_curve(
 }
 
 /// Convert curve.Linear to serializable format
-pub fn linear_curve_to_serializable(
+fn linear_curve_to_serializable(
     allocator: std.mem.Allocator,
     linear: curve.Linear,
 ) !SerializableLinearCurve
@@ -2262,7 +2255,7 @@ pub fn linear_curve_to_serializable(
 }
 
 /// Convert serializable format to curve.Linear
-pub fn serializable_to_linear_curve(
+fn serializable_to_linear_curve(
     allocator: std.mem.Allocator,
     ser_linear: SerializableLinearCurve,
 ) !curve.Linear
@@ -2292,7 +2285,7 @@ pub fn serializable_to_linear_curve(
 ///
 /// If target_version is provided, the timeline will be downgraded to that
 /// version before serialization (requires registered downgrade functions).
-pub fn serialize_timeline(
+fn serialize_timeline(
     timeline: *schema.Timeline,
     allocator: std.mem.Allocator,
     writer: *std.io.Writer,
@@ -2383,7 +2376,7 @@ pub fn serialize_timeline(
 pub fn deserialize_timeline(
     allocator: std.mem.Allocator,
     source: [:0]const u8,
-    options: ReadOptions,
+    options: legacy_json.ReadOptions,
 ) !*schema.Timeline
 {
     var serializable_tl = switch (options.file_contents_to_read) {
@@ -2489,7 +2482,7 @@ fn wrap_in_timeline(
 ///
 /// Non-Timeline root objects (Clip, Track, Warp, etc.) are automatically
 /// wrapped in a synthetic Timeline/Track structure for a complete schema.
-pub fn otio_json_to_serializable_timeline(
+fn otio_json_to_serializable_timeline(
     allocator: std.mem.Allocator,
     json_source: []const u8,
 ) !SerializableTimeline 
@@ -2582,7 +2575,7 @@ pub fn otio_json_to_serializable_timeline(
 //        down
 
 /// Serialize a Bezier curve to tla format and write to the provided writer.
-pub fn serialize_bezier_curve(
+fn serialize_bezier_curve(
     bezier: curve.Bezier,
     allocator: std.mem.Allocator,
     writer: *std.io.Writer,
@@ -2602,7 +2595,7 @@ pub fn serialize_bezier_curve(
 }
 
 /// Deserialize a Bezier curve from tla format source string.
-pub fn deserialize_bezier_curve(
+fn deserialize_bezier_curve(
     allocator: std.mem.Allocator,
     source: [:0]const u8,
 ) !curve.Bezier
@@ -2620,7 +2613,7 @@ pub fn deserialize_bezier_curve(
 }
 
 /// Serialize a Linear curve to tla format and write to the provided writer.
-pub fn serialize_linear_curve(
+fn serialize_linear_curve(
     linear: curve.Linear,
     allocator: std.mem.Allocator,
     writer: *std.io.Writer,
@@ -2637,7 +2630,7 @@ pub fn serialize_linear_curve(
 }
 
 /// Deserialize a Linear curve from tla format source string.
-pub fn deserialize_linear_curve(
+fn deserialize_linear_curve(
     allocator: std.mem.Allocator,
     source: [:0]const u8,
 ) !curve.Linear
@@ -2660,7 +2653,7 @@ pub fn deserialize_linear_curve(
 
 /// Convert a SerializableTimeline to inline metadata format.
 /// Looks up metadata_hash values in metadata_map and stores them inline on clips.
-pub fn convert_to_inline_metadata(
+fn convert_to_inline_metadata(
     allocator: std.mem.Allocator,
     timeline: SerializableTimeline,
 ) !SerializableTimelineInlineMetadata
@@ -2802,7 +2795,7 @@ fn convert_composable_to_inline_metadata(
 
 /// Strip all metadata from a SerializableTimeline.
 /// Removes metadata_hash from clips and metadata_map from timeline.
-pub fn strip_metadata(
+fn strip_metadata(
     allocator: std.mem.Allocator,
     timeline: SerializableTimeline,
 ) !SerializableTimelineStrippedMetadata
@@ -3287,7 +3280,7 @@ pub fn read_from_file(
     // Handle .tlz separately since it manages its own file reading
     if (format == .tlz)
     {
-        return try bundle.readFromFile(allocator, file_path, .{});
+        return try bundle.read_from_file(allocator, file_path, .{});
     }
 
     // For other formats, read the file contents first
@@ -3314,7 +3307,7 @@ pub fn read_from_file(
 /// Options for writing timeline files
 pub const WriteOptions = struct {
     /// Controls how metadata is output in TLA format
-    metadata_mode: adapter.MetadataOptions.Write = .hash_reference,
+    metadata_mode: adapter.WriteOptions.MetadataMode = .hash_reference,
 
     /// TLZ bundle format (tla or tlb inside the bundle)
     bundle_format: bundle_utils.BundleFormat = .tla,
@@ -3338,7 +3331,7 @@ pub fn write_to_buffer(
     allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
     format: FileFormat,
-    metadata_mode: adapter.MetadataOptions.Write,
+    metadata_mode: adapter.WriteOptions.MetadataMode,
 ) ![]u8
 {
     switch (format)
@@ -3374,7 +3367,7 @@ pub fn write_serializable_to_writer(
     allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
     format: FileFormat,
-    metadata_mode: adapter.MetadataOptions.Write,
+    metadata_mode: adapter.WriteOptions.MetadataMode,
     writer: anytype,
 ) anyerror!void
 {
@@ -3411,7 +3404,7 @@ pub fn write_serializable_to_writer(
 fn write_tla_with_metadata_mode(
     allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
-    metadata_mode: adapter.MetadataOptions.Write,
+    metadata_mode: adapter.WriteOptions.MetadataMode,
     writer: anytype,
 ) !void
 {
@@ -3541,7 +3534,7 @@ pub fn read_collection_from_file(
 /// Options for writing collection files (subset of WriteOptions relevant to collections)
 pub const CollectionWriteOptions = struct {
     /// Controls how metadata is output in TLCA format
-    metadata_mode: adapter.MetadataOptions.Write = .hash_reference,
+    metadata_mode: adapter.WriteOptions.MetadataMode = .hash_reference,
 };
 
 /// Write a SerializableCollection to a buffer.
@@ -3551,7 +3544,7 @@ pub fn write_collection_to_buffer(
     allocator: std.mem.Allocator,
     collection: SerializableCollection,
     format: FileFormat,
-    metadata_mode: adapter.MetadataOptions.Write,
+    metadata_mode: adapter.WriteOptions.MetadataMode,
 ) ![]u8
 {
     // Use an allocating writer to build the buffer
@@ -3576,7 +3569,7 @@ pub fn write_collection_to_file(
     allocator: std.mem.Allocator,
     collection: SerializableCollection,
     file_path: []const u8,
-    options: adapter.MetadataOptions.Write,
+    options: adapter.WriteOptions.MetadataMode,
 ) !void
 {
     // Check file extension to determine format
@@ -3613,7 +3606,7 @@ pub fn write_collection_to_writer(
     allocator: std.mem.Allocator,
     collection: SerializableCollection,
     format: FileFormat,
-    metadata_mode: adapter.MetadataOptions.Write,
+    metadata_mode: adapter.WriteOptions.MetadataMode,
     writer: anytype,
 ) !void
 {
@@ -3642,7 +3635,7 @@ pub fn write_collection_to_writer(
 fn write_tlca_with_metadata_mode(
     allocator: std.mem.Allocator,
     collection: SerializableCollection,
-    metadata_mode: adapter.MetadataOptions.Write,
+    metadata_mode: adapter.WriteOptions.MetadataMode,
     writer: anytype,
 ) !void
 {
@@ -4150,7 +4143,7 @@ test "collection serialization: tlca to tlcb cross-format"
 pub fn read_timeline_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
-    metadata_mode: adapter.MetadataOptions.Read,
+    metadata_mode: adapter.ReadOptions.ContentFilter,
 ) anyerror!SerializableTimeline
 {
     _ = metadata_mode;
@@ -4171,7 +4164,7 @@ pub fn write_ascii_serializable_to_writer(
     allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
     writer: *std.Io.Writer,
-    metadata_mode: adapter.MetadataOptions.Write,
+    metadata_mode: adapter.WriteOptions.MetadataMode,
 ) anyerror!void
 {
     return write_serializable_to_writer(
@@ -4187,7 +4180,7 @@ pub fn write_ascii_serializable_to_writer(
 pub fn read_ascii_collection_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
-    metadata_mode: adapter.MetadataOptions.Read,
+    metadata_mode: adapter.ReadOptions.ContentFilter,
 ) anyerror!SerializableCollection
 {
     _ = metadata_mode;
@@ -4210,7 +4203,7 @@ pub fn write_ascii_collection_to_writer(
     allocator: std.mem.Allocator,
     collection: SerializableCollection,
     writer: *std.Io.Writer,
-    metadata_mode: adapter.MetadataOptions.Write,
+    metadata_mode: adapter.WriteOptions.MetadataMode,
 ) anyerror!void
 {
     return write_collection_to_writer(

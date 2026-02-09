@@ -114,7 +114,7 @@ pub export fn otio_read_from_file(
     };
 }
 
-pub export fn write_timeline_to_file(
+pub export fn otio_write_to_file(
     allocator_c: c.otio_Allocator,
     timeline_c: c.otio_CompositionItemHandle,
     filepath_c: [*:0]const u8,
@@ -122,30 +122,31 @@ pub export fn write_timeline_to_file(
 {
     // Validate that input is a timeline
     if (timeline_c.kind != c.otio_ct_timeline) {
-        std.log.err("write_timeline_to_file: expected timeline, got {}\n", .{timeline_c.kind});
+        std.log.err("otio_write_to_file: expected timeline, got {}\n", .{timeline_c.kind});
         return -1;
     }
 
     const filepath: []const u8 = std.mem.span(filepath_c);
     const allocator = fetch_allocator(allocator_c) catch |err| {
-        std.log.err("write_timeline_to_file: couldn't fetch allocator: {any}\n", .{err});
+        std.log.err("otio_write_to_file: couldn't fetch allocator: {any}\n", .{err});
         return -1;
     };
 
     // Get the timeline pointer
     const timeline = ptrCast(otio.Timeline, timeline_c.ref orelse {
-        std.log.err("write_timeline_to_file: null timeline reference\n", .{});
+        std.log.err("otio_write_to_file: null timeline reference\n", .{});
         return -1;
     });
 
-    // Write to file (format auto-detected from extension, converts internally)
-    otio.serialization.write_timeline_to_file(
+    // Write to file (format auto-detected from extension)
+    const handle = otio.CompositionItemHandle.init(timeline);
+    otio.serialization.write_to_file(
         allocator,
-        timeline,
+        handle,
         filepath,
-        .hash_reference, // default options
+        .{}, // default options
     ) catch |err| {
-        std.log.err("write_timeline_to_file: couldn't write file '{s}': {any}\n", .{filepath, err});
+        std.log.err("otio_write_to_file: couldn't write file '{s}': {any}\n", .{ filepath, err });
         return -1;
     };
 

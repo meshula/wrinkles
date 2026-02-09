@@ -354,7 +354,7 @@ pub fn main(
     if (is_collection) 
     {
         // Handle collection formats
-        const ser_collection = try serialization.read_collection_from_file(
+        const ser_collection = try serialization.ascii.read_collection_from_file(
             allocator,
             state.input_path,
         );
@@ -419,9 +419,9 @@ pub fn main(
             or input_format == .tlz
         )
         {
-            const input_metadata_mode: serialization.adapter.MetadataOptions.Read = (
+            const input_metadata_mode: serialization.adapter.ReadOptions.ContentFilter = (
                 switch (state.metadata_mode) {
-                    .no_metadata => .no_metadata,
+                    .no_metadata => .all_except_metadata,
                     else => .all,
                 }
             );
@@ -445,7 +445,7 @@ pub fn main(
 
             if (state.output_path) |path|
             {
-                try serialization.ascii.write_serializable_to_file(
+                try serialization.adapter.write_serializable_timeline_to_file(
                     allocator,
                     ser_timeline,
                     path,

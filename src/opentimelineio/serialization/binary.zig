@@ -71,7 +71,7 @@ pub const TLB_HEADER_SIZE: usize = 16; // Magic(4) + Version(4) + MetadataOffset
 // Header Functions
 // ----------------------------------------------------------------------------
 
-pub fn write_header(
+fn write_header(
     writer: anytype,
     metadata_offset: u64,
 ) !void
@@ -98,7 +98,7 @@ pub const HeaderInfo = struct {
     metadata_offset: u64,
 };
 
-pub fn read_header(
+fn read_header(
     data: []const u8,
 ) !HeaderInfo
 {
@@ -156,7 +156,9 @@ fn markers_to_fb(
     var fb_markers = try builder.allocator.alloc(tlb.Marker, markers.len);
     // Don't defer free - ownership transferred to caller
 
-    for (markers, 0..) |marker, i| {
+    for (markers, 0..)
+        |marker, i|
+    {
         fb_markers[i] = try marker_to_fb(builder, marker);
     }
     return fb_markers;
@@ -425,7 +427,9 @@ fn metadata_array_to_block(
     var array_blocks_list: std.ArrayList(tlb.MetadataBlock) = .empty;
     var array_indices_list: std.ArrayList(u32) = .empty;
 
-    for (arr, 0..) |value, i| {
+    for (arr, 0..)
+        |value, i|
+    {
         keys[i] = ""; // Empty key for array elements
 
         switch (value) {
@@ -776,7 +780,9 @@ fn metadata_entry_to_fb(
             }
             // Convert array elements - use index as key
             const fb_arr = try allocator.alloc(tlb.MetadataEntry, arr.len);
-            for (arr, 0..) |elem, i| {
+            for (arr, 0..)
+                |elem, i|
+            {
                 // Use empty key for array elements (index implied by position)
                 fb_arr[i] = try metadata_entry_to_fb(builder, allocator, "", elem);
             }
@@ -832,28 +838,6 @@ fn metadata_entry_to_fb(
             });
         },
     };
-}
-
-/// Convert a MetadataMap to FlatBuffers MetadataEntry slice (legacy compact format)
-/// Kept for reference - use metadata_map_to_fb for the new single-table format.
-fn metadata_map_to_fb_legacy(
-    builder: *flatbuffers.Builder,
-    allocator: Allocator,
-    metadata_map: MetadataMap,
-) ![]const tlb.MetadataEntry
-{
-    _ = builder;
-
-    const count = metadata_map.fields.count();
-    if (count == 0) {
-        return &.{};
-    }
-
-    // Pre-allocate exact size needed
-    const entries = try allocator.alloc(tlb.MetadataEntry, count);
-    _ = entries;
-    // Legacy code - no longer used
-    return &.{};
 }
 
 // ----------------------------------------------------------------------------
@@ -950,7 +934,9 @@ fn serializable_markers_to_fb(
     var fb_markers = try builder.allocator.alloc(tlb.Marker, markers.len);
     // Don't defer free - ownership transferred to caller
 
-    for (markers, 0..) |marker, i| {
+    for (markers, 0..)
+        |marker, i|
+    {
         fb_markers[i] = try serializable_marker_to_fb(builder, marker);
     }
     return fb_markers;
@@ -1073,7 +1059,9 @@ fn serializable_track_to_fb(
     const children = try allocator.alloc(tlb.ComposableWrapper, track.children.len);
     defer allocator.free(children);
 
-    for (track.children, 0..) |child, i| {
+    for (track.children, 0..)
+        |child, i|
+    {
         children[i] = try serializable_composable_to_fb(builder, allocator, child);
     }
 
@@ -1103,7 +1091,9 @@ fn serializable_stack_to_fb(
     const children = try allocator.alloc(tlb.ComposableWrapper, stack.children.len);
     defer allocator.free(children);
 
-    for (stack.children, 0..) |child, i| {
+    for (stack.children, 0..)
+        |child, i|
+    {
         children[i] = try serializable_composable_to_fb(builder, allocator, child);
     }
 
@@ -1140,7 +1130,9 @@ fn serializable_topology_to_fb(
     var mapping_wrappers: std.ArrayList(tlb.MappingWrapper) = .empty;
     defer mapping_wrappers.deinit(allocator);
 
-    for (topo.mappings) |mapping| {
+    for (topo.mappings)
+        |mapping|
+    {
         try mapping_wrappers.append(allocator, try serializable_mapping_to_fb(builder, mapping));
     }
 
@@ -1170,7 +1162,9 @@ fn serializable_mapping_to_fb(
         .linear => |lin| blk: {
             var knots: std.ArrayList(tlb.ControlPoint) = .empty;
             defer knots.deinit(builder.allocator);
-            for (lin.knots) |knot| {
+            for (lin.knots)
+                |knot|
+            {
                 try knots.append(builder.allocator, .{ .in_val = knot[0], .out_val = knot[1] });
             }
             break :blk try builder.writeTable(tlb.MappingWrapper, .{
@@ -1672,7 +1666,9 @@ fn fb_block_to_metadata_array(
         }
     }
 
-    for (0..count) |i| {
+    for (0..count)
+        |i|
+    {
         const value_type: tlb.MetadataType = @enumFromInt(types_vec.get(i));
         const scalar = scalars_vec.get(i);
 
@@ -1757,7 +1753,9 @@ fn fb_block_to_metadata_kv(
         }
     }
 
-    for (0..count) |i| {
+    for (0..count)
+        |i|
+    {
         const key = try allocator.dupe(u8, keys_vec.get(i));
         const value_type: tlb.MetadataType = @enumFromInt(types_vec.get(i));
         const scalar = scalars_vec.get(i);
@@ -2173,13 +2171,17 @@ fn fb_to_serializable_markers(
     fb_markers: ?flatbuffers.Vector(tlb.Marker),
 ) ![]ascii.SerializableMarker
 {
-    if (fb_markers) |markers| {
+    if (fb_markers)
+        |markers|
+    {
         const len = markers.len();
         if (len == 0) {
             return &.{};
         }
         var result = try allocator.alloc(ascii.SerializableMarker, len);
-        for (0..len) |i| {
+        for (0..len)
+            |i|
+        {
             result[i] = try fb_to_serializable_marker(allocator, markers.get(i));
         }
         return result;
@@ -2210,13 +2212,17 @@ fn fb_to_markers(
     fb_markers: ?flatbuffers.Vector(tlb.Marker),
 ) ![]schema.Marker
 {
-    if (fb_markers) |markers| {
+    if (fb_markers)
+        |markers|
+    {
         const len = markers.len();
         if (len == 0) {
             return try allocator.alloc(schema.Marker, 0);
         }
         var result = try allocator.alloc(schema.Marker, len);
-        for (0..len) |i| {
+        for (0..len)
+            |i|
+        {
             result[i] = try fb_to_marker(allocator, markers.get(i));
         }
         return result;
@@ -2819,7 +2825,7 @@ fn fb_to_transition(
 // ----------------------------------------------------------------------------
 
 /// Serialize a Timeline to FlatBuffers format.
-pub fn serialize_timeline(
+fn serialize_timeline(
     timeline: *schema.Timeline,
     allocator: Allocator,
     writer: anytype,
@@ -2891,7 +2897,9 @@ pub fn serialize_from_serializable_timeline(
     // Convert children - pre-allocate exact capacity
     const children: ?[]tlb.ComposableWrapper = if (ser_timeline.children.len > 0) blk: {
         const c = try arena_alloc.alloc(tlb.ComposableWrapper, ser_timeline.children.len);
-        for (ser_timeline.children, 0..) |child, i| {
+        for (ser_timeline.children, 0..)
+            |child, i|
+        {
             c[i] = try serializable_composable_to_fb(&timeline_builder, arena_alloc, child);
         }
         break :blk c;
@@ -2930,7 +2938,9 @@ pub fn serialize_from_serializable_timeline(
     if (has_metadata) {
         var metadata_builder = try flatbuffers.Builder.init(arena_alloc);
         const metadata_fb = try metadata_map_to_fb(&metadata_builder, arena_alloc, ser_timeline.metadata_map.?);
-        if (metadata_fb) |mfb| {
+        if (metadata_fb)
+            |mfb|
+        {
             try metadata_builder.writeRoot(tlb.MetadataMap, mfb);
             metadata_bytes = try metadata_builder.writeAlloc(arena_alloc);
         }
@@ -2956,7 +2966,9 @@ pub fn serialize_from_serializable_timeline(
     try writer.writeAll(timeline_bytes);
 
     // Write metadata if present
-    if (metadata_bytes) |mb| {
+    if (metadata_bytes)
+        |mb|
+    {
         try writer.writeAll(mb);
     }
 }
@@ -3176,7 +3188,9 @@ fn serializable_collection_item_to_fb(
             // Convert children
             const children: ?[]tlb.ComposableWrapper = if (tl.children.len > 0) child_blk: {
                 const c = try arena_alloc.alloc(tlb.ComposableWrapper, tl.children.len);
-                for (tl.children, 0..) |child, i| {
+                for (tl.children, 0..)
+                    |child, i|
+                {
                     c[i] = try serializable_composable_to_fb(builder, arena_alloc, child);
                 }
                 break :child_blk c;
@@ -3184,7 +3198,9 @@ fn serializable_collection_item_to_fb(
 
             // Convert metadata
             var metadata_fb: ?tlb.MetadataMap = null;
-            if (tl.metadata_map) |mm| {
+            if (tl.metadata_map)
+                |mm|
+            {
                 metadata_fb = try metadata_map_to_fb(builder, arena_alloc, mm);
             }
 
@@ -3214,7 +3230,9 @@ fn serializable_collection_item_to_fb(
         .track => |track| blk: {
             const children: ?[]tlb.ComposableWrapper = if (track.children.len > 0) child_blk: {
                 const c = try arena_alloc.alloc(tlb.ComposableWrapper, track.children.len);
-                for (track.children, 0..) |child, i| {
+                for (track.children, 0..)
+                    |child, i|
+                {
                     c[i] = try serializable_composable_to_fb(builder, arena_alloc, child);
                 }
                 break :child_blk c;
@@ -3238,7 +3256,9 @@ fn serializable_collection_item_to_fb(
         .stack => |stack| blk: {
             const children: ?[]tlb.ComposableWrapper = if (stack.children.len > 0) child_blk: {
                 const c = try arena_alloc.alloc(tlb.ComposableWrapper, stack.children.len);
-                for (stack.children, 0..) |child, i| {
+                for (stack.children, 0..)
+                    |child, i|
+                {
                     c[i] = try serializable_composable_to_fb(builder, arena_alloc, child);
                 }
                 break :child_blk c;
@@ -3317,7 +3337,9 @@ fn serializable_collection_item_to_fb(
             // Convert container stack
             const container_children: ?[]tlb.ComposableWrapper = if (trans.container.children.len > 0) child_blk: {
                 const c = try arena_alloc.alloc(tlb.ComposableWrapper, trans.container.children.len);
-                for (trans.container.children, 0..) |child, i| {
+                for (trans.container.children, 0..)
+                    |child, i|
+                {
                     c[i] = try serializable_composable_to_fb(builder, arena_alloc, child);
                 }
                 break :child_blk c;
@@ -3544,7 +3566,9 @@ pub fn serialize_collection(
     // Convert children
     const children: ?[]tlb.CollectionItemWrapper = if (collection.children.len > 0) blk: {
         const c = try arena_alloc.alloc(tlb.CollectionItemWrapper, collection.children.len);
-        for (collection.children, 0..) |child, i| {
+        for (collection.children, 0..)
+            |child, i|
+        {
             c[i] = try serializable_collection_item_to_fb(&builder, arena_alloc, child);
         }
         break :blk c;
@@ -3552,7 +3576,9 @@ pub fn serialize_collection(
 
     // Convert metadata if present
     var metadata_fb: ?tlb.MetadataMap = null;
-    if (collection.metadata_map) |mm| {
+    if (collection.metadata_map)
+        |mm|
+    {
         metadata_fb = try metadata_map_to_fb(&builder, arena_alloc, mm);
     }
 
@@ -4401,7 +4427,7 @@ test "roundtrip: production_test_files (optional)"
 pub fn read_binary_collection_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
-    metadata_mode: adapter.MetadataOptions.Read,
+    metadata_mode: adapter.ReadOptions.ContentFilter,
 ) anyerror!ascii.SerializableCollection
 {
     _ = metadata_mode; // Binary format doesn't support metadata filtering
@@ -4424,7 +4450,7 @@ pub fn write_binary_collection_to_writer(
     allocator: std.mem.Allocator,
     collection: ascii.SerializableCollection,
     writer: *std.Io.Writer,
-    metadata_mode: adapter.MetadataOptions.Write,
+    metadata_mode: adapter.WriteOptions.MetadataMode,
 ) anyerror!void
 {
     _ = metadata_mode; // Binary format always includes all metadata
@@ -4442,7 +4468,7 @@ pub fn write_binary_serializable_to_writer(
     allocator: std.mem.Allocator,
     intermediate_tl: ascii.SerializableTimeline,
     writer: *std.Io.Writer,
-    metadata_mode: adapter.MetadataOptions.Write,
+    metadata_mode: adapter.WriteOptions.MetadataMode,
 ) anyerror!void
 {
     _ = metadata_mode; // Binary format always includes all metadata
@@ -4459,7 +4485,7 @@ pub fn write_binary_serializable_to_writer(
 pub fn read_binary_timeline_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
-    metadata_mode: adapter.MetadataOptions.Read,
+    metadata_mode: adapter.ReadOptions.ContentFilter,
 ) anyerror!ascii.SerializableTimeline
 {
     _ = metadata_mode; // Binary format doesn't support metadata filtering

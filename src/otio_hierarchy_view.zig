@@ -116,9 +116,9 @@ fn read_to_serializable_timeline(
 fn read_to_serializable_collection(
     allocator: std.mem.Allocator,
     filepath: []const u8,
-) !otio.serialization.SerializableCollection
+) !otio.serialization.ascii.SerializableCollection
 {
-    return try otio.serialization.read_collection_from_file(
+    return try otio.serialization.ascii.read_collection_from_file(
         allocator,
         filepath,
     );
@@ -226,7 +226,7 @@ pub fn main() !void {
                 var tl_ref = otio.read_from_file(
                     allocator,
                     filepath,
-                    .{ .file_contents_to_read = .all_except_metadata },
+                    .{ .content_filter = .all_except_metadata },
                 ) catch |err| {
                     std.log.err(
                         "Failed to read file '{s}': {s}",

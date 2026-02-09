@@ -82,7 +82,7 @@ const ZipEntry = struct {
 // ----------------------------------------------------------------------------
 
 /// Read a TLZ file and return the timeline as SerializableTimeline
-pub fn readFromFile(
+pub fn read_from_file(
     allocator: std.mem.Allocator,
     filepath: []const u8,
     options: ReadOptions,
@@ -294,7 +294,7 @@ const MediaFile = struct {
 };
 
 /// Write a SerializableTimeline to a TLZ file
-pub fn writeToFile(
+pub fn write_to_file(
     allocator: std.mem.Allocator,
     timeline: serialization.SerializableTimeline,
     filepath: []const u8,
@@ -519,7 +519,7 @@ fn collectMediaFromComposable(
                         defer file.close();
 
                         const data = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
-                        const basename = utils.getBasename(uri);
+                        const basename = utils.get_basename(uri);
 
                         // Add to media files list
                         try media_files.append(allocator, .{
@@ -771,7 +771,7 @@ test "tlz_bundle: write and verify ZIP structure"
 
     // Write to temp file
     const test_path = "/tmp/test_tlz_write.tlz";
-    try writeToFile(allocator, timeline, test_path, .{});
+    try write_to_file(allocator, timeline, test_path, .{});
 
     defer std.fs.cwd().deleteFile(test_path) catch {};
 
@@ -821,7 +821,7 @@ test "tlz_bundle: media bundling with app.png"
 
     // Write to /var/tmp with media bundling
     const test_path = "/var/tmp/test_media_bundle.tlz";
-    try writeToFile(allocator, timeline, test_path, .{
+    try write_to_file(allocator, timeline, test_path, .{
         .bundle_format = .tla,
         .media_policy = .MissingIfNotFile,  // Don't error on missing files
         .media_base_dir = "test_files",  // Resolve relative paths from tla file location

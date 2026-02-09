@@ -53,7 +53,7 @@ pub const BundleFormat = enum {
 /// Validate that all media basenames are unique. Returns an error if any
 /// duplicate basenames are found, as TLZ bundles require unique basenames
 /// in the flat media directory structure.
-pub fn guaranteeUniqueBasenames(
+pub fn guarantee_unique_basenames(
     paths: []const []const u8,
 ) !void
 {
@@ -65,7 +65,7 @@ pub fn guaranteeUniqueBasenames(
     for (paths)
         |path|
     {
-        const basename = getBasename(path);
+        const basename = get_basename(path);
 
         if (seen.contains(basename))
         {
@@ -78,7 +78,7 @@ pub fn guaranteeUniqueBasenames(
 
 /// Convert path separators to Unix-style (/) regardless of platform.
 /// Returns a newly allocated string that the caller owns.
-pub fn pathToUnixStyle(
+pub fn path_to_unix_style(
     allocator: std.mem.Allocator,
     path: []const u8,
 ) ![]const u8
@@ -99,7 +99,7 @@ pub fn pathToUnixStyle(
 
 /// Extract the filename (basename) from a path.
 /// Returns a slice pointing into the original path string.
-pub fn getBasename(
+pub fn get_basename(
     path: []const u8,
 ) []const u8
 {
@@ -128,7 +128,7 @@ pub fn getBasename(
 // Tests
 // ----------------------------------------------------------------------------
 
-test "tlz_bundle_utils: getBasename with Unix paths"
+test "tlz_bundle_utils: get_basename with Unix paths"
 {
     const tests = [_]struct {
         input: []const u8,
@@ -144,12 +144,12 @@ test "tlz_bundle_utils: getBasename with Unix paths"
     for (tests)
         |t|
     {
-        const result = getBasename(t.input);
+        const result = get_basename(t.input);
         try std.testing.expectEqualStrings(t.expected, result);
     }
 }
 
-test "tlz_bundle_utils: getBasename with Windows paths"
+test "tlz_bundle_utils: get_basename with Windows paths"
 {
     const tests = [_]struct {
         input: []const u8,
@@ -162,12 +162,12 @@ test "tlz_bundle_utils: getBasename with Windows paths"
     for (tests)
         |t|
     {
-        const result = getBasename(t.input);
+        const result = get_basename(t.input);
         try std.testing.expectEqualStrings(t.expected, result);
     }
 }
 
-test "tlz_bundle_utils: pathToUnixStyle"
+test "tlz_bundle_utils: path_to_unix_style"
 {
     const allocator = std.testing.allocator;
 
@@ -184,14 +184,14 @@ test "tlz_bundle_utils: pathToUnixStyle"
     for (tests)
         |t|
     {
-        const result = try pathToUnixStyle(allocator, t.input);
+        const result = try path_to_unix_style(allocator, t.input);
         defer allocator.free(result);
 
         try std.testing.expectEqualStrings(t.expected, result);
     }
 }
 
-test "tlz_bundle_utils: guaranteeUniqueBasenames success"
+test "tlz_bundle_utils: guarantee_unique_basenames success"
 {
     const paths = [_][]const u8{
         "path/to/file1.txt",
@@ -199,22 +199,22 @@ test "tlz_bundle_utils: guaranteeUniqueBasenames success"
         "/absolute/file3.mov",
     };
 
-    try guaranteeUniqueBasenames(&paths);
+    try guarantee_unique_basenames(&paths);
 }
 
-test "tlz_bundle_utils: guaranteeUniqueBasenames failure"
+test "tlz_bundle_utils: guarantee_unique_basenames failure"
 {
     const paths = [_][]const u8{
         "path/to/file.txt",
         "other/path/file.txt",  // Duplicate basename!
     };
 
-    const result = guaranteeUniqueBasenames(&paths);
+    const result = guarantee_unique_basenames(&paths);
     try std.testing.expectError(error.DuplicateBasename, result);
 }
 
-test "tlz_bundle_utils: guaranteeUniqueBasenames empty"
+test "tlz_bundle_utils: guarantee_unique_basenames empty"
 {
     const paths = [_][]const u8{};
-    try guaranteeUniqueBasenames(&paths);
+    try guarantee_unique_basenames(&paths);
 }
