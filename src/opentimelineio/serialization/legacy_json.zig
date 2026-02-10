@@ -27,25 +27,6 @@ const SerializableObjectTypes = enum {
     Transition,
 };
 
-/// Options for controlling what content is read from OTIO files.
-/// Files are split into two chunks: the temporal hierarchy and the
-/// metadata. This enum controls which parts of the file are read.
-/// For operations that only need temporal data, this can speed up file
-/// reads because production files can contain significant amounts of
-/// metadata.
-pub const FileContentsToRead = enum {
-    /// Read everything (current behavior)
-    all,
-    /// Read everything except the metadata_map field of the top level
-    /// timeline, setting it to null, but skipping the bits.
-    all_except_metadata,
-};
-
-/// Read options for file parsing
-pub const ReadOptions = struct {
-    file_contents_to_read: FileContentsToRead = .all,
-};
-
 const TransformTypes = enum {
     AffineTransform1D,
     LinearCurve1D,
@@ -476,7 +457,7 @@ fn _read_rate(
 inline fn read_children(
     allocator: std.mem.Allocator,
     children: std.json.Value,
-    options: ReadOptions,
+    content_filter: adapter.ReadOptions.ContentFilter,
 ) error{
     OutOfMemory,
     NotAnOtioSchemaObject,
@@ -520,7 +501,7 @@ inline fn read_children(
         const new_value = read_otio_object(
             allocator,
             track.object,
-            options,
+            content_filter,
         ) catch |err|
         {
             switch (err) {
@@ -814,7 +795,7 @@ fn read_markers(
 fn read_otio_object(
     allocator: std.mem.Allocator,
     obj: std.json.ObjectMap,
-    options: ReadOptions,
+    content_filter: adapter.ReadOptions.ContentFilter,
 ) error{
     OutOfMemory,
     NoSuchSchema,
@@ -855,7 +836,7 @@ fn read_otio_object(
                 try read_otio_object(
                     allocator,
                     obj.get("tracks").?.object,
-                    options,
+                    content_filter,
                 )
             );
             const st = otio.Stack{
@@ -964,7 +945,7 @@ fn read_otio_object(
                 st.children = try read_children(
                     allocator,
                     children,
-                    options,
+                    content_filter,
                 );
             }
 
@@ -1001,7 +982,7 @@ fn read_otio_object(
                     tr.children = try read_children(
                         allocator,
                         children,
-                        options,
+                        content_filter,
                     );
                 }
             }
@@ -1016,7 +997,7 @@ fn read_otio_object(
             // Read metadata if present (store raw JSON value)
             // Skip if options specify all_except_metadata
             const maybe_metadata: ?std.json.Value = (
-                if (options.file_contents_to_read == .all_except_metadata)
+                if (content_filter == .all_except_metadata)
                     null
                 else if (obj.get("metadata"))
                     |meta_val|
@@ -1117,7 +1098,7 @@ fn read_otio_object(
                 .child = try read_otio_object(
                     allocator,
                     obj.get("child").?.object,
-                    options,
+                    content_filter,
                 ),
                 .transform = try read_transform(
                     allocator,
@@ -1140,7 +1121,7 @@ fn read_otio_object(
                     const container_json = try read_otio_object(
                         allocator,
                         container_value.object,
-                        options,
+                        content_filter,
                     );
                     const result = otio.Stack {
                         .name = container_json.stack.name,
@@ -1184,7 +1165,7 @@ fn read_otio_object(
 pub fn read_from_file(
     in_allocator: std.mem.Allocator,
     file_path: string.latin_s8,
-    options: ReadOptions,
+    content_filter: adapter.ReadOptions.ContentFilter,
 ) !otio.CompositionItemHandle
 {
     const fi = try std.fs.cwd().openFile(file_path, .{});
@@ -1199,7 +1180,7 @@ pub fn read_from_file(
     return try read_from_string(
         in_allocator,
         source,
-        options,
+        content_filter,
     );
 }
 
@@ -1207,7 +1188,7 @@ pub fn read_from_file(
 pub fn read_from_string(
     in_allocator: std.mem.Allocator,
     json_source: []const u8,
-    options: ReadOptions,
+    content_filter: adapter.ReadOptions.ContentFilter,
 ) !otio.CompositionItemHandle
 {
     var arena = std.heap.ArenaAllocator.init(in_allocator);
@@ -1224,7 +1205,7 @@ pub fn read_from_string(
     return read_otio_object(
         in_allocator,
         result.object,
-        options,
+        content_filter,
     );
 }
 
@@ -1239,7 +1220,7 @@ test "read_from_file test (simple)"
     var tl_ref = try read_from_file(
         std.testing.allocator,
         "sample_otio_files/"++otio_fpath,
-        .{},
+        .all,
     );
     defer  tl_ref.deinit(allocator); 
 
@@ -1301,7 +1282,7 @@ test "read_from_file test (multiple, smoke)"
     var tl = try read_from_file(
         std.testing.allocator,
         "sample_otio_files/"++otio_fpath,
-        .{},
+        .all,
     );
     defer  tl.deinit(allocator);
 }
@@ -1316,7 +1297,7 @@ test "read_from_file with all_except_metadata on OTIO JSON file"
     var tl_all = try read_from_file(
         allocator,
         otio_file,
-        .{},
+        .all,
     );
     defer tl_all.deinit(allocator);
 
@@ -1324,7 +1305,7 @@ test "read_from_file with all_except_metadata on OTIO JSON file"
     var tl_no_meta = try read_from_file(
         allocator,
         otio_file,
-        .{ .file_contents_to_read = .all_except_metadata },
+        .all_except_metadata,
     );
     defer tl_no_meta.deinit(allocator);
 
@@ -1378,7 +1359,7 @@ pub fn read_otio_timeline_from_reader(
     const item = try read_from_string(
         allocator,
         buffer,
-        .{},
+        metadata_mode,
     );
 
     // Convert the timeline to SerializableTimeline
