@@ -99,20 +99,24 @@ pub const VersionRegistry = struct {
     /// @param schema_name: Name of the schema (e.g., "Clip")
     /// @param to_version: Version this function upgrades TO
     /// @param func: Function that performs the upgrade
+    /// Register an upgrade function for a schema.
+    /// Note: Due to Zig's type system, functions with `anytype` parameters
+    /// cannot be stored as function pointers at runtime. A comptime dispatch
+    /// approach using known version pairs is planned as a workaround.
     pub fn register_upgrade(
         self: *@This(),
         schema_name: []const u8,
         to_version: u32,
         func: UpgradeFunction,
     ) !void {
-        _ = func; // @TODO: Cannot store function pointers with anytype at runtime
+        _ = func; // Cannot store function pointers with anytype at runtime
         const result = try self.upgrade_functions.getOrPut(schema_name);
         if (!result.found_existing) {
             result.value_ptr.* = .empty;
         }
         try result.value_ptr.append(self.allocator, .{
             .version = to_version,
-            .func_ptr = 0, // Placeholder - cannot store anytype function pointers
+            .func_ptr = 0, // Placeholder - see comptime dispatch workaround
         });
     }
 
@@ -120,20 +124,24 @@ pub const VersionRegistry = struct {
     /// @param schema_name: Name of the schema (e.g., "Clip")
     /// @param from_version: Version this function downgrades FROM
     /// @param func: Function that performs the downgrade
+    /// Register a downgrade function for a schema.
+    /// Note: Due to Zig's type system, functions with `anytype` parameters cannot
+    /// be stored as function pointers at runtime. A comptime dispatch approach
+    /// using known version pairs is planned as a workaround.
     pub fn register_downgrade(
         self: *@This(),
         schema_name: []const u8,
         from_version: u32,
         func: DowngradeFunction,
     ) !void {
-        _ = func; // @TODO: Cannot store function pointers with anytype at runtime
+        _ = func; // Cannot store function pointers with anytype at runtime
         const result = try self.downgrade_functions.getOrPut(schema_name);
         if (!result.found_existing) {
             result.value_ptr.* = .empty;
         }
         try result.value_ptr.append(self.allocator, .{
             .version = from_version,
-            .func_ptr = 0, // Placeholder - cannot store anytype function pointers
+            .func_ptr = 0, // Placeholder - see comptime dispatch workaround
         });
     }
 
@@ -159,8 +167,9 @@ pub const VersionRegistry = struct {
         while (version < to_version) {
             // Try to find upgrade function for next version
             const next_version = version + 1;
-            // @TODO: Function pointers with anytype cannot be stored/retrieved at runtime
-            // This is a limitation of Zig's type system. For now, skip upgrades.
+            // Note: Zig's type system prevents storing/retrieving anytype function pointers.
+            // A comptime dispatch table mapping known version pairs to concrete transform
+            // functions would enable upgrade functionality without runtime anytype storage.
             _ = upgrade_list;
             _ = allocator;
             _ = data;
@@ -188,8 +197,9 @@ pub const VersionRegistry = struct {
 
         var version = from_version;
         while (version > to_version) {
-            // @TODO: Function pointers with anytype cannot be stored/retrieved at runtime
-            // This is a limitation of Zig's type system. For now, skip downgrades.
+            // Note: Zig's type system prevents storing/retrieving anytype function pointers.
+            // A comptime dispatch table mapping known version pairs to concrete transform
+            // functions would enable downgrade functionality without runtime anytype storage.
             _ = downgrade_list;
             _ = allocator;
             _ = data;
@@ -246,11 +256,112 @@ pub const CURRENT_VERSIONS = std.StaticStringMap(u32).initComptime(.{
     .{ "Transition", 1 },
     .{ "MediaReference", 1 },
     .{ "Topology", 1 },
+    .{ "Collection", 1 },
 });
 
 /// Get current version for a schema
 pub fn current_version(schema_name: []const u8) u32 {
     return CURRENT_VERSIONS.get(schema_name) orelse 1;
+}
+
+// ----------------------------------------------------------------------------
+// Comptime Dispatch Workaround for Version Transforms
+// ----------------------------------------------------------------------------
+//
+// Zig's type system prevents storing function pointers with `anytype` parameters
+// at runtime. This workaround uses a comptime switch over known version pairs
+// to call the appropriate concrete transform function.
+//
+// To add a new transform:
+// 1. Add the concrete transform function (e.g., `upgrade_timeline_0_to_1`)
+// 2. Register it in the appropriate dispatch table below
+
+/// Type-erased transform function for concrete SerializableTimeline
+pub const TimelineTransformFn = *const fn (
+    allocator: Allocator,
+    data: *@import("ascii.zig").SerializableTimeline,
+) anyerror!void;
+
+/// Comptime dispatch table for Timeline upgrades
+/// Maps (from_version, to_version) pairs to concrete transform functions
+pub const TimelineUpgrades = struct {
+    /// Get upgrade function for a version pair, or null if not registered
+    pub fn get(
+        from_version: u32,
+        to_version: u32,
+    ) ?TimelineTransformFn
+    {
+        // Add version upgrade mappings here as they are implemented
+        // Example: 0 -> 1 would be the OTIO JSON to TLA upgrade
+        _ = from_version;
+        _ = to_version;
+        return null; // No upgrades registered yet
+    }
+};
+
+/// Comptime dispatch table for Timeline downgrades
+pub const TimelineDowngrades = struct {
+    /// Get downgrade function for a version pair, or null if not registered
+    pub fn get(
+        from_version: u32,
+        to_version: u32,
+    ) ?TimelineTransformFn
+    {
+        // Add version downgrade mappings here as they are implemented
+        _ = from_version;
+        _ = to_version;
+        return null; // No downgrades registered yet
+    }
+};
+
+/// Upgrade a SerializableTimeline through a version range
+pub fn upgrade_timeline(
+    allocator: Allocator,
+    data: *@import("ascii.zig").SerializableTimeline,
+    from_version: u32,
+    to_version: u32,
+) !void
+{
+    if (from_version >= to_version) {
+        return; // Already at or above target version
+    }
+
+    var version = from_version;
+    while (version < to_version) : (version += 1) {
+        const next_version = version + 1;
+        if (TimelineUpgrades.get(version, next_version)) |transform_fn| {
+            try transform_fn(allocator, data);
+            data.schema_version = next_version;
+        } else {
+            // No transform registered - assume compatible, just bump version
+            data.schema_version = next_version;
+        }
+    }
+}
+
+/// Downgrade a SerializableTimeline through a version range
+pub fn downgrade_timeline(
+    allocator: Allocator,
+    data: *@import("ascii.zig").SerializableTimeline,
+    from_version: u32,
+    to_version: u32,
+) !void
+{
+    if (from_version <= to_version) {
+        return; // Already at or below target version
+    }
+
+    var version = from_version;
+    while (version > to_version) : (version -= 1) {
+        const prev_version = version - 1;
+        if (TimelineDowngrades.get(version, prev_version)) |transform_fn| {
+            try transform_fn(allocator, data);
+            data.schema_version = prev_version;
+        } else {
+            // No transform registered - assume compatible, just bump version
+            data.schema_version = prev_version;
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -325,4 +436,58 @@ test "VersionRegistry: register and retrieve" {
 
     const upgrade_map = registry.upgrade_functions.get("TestSchema");
     try std.testing.expect(upgrade_map != null);
+}
+
+test "upgrade_timeline: no-op for same version" {
+    const allocator = std.testing.allocator;
+    const ascii = @import("ascii.zig");
+
+    var tl = ascii.SerializableTimeline{
+        .schema_version = 1,
+        .name = "",
+        .children = &.{},
+        .presentation_space_discrete_partitions = .{},
+        .markers = &.{},
+        .metadata_map = null,
+    };
+
+    // Upgrade from version 1 to 1 should be a no-op
+    try upgrade_timeline(allocator, &tl, 1, 1);
+    try std.testing.expectEqual(@as(u32, 1), tl.schema_version);
+}
+
+test "upgrade_timeline: bumps version when no transform registered" {
+    const allocator = std.testing.allocator;
+    const ascii = @import("ascii.zig");
+
+    var tl = ascii.SerializableTimeline{
+        .schema_version = 1,
+        .name = "",
+        .children = &.{},
+        .presentation_space_discrete_partitions = .{},
+        .markers = &.{},
+        .metadata_map = null,
+    };
+
+    // Upgrade from version 1 to 2 - no transform registered, should just bump
+    try upgrade_timeline(allocator, &tl, 1, 2);
+    try std.testing.expectEqual(@as(u32, 2), tl.schema_version);
+}
+
+test "downgrade_timeline: bumps version down when no transform registered" {
+    const allocator = std.testing.allocator;
+    const ascii = @import("ascii.zig");
+
+    var tl = ascii.SerializableTimeline{
+        .schema_version = 2,
+        .name = "",
+        .children = &.{},
+        .presentation_space_discrete_partitions = .{},
+        .markers = &.{},
+        .metadata_map = null,
+    };
+
+    // Downgrade from version 2 to 1 - no transform registered, should just bump
+    try downgrade_timeline(allocator, &tl, 2, 1);
+    try std.testing.expectEqual(@as(u32, 1), tl.schema_version);
 }
