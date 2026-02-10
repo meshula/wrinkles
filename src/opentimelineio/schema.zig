@@ -1025,6 +1025,52 @@ pub const Timeline = struct {
     }
 };
 
+/// A collection of composition items.
+///
+/// Collections can hold timelines, tracks, clips, and other composition items.
+/// Unlike Timeline, a Collection has no temporal meaning - it's simply a
+/// container for organizing related items (e.g., all timelines in a project).
+pub const Collection = struct {
+    /// Name for labelling and human readability.
+    name: string.latin_s8 = "",
+
+    /// Optional description text.
+    description: string.latin_s8 = "",
+
+    /// Child items in the collection.
+    children: []references.CompositionItemHandle = &.{},
+
+    /// Optional metadata as raw JSON value.
+    maybe_metadata_json: ?std.json.Value = null,
+
+    /// Collections have no temporal spaces - they are organizational only.
+    pub const available_local_spaces: []const references.TemporalSpace = &.{};
+
+    /// Clear the memory of self and any child objects.
+    pub fn deinit(
+        self: *@This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        allocator.free(self.name);
+        allocator.free(self.description);
+        for (self.children)
+            |*c|
+        {
+            c.deinit(allocator);
+        }
+        allocator.free(self.children);
+    }
+
+    /// Build a handle to this Collection.
+    pub fn handle(
+        self: *@This(),
+    ) references.CompositionItemHandle
+    {
+        return .{ .collection = self };
+    }
+};
+
 test "clip topology construction" 
 {
     const allocator = std.testing.allocator;

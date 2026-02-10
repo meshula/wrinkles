@@ -50,8 +50,30 @@ pub const WriteOptions = adapter.WriteOptions;
 /// Union of timeline or collection (serializable form)
 pub const SerializableRoot = adapter.SerializableRoot;
 
+/// Serializable intermediate types
+pub const SerializableTimeline = adapter.serializable.Timeline;
+pub const SerializableCollection = adapter.serializable.Collection;
+
 /// Handle to schema composition items
 pub const CompositionItemHandle = adapter.CompositionItemHandle;
+
+/// Read a serializable timeline from file (preserves metadata hash maps).
+pub const read_serializable_timeline_from_file = adapter.read_serializable_timeline_from_file;
+
+/// Read a serializable collection from file.
+pub const read_serializable_collection_from_file = adapter.read_serializable_collection_from_file;
+
+/// Write a serializable timeline to file.
+pub const write_serializable_timeline_to_file = adapter.write_serializable_timeline_to_file;
+
+/// Write a serializable timeline to a writer in the specified format.
+pub const write_serializable_to_writer = adapter.write_serializable_to_writer;
+
+/// Write a serializable collection to file.
+pub const write_serializable_collection_to_file = ascii.write_collection_to_file;
+
+/// Write a serializable collection to a writer in the specified format.
+pub const write_serializable_collection_to_writer = ascii.write_collection_to_writer;
 
 // ============================================================================
 // Serializable Submodule - Returns serializable types

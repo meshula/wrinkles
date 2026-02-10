@@ -138,6 +138,7 @@ pub const CompositionItemHandle = union(enum) {
     stack: *schema.Stack,
     warp: *schema.Warp,
     transition: *schema.Transition,
+    collection: *schema.Collection,
 
     /// Construct a CompositionItemHandle from a pointer to a composition item.
     ///
@@ -159,7 +160,7 @@ pub const CompositionItemHandle = union(enum) {
             }
         }
 
-        return switch (@TypeOf(pointer_to_item.*)) 
+        return switch (@TypeOf(pointer_to_item.*))
         {
             schema.Clip => .{ .clip = pointer_to_item },
             schema.Gap   => .{ .gap = pointer_to_item },
@@ -168,6 +169,7 @@ pub const CompositionItemHandle = union(enum) {
             schema.Warp => .{ .warp = pointer_to_item },
             schema.Timeline => .{ .timeline = pointer_to_item },
             schema.Transition => .{ .transition = pointer_to_item },
+            schema.Collection => .{ .collection = pointer_to_item },
             inline else => @compileError(
                 "CompositionItemHandle cannot reference to type: "
                 ++ @typeName(@TypeOf(pointer_to_item))
@@ -220,10 +222,12 @@ pub const CompositionItemHandle = union(enum) {
         InvalidChildTopology,
         InvalidTransformationNoBounds,
         InvalidMapping,
-    }!topology_m.Topology 
+    }!topology_m.Topology
     {
-        return  switch (self) {
+        return switch (self) {
             .clip => |cl| try cl.topology_pres_to_media(allocator),
+            // Collections have no temporal topology
+            .collection => .empty,
             inline else => |thing| try thing.topology_pres_to_intrinsic(allocator),
         };
     }
@@ -555,6 +559,8 @@ pub const CompositionItemHandle = union(enum) {
             },
             // wrapped as identity
             .timeline, .stack, .transition => .identity_infinite,
+            // Collections have no temporal topology - this shouldn't be called
+            .collection => .identity_infinite,
         };
     }
 
@@ -724,6 +730,12 @@ pub const CompositionItemHandle = union(enum) {
             .warp => |wp| {
                 try children_ptrs.append(allocator,wp.child);
             },
+            .collection => |coll| (
+                try children_ptrs.appendSlice(
+                    allocator,
+                    coll.children,
+                )
+            ),
             inline else => {},
         }
 

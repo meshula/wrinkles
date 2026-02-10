@@ -299,6 +299,21 @@ pub fn render_item(
             // Render transition's container (stack)
             render_stack(allocator, &tr.container, child_prefix, chars, show_metadata, maybe_metadata_map);
         },
+        .collection => |coll| {
+            const name = if (coll.name.len > 0) coll.name else "(unnamed)";
+            std.debug.print(
+                "{s}{s}Collection: {s}\n",
+                .{ prefix, connector, name },
+            );
+
+            // Render collection children
+            for (coll.children, 0..)
+                |child, idx|
+            {
+                const child_is_last = idx == coll.children.len - 1;
+                render_item(allocator, child, child_prefix, child_is_last, chars, show_metadata, maybe_metadata_map);
+            }
+        },
     }
 }
 

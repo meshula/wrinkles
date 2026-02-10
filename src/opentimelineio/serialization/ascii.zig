@@ -657,7 +657,7 @@ pub const SerializableComposable = union(enum) {
             .stack => |stack_ptr| .{ .stack = try SerializableStack.from(allocator, stack_ptr.*, maybe_meta_ctx) },
             .warp => |warp_ptr| .{ .warp = try SerializableWarp.from(allocator, warp_ptr.*, maybe_meta_ctx) },
             .transition => |trans_ptr| .{ .transition = try SerializableTransition.from(allocator, trans_ptr.*, maybe_meta_ctx) },
-            .timeline => unreachable, // Timeline is not a composable child
+            .timeline, .collection => unreachable, // Timeline/Collection are not composable children
         };
         return result_ptr;
     }
@@ -2163,6 +2163,129 @@ pub fn serializable_to_timeline(
     return timeline_ptr;
 }
 
+/// Convert SerializableCollection to schema.Collection
+pub fn serializable_to_collection(
+    allocator: std.mem.Allocator,
+    ser_coll: SerializableCollection,
+) !*schema.Collection
+{
+    // Convert collection children to composition handles
+    const children = try allocator.alloc(
+        schema.references.CompositionItemHandle,
+        ser_coll.children.len,
+    );
+
+    for (ser_coll.children, 0..)
+        |ser_child, i|
+    {
+        children[i] = try serializable_collection_item_to_handle(allocator, ser_child);
+    }
+
+    const collection_ptr = try allocator.create(schema.Collection);
+    collection_ptr.* = .{
+        .name = try allocator.dupe(u8, ser_coll.name),
+        .description = try allocator.dupe(u8, ser_coll.description),
+        .children = children,
+    };
+
+    return collection_ptr;
+}
+
+/// Convert SerializableCollectionItem to schema.CompositionItemHandle
+fn serializable_collection_item_to_handle(
+    allocator: std.mem.Allocator,
+    ser_item: SerializableCollectionItem,
+) !schema.references.CompositionItemHandle
+{
+    return switch (ser_item) {
+        .timeline => |tl| .{
+            .timeline = try serializable_to_timeline(allocator, tl),
+        },
+        .clip => |clip_val| .{
+            .clip = try serializable_to_clip(allocator, clip_val),
+        },
+        .gap => |gap_val| .{
+            .gap = try serializable_to_gap(allocator, gap_val),
+        },
+        .track => |track_val| .{
+            .track = try serializable_to_track(allocator, track_val),
+        },
+        .stack => |stack_val| .{
+            .stack = try serializable_to_stack(allocator, stack_val),
+        },
+        .warp => |warp_val| .{
+            .warp = try serializable_to_warp(allocator, warp_val),
+        },
+        .transition => |trans_val| .{
+            .transition = try serializable_to_transition(allocator, trans_val),
+        },
+    };
+}
+
+/// Convert schema.Collection to SerializableCollection
+pub fn collection_to_serializable(
+    allocator: std.mem.Allocator,
+    collection: *schema.Collection,
+) !SerializableCollection
+{
+    // Create metadata context for accumulating clip metadata
+    var metadata_map: MetadataMap = .{};
+    var meta_ctx = MetadataContext{
+        .allocator = allocator,
+        .metadata_map = &metadata_map,
+    };
+
+    // Convert children
+    const ser_children = try allocator.alloc(SerializableCollectionItem, collection.children.len);
+    for (collection.children, 0..)
+        |child, i|
+    {
+        ser_children[i] = try handle_to_serializable_collection_item(allocator, child, &meta_ctx);
+    }
+
+    return .{
+        .schema_version = 1,
+        .name = try allocator.dupe(u8, collection.name),
+        .description = try allocator.dupe(u8, collection.description),
+        .children = ser_children,
+        .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+    };
+}
+
+/// Convert schema.CompositionItemHandle to SerializableCollectionItem
+fn handle_to_serializable_collection_item(
+    allocator: std.mem.Allocator,
+    handle: schema.references.CompositionItemHandle,
+    meta_ctx: *MetadataContext,
+) !SerializableCollectionItem
+{
+    return switch (handle) {
+        .timeline => |tl| .{
+            .timeline = try SerializableTimeline.from(allocator, tl),
+        },
+        .clip => |clip_ptr| .{
+            .clip = try SerializableClip.from(allocator, clip_ptr.*, meta_ctx),
+        },
+        .gap => |gap_ptr| .{
+            .gap = try SerializableGap.from(allocator, gap_ptr.*),
+        },
+        .track => |track_ptr| .{
+            .track = try SerializableTrack.from(allocator, track_ptr.*, meta_ctx),
+        },
+        .stack => |stack_ptr| .{
+            .stack = try SerializableStack.from(allocator, stack_ptr.*, meta_ctx),
+        },
+        .warp => |warp_ptr| .{
+            .warp = try SerializableWarp.from(allocator, warp_ptr.*, meta_ctx),
+        },
+        .transition => |trans_ptr| .{
+            .transition = try SerializableTransition.from(allocator, trans_ptr.*, meta_ctx),
+        },
+        // Collections cannot be nested (would need a different design)
+        .collection => unreachable,
+    };
+}
+
 // ----------------------------------------------------------------------------
 // Curve Conversion Functions
 // ----------------------------------------------------------------------------
@@ -2562,6 +2685,9 @@ fn otio_json_to_serializable_timeline(
             trans_ptr.name,
             &metadata_map,
         ),
+
+        // Collections cannot be converted to timeline - use serialize_collection instead
+        .collection => return error.UseSerializeCollectionInstead,
     };
 
     // Mark as version 0 (OTIO JSON source) then upgrade
@@ -4140,6 +4266,8 @@ test "collection serialization: tlca to tlcb cross-format"
     try std.testing.expectEqualStrings("Embedded Timeline", from_tlcb.children[0].timeline.name);
 }
 
+/// Bridge function for adapter interface - reads TLA format from reader.
+/// Used by the unified SerializableFormat interface for format-agnostic I/O.
 pub fn read_timeline_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
@@ -4160,6 +4288,8 @@ pub fn read_timeline_from_reader(
     );
 }
 
+/// Bridge function for adapter interface - writes TLA format to writer.
+/// Used by the unified SerializableFormat interface for format-agnostic I/O.
 pub fn write_ascii_serializable_to_writer(
     allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,

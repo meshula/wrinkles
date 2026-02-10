@@ -292,7 +292,7 @@ pub fn main(
     };
 
     const input_format = std.meta.stringToEnum(
-        serialization.ascii.FileFormat,
+        serialization.FileFormat,
         input_ext[1..],  // Skip the leading dot
     ) orelse {
         std.log.err(
@@ -354,7 +354,7 @@ pub fn main(
     if (is_collection) 
     {
         // Handle collection formats
-        const ser_collection = try serialization.ascii.read_collection_from_file(
+        const ser_collection = try serialization.read_serializable_collection_from_file(
             allocator,
             state.input_path,
         );
@@ -370,7 +370,7 @@ pub fn main(
         if (state.output_path) 
             |path|
         {
-            try serialization.ascii.write_collection_to_file(
+            try serialization.write_serializable_collection_to_file(
                 allocator,
                 ser_collection,
                 path,
@@ -385,7 +385,7 @@ pub fn main(
             var file_writer = out_file.writer(&file_writer_buffer);
             const writer = &file_writer.interface;
 
-            try serialization.ascii.write_collection_to_writer(
+            try serialization.write_serializable_collection_to_writer(
                 allocator,
                 ser_collection,
                 output_format,
@@ -419,7 +419,7 @@ pub fn main(
             or input_format == .tlz
         )
         {
-            const input_metadata_mode: serialization.adapter.ReadOptions.ContentFilter = (
+            const input_metadata_mode: serialization.ReadOptions.ContentFilter = (
                 switch (state.metadata_mode) {
                     .no_metadata => .all_except_metadata,
                     else => .all,
@@ -428,7 +428,7 @@ pub fn main(
 
             // Read directly to SerializableTimeline (preserves metadata)
             var ser_timeline = (
-                try serialization.adapter.read_serializable_timeline_from_file(
+                try serialization.read_serializable_timeline_from_file(
                     allocator,
                     state.input_path,
                     input_metadata_mode,
@@ -443,9 +443,10 @@ pub fn main(
                 0,
             );
 
-            if (state.output_path) |path|
+            if (state.output_path) 
+                |path|
             {
-                try serialization.adapter.write_serializable_timeline_to_file(
+                try serialization.write_serializable_timeline_to_file(
                     allocator,
                     ser_timeline,
                     path,
@@ -460,7 +461,7 @@ pub fn main(
                 var file_writer = out_file.writer(&file_writer_buffer);
                 const writer = &file_writer.interface;
 
-                try serialization.ascii.write_serializable_to_writer(
+                try serialization.write_serializable_to_writer(
                     allocator,
                     ser_timeline,
                     output_format,

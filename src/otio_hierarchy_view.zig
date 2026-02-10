@@ -103,11 +103,12 @@ pub fn usage(
 fn read_to_serializable_timeline(
     allocator: std.mem.Allocator,
     filepath: []const u8,
-) !otio.serialization.ascii.SerializableTimeline
+) !otio.serialization.SerializableTimeline
 {
-    return try otio.serialization.ascii.read_from_file(
+    return try otio.serialization.read_serializable_timeline_from_file(
         allocator,
         filepath,
+        .all,
     );
 }
 
@@ -116,9 +117,9 @@ fn read_to_serializable_timeline(
 fn read_to_serializable_collection(
     allocator: std.mem.Allocator,
     filepath: []const u8,
-) !otio.serialization.ascii.SerializableCollection
+) !otio.serialization.SerializableCollection
 {
-    return try otio.serialization.ascii.read_collection_from_file(
+    return try otio.serialization.read_serializable_collection_from_file(
         allocator,
         filepath,
     );

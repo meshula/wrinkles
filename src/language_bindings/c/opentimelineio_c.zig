@@ -207,6 +207,8 @@ pub fn to_c_ref(
         .gap =>   |t|         .{ .kind = c.otio_ct_gap,      .ref = t },
         .warp =>  |t|        .{ .kind = c.otio_ct_warp,     .ref = t },
         .transition => |t| .{ .kind = c.otio_ct_transition, .ref = t },
+        // Collection is not exposed in C API - should not be passed through here
+        .collection => ERR_REF,
     };
 }
 
@@ -819,6 +821,7 @@ pub export fn otio_composable_bounds(
         .timeline => null, // Timeline bounds are derived from tracks
         .warp => null,     // Warp bounds depend on child
         .transition => |tr| tr.maybe_bounds_s,
+        .collection => null, // Collection has no temporal bounds
     };
 
     if (maybe_bounds)

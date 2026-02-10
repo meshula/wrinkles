@@ -26,7 +26,7 @@ fn testRoundtrip(
     var tla_buffer = std.Io.Writer.Allocating.init(allocator);
     defer tla_buffer.deinit();
 
-    try serialization.ascii.write_serializable_to_writer(
+    try serialization.write_serializable_to_writer(
         allocator,
         timeline_from_tla,
         .tla,
@@ -57,7 +57,7 @@ fn testRoundtrip(
     var tlb_buffer = std.Io.Writer.Allocating.init(allocator);
     defer tlb_buffer.deinit();
 
-    try serialization.ascii.write_serializable_to_writer(
+    try serialization.write_serializable_to_writer(
         allocator,
         timeline_from_tlb,
         .tla,

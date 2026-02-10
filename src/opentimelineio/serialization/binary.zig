@@ -1357,33 +1357,102 @@ fn composable_handle_to_fb(
     };
 }
 
-/// Convert schema.Warp to FlatBuffers Warp (stub - will be filled in next phase)
+/// Convert schema.Topology to FlatBuffers Topology
+fn topology_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    topo: topology_mod.Topology,
+) !tlb.Topology
+{
+    var mapping_wrappers: std.ArrayList(tlb.MappingWrapper) = .empty;
+    defer mapping_wrappers.deinit(allocator);
+
+    for (topo.mappings)
+        |mapping|
+    {
+        try mapping_wrappers.append(allocator, try mapping_to_fb(builder, allocator, mapping));
+    }
+
+    return try builder.writeTable(tlb.Topology, .{
+        .mappings = mapping_wrappers.items,
+    });
+}
+
+/// Convert schema Mapping to FlatBuffers MappingWrapper
+fn mapping_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    mapping: topology_mod.mapping.Mapping,
+) !tlb.MappingWrapper
+{
+    return switch (mapping) {
+        .affine => |aff| try builder.writeTable(tlb.MappingWrapper, .{
+            .mapping_type = .Affine,
+            .affine = try builder.writeTable(tlb.MappingAffine, .{
+                .input_bounds_start = aff.input_bounds_val.start.as(f64),
+                .input_bounds_end = aff.input_bounds_val.end.as(f64),
+                .transform = .{
+                    .offset = aff.input_to_output_xform.offset.as(f64),
+                    .scale = aff.input_to_output_xform.scale.as(f64),
+                },
+            }),
+        }),
+        .linear => |lin| blk: {
+            var knots: std.ArrayList(tlb.ControlPoint) = .empty;
+            defer knots.deinit(allocator);
+            for (lin.input_to_output_curve.knots)
+                |knot|
+            {
+                try knots.append(allocator, .{
+                    .in_val = knot.in.as(f64),
+                    .out_val = knot.out.as(f64),
+                });
+            }
+            break :blk try builder.writeTable(tlb.MappingWrapper, .{
+                .mapping_type = .Linear,
+                .linear = try builder.writeTable(tlb.MappingLinear, .{
+                    .input_bounds_start = lin.input_to_output_curve.knots[0].in.as(f64),
+                    .input_bounds_end = lin.input_to_output_curve.knots[lin.input_to_output_curve.knots.len - 1].in.as(f64),
+                    .knots = knots.items,
+                }),
+            });
+        },
+        .empty => try builder.writeTable(tlb.MappingWrapper, .{
+            .mapping_type = .Empty,
+        }),
+    };
+}
+
+/// Convert schema.Warp to FlatBuffers Warp
 fn warp_to_fb(
     builder: *flatbuffers.Builder,
     allocator: Allocator,
     warp: schema.Warp,
 ) !tlb.Warp
 {
-    _ = allocator;
+    const child_wrapper = try composable_handle_to_fb(builder, allocator, warp.child);
+    const transform = try topology_to_fb(builder, allocator, warp.transform);
+
     return try builder.writeTable(tlb.Warp, .{
         .name = if (warp.name.len == 0) null else warp.name,
-        .child = null, // TODO: implement child conversion
-        .transform = null, // TODO: implement transform conversion
+        .child = child_wrapper,
+        .transform = transform,
     });
 }
 
-/// Convert schema.Transition to FlatBuffers Transition (stub)
+/// Convert schema.Transition to FlatBuffers Transition
 fn transition_to_fb(
     builder: *flatbuffers.Builder,
     allocator: Allocator,
     trans: schema.Transition,
 ) !tlb.Transition
 {
-    _ = allocator;
+    const container = try stack_to_fb(builder, allocator, trans.container);
+
     return try builder.writeTable(tlb.Transition, .{
         .name = if (trans.name.len == 0) null else trans.name,
-        .container = null, // TODO: implement container conversion
-        .kind = trans.kind, // Already a string
+        .container = container,
+        .kind = trans.kind,
         .bounds_start = if (trans.maybe_bounds_s)
             |b|
             b.start.as(f64)
