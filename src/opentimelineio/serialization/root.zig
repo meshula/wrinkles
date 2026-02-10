@@ -53,6 +53,11 @@ pub const SerializableRoot = adapter.SerializableRoot;
 /// Serializable intermediate types
 pub const SerializableTimeline = adapter.serializable.Timeline;
 pub const SerializableCollection = adapter.serializable.Collection;
+pub const SerializableComposable = ascii.SerializableComposable;
+pub const SerializableCollectionItem = ascii.SerializableCollectionItem;
+pub const SerializableBounds = ascii.SerializableBounds;
+pub const MetadataMap = ascii.MetadataMap;
+pub const MetadataValue = ascii.MetadataValue;
 
 /// Handle to schema composition items
 pub const CompositionItemHandle = adapter.CompositionItemHandle;

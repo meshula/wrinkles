@@ -48,7 +48,7 @@ fn testRoundtrip(
         try serialization.binary.deserialize_to_serializable_timeline(
             allocator,
             tlb_content,
-            .{},
+            .all,
         )
     );
     defer timeline_from_tlb.deinit(allocator);

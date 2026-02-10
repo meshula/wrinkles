@@ -941,6 +941,32 @@ pub const SerializableTimeline = struct {
             ser_children[i] = (try SerializableComposable.from(allocator, child, &meta_ctx)).*;
         }
 
+        // Merge timeline-level metadata_map (std.json.Value) into the
+        // accumulated MetadataMap so it roundtrips through serialization.
+        if (timeline.metadata_map)
+            |json_val|
+        {
+            if (json_val == .object) {
+                var obj_iter = json_val.object.iterator();
+                while (obj_iter.next())
+                    |entry|
+                {
+                    const meta_val = try meta_ctx.json_to_metadata_value(
+                        entry.value_ptr.*,
+                    );
+                    const duped_key = try allocator.dupe(
+                        u8,
+                        entry.key_ptr.*,
+                    );
+                    try metadata_map.fields.put(
+                        allocator,
+                        duped_key,
+                        meta_val,
+                    );
+                }
+            }
+        }
+
         return .{
             .name = try allocator.dupe(u8, timeline.name),
             .children = ser_children,
@@ -984,7 +1010,7 @@ pub const SerializableTimeline = struct {
 };
 
 /// Variant of SerializableTimeline that skips metadata_map during parsing.
-/// Used when legacy_json.ReadOptions.file_contents_to_read == .all_except_metadata.
+/// Used when content_filter == .all_except_metadata.
 /// This uses ziggy's skip_fields feature to completely skip parsing the
 /// metadata_map field, providing significant performance gains for large files.
 pub const SerializableTimelineNoMetadata = struct {
@@ -1464,6 +1490,74 @@ pub const MetadataContext = struct {
         return hash_str;
     }
 };
+
+/// Convert a MetadataValue (ziggy dynamic value) to std.json.Value.
+/// This is the reverse of MetadataContext.json_to_metadata_value.
+pub fn metadata_value_to_json(
+    allocator: std.mem.Allocator,
+    value: MetadataValue,
+) !std.json.Value
+{
+    return switch (value) {
+        .null => .null,
+        .bool => |b| .{ .bool = b },
+        .integer => |i| .{ .integer = i },
+        .float => |f| .{ .float = f },
+        .bytes => |s| .{ .string = try allocator.dupe(u8, s) },
+        .tag => |t| .{ .string = try allocator.dupe(u8, t.bytes) },
+        .array => |arr| {
+            var json_arr = std.json.Array.initCapacity(
+                allocator,
+                arr.len,
+            ) catch return error.OutOfMemory;
+            for (arr)
+                |item|
+            {
+                json_arr.appendAssumeCapacity(
+                    try metadata_value_to_json(allocator, item),
+                );
+            }
+            return .{ .array = json_arr };
+        },
+        .kv => |kv| {
+            var json_obj = std.json.ObjectMap.init(allocator);
+            var iter = kv.fields.iterator();
+            while (iter.next())
+                |entry|
+            {
+                const key = try allocator.dupe(u8, entry.key_ptr.*);
+                const val = try metadata_value_to_json(
+                    allocator,
+                    entry.value_ptr.*,
+                );
+                try json_obj.put(key, val);
+            }
+            return .{ .object = json_obj };
+        },
+    };
+}
+
+/// Convert a MetadataMap to std.json.Value (object).
+/// Wraps the top-level map as a JSON object.
+pub fn metadata_map_to_json(
+    allocator: std.mem.Allocator,
+    mm: MetadataMap,
+) !std.json.Value
+{
+    var json_obj = std.json.ObjectMap.init(allocator);
+    var iter = mm.fields.iterator();
+    while (iter.next())
+        |entry|
+    {
+        const key = try allocator.dupe(u8, entry.key_ptr.*);
+        const val = try metadata_value_to_json(
+            allocator,
+            entry.value_ptr.*,
+        );
+        try json_obj.put(key, val);
+    }
+    return .{ .object = json_obj };
+}
 
 // ----------------------------------------------------------------------------
 // Hash Conversion Utilities
@@ -2158,6 +2252,11 @@ pub fn serializable_to_timeline(
                 .audio = serializable_to_optional_sig(intermediate_tl.presentation_space_discrete_partitions.audio),
             },
         },
+        .metadata_map = if (intermediate_tl.metadata_map)
+            |mm|
+            try metadata_map_to_json(allocator, mm)
+        else
+            null,
     };
 
     return timeline_ptr;
@@ -2492,17 +2591,17 @@ fn serialize_timeline(
 /// Automatically detects the version in the file and upgrades to the current
 /// version if needed (requires registered upgrade functions).
 ///
-/// If options.file_contents_to_read is .all_except_metadata, the metadata_map
+/// If content_filter is .all_except_metadata, the metadata_map
 /// field will be completely skipped during parsing using ziggy's skip_fields
 /// feature. This provides significant performance gains for large files with
 /// extensive metadata.
 pub fn deserialize_timeline(
     allocator: std.mem.Allocator,
     source: [:0]const u8,
-    options: legacy_json.ReadOptions,
+    content_filter: adapter.ReadOptions.ContentFilter,
 ) !*schema.Timeline
 {
-    var serializable_tl = switch (options.file_contents_to_read) {
+    var serializable_tl = switch (content_filter) {
         .all => try ziggy.parseLeaky(
             SerializableTimeline,
             allocator,
@@ -2521,6 +2620,7 @@ pub fn deserialize_timeline(
             // convert back to regular SerializableTimeline
             break :s_t  serializable_tl_no_md.to_serializable_timeline();
         },
+        .only_metadata => return error.OnlyMetadataNotSupportedForDeserialization,
     };
     defer serializable_tl.deinit(allocator);
 
@@ -2614,7 +2714,7 @@ fn otio_json_to_serializable_timeline(
     var composition_handle = try legacy_json.read_from_string(
         allocator,
         json_source,
-        .{},
+        .all,
     );
     defer composition_handle.deinit(allocator);
 
@@ -3302,7 +3402,7 @@ test "timeline serialization: tla round-trip"
     const loaded_timeline = try deserialize_timeline(
         allocator,
         source,
-        .{},
+        .all,
     );
     defer allocator.destroy(loaded_timeline);
     defer loaded_timeline.deinit(allocator);
@@ -3368,7 +3468,7 @@ pub fn read_from_buffer(
             return try binary.deserialize_to_serializable_timeline(
                 allocator,
                 buffer,
-                .{},
+                .all,
             );
         },
         .otio => {

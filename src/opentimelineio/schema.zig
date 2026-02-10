@@ -985,6 +985,10 @@ pub const Timeline = struct {
     /// Markers attached to this timeline.
     markers: []marker.Marker = &.{},
 
+    /// Optional metadata as raw JSON value.
+    /// Stored as std.json.Value for consistency with Clip and Collection.
+    metadata_map: ?std.json.Value = null,
+
     /// The internal temporal coordinate systems of the Timeline.
     pub const available_local_spaces: []const references.TemporalSpace = &.{
         .presentation,

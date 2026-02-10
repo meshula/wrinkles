@@ -518,7 +518,12 @@ pub fn write_serializable_timeline_to_file(
     // Handle .tlz separately since it manages its own file writing
     if (format == .tlz)
     {
-        return error.UseBundleInterfaceForWritingBundles;
+        return try bundle.write_to_file(
+            allocator,
+            intermediate_tl,
+            file_path,
+            .{},
+        );
     }
 
     // For other formats, open file and write
@@ -662,12 +667,20 @@ pub fn read_timeline_from_file(
     );
 }
 
-/// Read a serializable collection from a file (TLCA or TLCB format).
+/// Read a serializable collection from a file (TLCA, TLCB, or TLCZ format).
 pub fn read_serializable_collection_from_file(
     allocator: std.mem.Allocator,
     file_path: []const u8,
 ) !ascii.SerializableCollection
 {
+    const format = try FileFormat.from_path(file_path);
+
+    // Handle .tlcz separately since it manages its own file reading
+    if (format == .tlcz)
+    {
+        return try bundle.read_collection_from_file(allocator, file_path, .{});
+    }
+
     return try ascii.read_collection_from_file(allocator, file_path);
 }
 
@@ -744,12 +757,68 @@ pub fn write_to_file(
         return error.FormatIsReadOnly;
     }
 
-    if (desc.is_bundle) 
+    if (desc.is_bundle)
     {
-        return error.BundleWriteNotYetImplemented;
+        const bundle_opts = options.bundle_options orelse WriteOptions.BundleOptions{};
+        const bundle_write_opts = bundle.WriteOptions{
+            .bundle_format = switch (bundle_opts.content_format) {
+                .tla => .tla,
+                .tlb => .tlb,
+            },
+            .media_policy = switch (bundle_opts.media_policy) {
+                .ErrorIfNotFile => .ErrorIfNotFile,
+                .MissingIfNotFile => .MissingIfNotFile,
+                .AllMissing => .AllMissing,
+            },
+            .media_base_dir = bundle_opts.media_base_dir,
+        };
+
+        if (desc.is_collection)
+        {
+            // .tlcz bundle
+            const collection = switch (handle) {
+                .collection => |c| c,
+                else => return error.ExpectedCollection,
+            };
+
+            var ser_collection = try ascii.collection_to_serializable(
+                allocator,
+                collection,
+            );
+            defer ser_collection.deinit(allocator);
+
+            try bundle.write_collection_to_file(
+                allocator,
+                ser_collection,
+                file_path,
+                bundle_write_opts,
+            );
+        }
+        else
+        {
+            // .tlz bundle
+            const timeline = switch (handle) {
+                .timeline => |t| t,
+                else => return error.ExpectedTimeline,
+            };
+
+            var ser_timeline = try ascii.SerializableTimeline.from(
+                allocator,
+                timeline,
+            );
+            defer ser_timeline.deinit(allocator);
+
+            try bundle.write_to_file(
+                allocator,
+                ser_timeline,
+                file_path,
+                bundle_write_opts,
+            );
+        }
+        return;
     }
 
-    if (desc.is_collection) 
+    if (desc.is_collection)
     {
         // Collection formats
         const collection = switch (handle) {
@@ -931,12 +1000,7 @@ pub const serializable = struct {
         const format = try FileFormat.from_path(file_path);
         const desc = format.descriptor();
 
-        if (desc.is_bundle) 
-        {
-            return error.BundleReadNotYetImplemented;
-        }
-
-        if (desc.is_collection) 
+        if (desc.is_collection)
         {
             const ser_collection = (
                 try read_serializable_collection_from_file(
@@ -976,9 +1040,41 @@ pub const serializable = struct {
             return error.FormatIsReadOnly;
         }
 
-        if (desc.is_bundle) 
+        if (desc.is_bundle)
         {
-            return error.BundleWriteNotYetImplemented;
+            const bundle_opts = options.bundle_options orelse WriteOptions.BundleOptions{};
+            const bundle_write_opts = bundle.WriteOptions{
+                .bundle_format = switch (bundle_opts.content_format) {
+                    .tla => .tla,
+                    .tlb => .tlb,
+                },
+                .media_policy = switch (bundle_opts.media_policy) {
+                    .ErrorIfNotFile => .ErrorIfNotFile,
+                    .MissingIfNotFile => .MissingIfNotFile,
+                    .AllMissing => .AllMissing,
+                },
+                .media_base_dir = bundle_opts.media_base_dir,
+            };
+
+            switch (root) {
+                .timeline => |t| {
+                    try bundle.write_to_file(
+                        allocator,
+                        t,
+                        file_path,
+                        bundle_write_opts,
+                    );
+                },
+                .collection => |c| {
+                    try bundle.write_collection_to_file(
+                        allocator,
+                        c,
+                        file_path,
+                        bundle_write_opts,
+                    );
+                },
+            }
+            return;
         }
 
         switch (root) {

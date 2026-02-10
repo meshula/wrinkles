@@ -29,7 +29,6 @@ const domain_mod = @import("../domain.zig");
 const references = @import("../references.zig");
 
 // local
-const legacy_json = @import("legacy_json.zig");
 const ascii = @import("ascii.zig");
 const adapter = @import("adapter.zig");
 
@@ -49,8 +48,6 @@ fn test_print(comptime fmt: []const u8, args: anytype) void
         std.debug.print(fmt, args);
     }
 }
-
-pub const ReadOptions = legacy_json.ReadOptions;
 
 /// Error type for conversion operations
 pub const ConvertError = error{
@@ -3050,30 +3047,49 @@ pub fn serialize_from_serializable_timeline(
 pub fn deserialize_timeline(
     allocator: Allocator,
     data: []const u8,
-    options: ReadOptions,
+    content_filter: adapter.ReadOptions.ContentFilter,
 ) !*schema.Timeline
 {
-    _ = options;
+    const header = try read_header(data);
 
-    _ = try read_header(data);
+    const skip_metadata = content_filter == .all_except_metadata;
 
-    // Get FlatBuffers data after header
-    const fb_data = data[TLB_HEADER_SIZE..];
+    // Determine timeline data range based on metadata_offset
+    const has_separate_metadata = (
+        header.metadata_offset > TLB_HEADER_SIZE 
+        and header.metadata_offset < data.len
+    );
+
+    // Timeline data: from header end to metadata start (or end of file)
+    const timeline_end: usize = (
+        if (has_separate_metadata) @intCast(header.metadata_offset)
+        else data.len
+    );
+
+    const fb_data = data[TLB_HEADER_SIZE..timeline_end];
 
     // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if needed.
-    const aligned_data: []align(8) const u8 = if (@intFromPtr(fb_data.ptr) % 8 == 0)
-        @alignCast(fb_data)
-    else blk: {
-        // Need to copy to aligned memory
-        const aligned_copy = try allocator.alignedAlloc(u8, .@"8", fb_data.len);
-        @memcpy(aligned_copy, fb_data);
-        break :blk aligned_copy;
-    };
+    const aligned_data: []align(8) const u8 = (
+        if (@intFromPtr(fb_data.ptr) % 8 == 0) @alignCast(fb_data)
+        else blk: {
+            // Need to copy to aligned memory
+            const aligned_copy = try allocator.alignedAlloc(
+                u8,
+                .@"8",
+                fb_data.len,
+            );
+            @memcpy(aligned_copy, fb_data);
+            break :blk aligned_copy;
+        }
+    );
     // Note: aligned_copy is leaked if allocated - this is intentional for now
     // as the allocator is typically an arena that will be freed later
 
     // Decode root Timeline
-    const fb_timeline = try flatbuffers.decodeRoot(tlb.Timeline, aligned_data);
+    const fb_timeline = try flatbuffers.decodeRoot(
+        tlb.Timeline,
+        aligned_data,
+    );
 
     // Convert children to tracks (as a slice)
     var tracks_children: std.ArrayList(CompositionItemHandle) = .empty;
@@ -3084,8 +3100,48 @@ pub fn deserialize_timeline(
         for (0..children.len())
             |i|
         {
-            const child = try fb_to_composable(allocator, children.get(i));
+            const child = try fb_to_composable(
+                allocator,
+                children.get(i),
+            );
             tracks_children.appendAssumeCapacity(child);
+        }
+    }
+
+    // Convert metadata if present and requested
+    var metadata_json: ?std.json.Value = null;
+    if (!skip_metadata) 
+    {
+        // First check if metadata is embedded in timeline (legacy/inline format)
+        if (fb_timeline.metadata_map())
+            |fb_metadata|
+        {
+            const mm = try fb_to_metadata_map_single_table(
+                allocator,
+                fb_metadata,
+            );
+            metadata_json = try ascii.metadata_map_to_json(allocator, mm);
+        }
+        // Then check for separated metadata
+        else if (has_separate_metadata)
+        {
+            const metadata_data = data[@intCast(header.metadata_offset)..];
+
+            // FlatBuffers requires 8-byte alignment
+            const needs_copy = @intFromPtr(metadata_data.ptr) % 8 != 0;
+            const aligned_metadata: []align(8) const u8 = (
+                if (!needs_copy) @alignCast(metadata_data)
+                else blk: {
+                    const aligned_copy = try allocator.alignedAlloc(u8, .@"8", metadata_data.len);
+                    @memcpy(aligned_copy, metadata_data);
+                    break :blk aligned_copy;
+                }
+            );
+            // Note: aligned_copy is leaked if allocated - intentional for arena usage
+
+            const fb_metadata = try flatbuffers.decodeRoot(tlb.MetadataMap, aligned_metadata);
+            const mm = try fb_to_metadata_map_single_table(allocator, fb_metadata);
+            metadata_json = try ascii.metadata_map_to_json(allocator, mm);
         }
     }
 
@@ -3105,31 +3161,34 @@ pub fn deserialize_timeline(
             else
                 .{ .picture = null, .audio = null },
         },
+        .metadata_map = metadata_json,
     };
 
     return timeline;
 }
 
-/// Deserialize FlatBuffers data directly to SerializableTimeline, preserving metadata.
-/// This is useful when you need to output to ziggy format while preserving metadata.
+/// Deserialize FlatBuffers data directly to SerializableTimeline, preserving
+/// metadata. This is useful when you need to output to ziggy format while
+/// preserving metadata.
 ///
-/// When options.file_contents_to_read == .all_except_metadata, the metadata_map
-/// is not parsed, providing significant performance gains for large files with
-/// extensive metadata. The resulting SerializableTimeline will have metadata_map = null.
+/// When content_filter == .all_except_metadata, the metadata_map is not
+/// parsed, providing significant performance gains for large files with
+/// extensive metadata. The resulting SerializableTimeline will have
+/// metadata_map = null.
 ///
-/// The TLB format stores timeline structure and metadata in separate FlatBuffer segments:
-/// - [0..16]: Header with metadata_offset
-/// - [16..metadata_offset]: Timeline structure (without metadata_map)
-/// - [metadata_offset..]: Metadata FlatBuffer (if metadata_offset > 0)
+/// The TLB format stores timeline structure and metadata in separate
+/// FlatBuffer segments: - [0..16]: Header with metadata_offset -
+/// [16..metadata_offset]: Timeline structure (without metadata_map) -
+/// [metadata_offset..]: Metadata FlatBuffer (if metadata_offset > 0)
 pub fn deserialize_to_serializable_timeline(
     allocator: Allocator,
     data: []const u8,
-    options: ReadOptions,
+    content_filter: adapter.ReadOptions.ContentFilter,
 ) !SerializableTimeline
 {
     const header = try read_header(data);
 
-    const skip_metadata = options.file_contents_to_read == .all_except_metadata;
+    const skip_metadata = content_filter == .all_except_metadata;
 
     // Determine timeline data range based on metadata_offset
     // If metadata_offset > TLB_HEADER_SIZE, metadata is stored separately
@@ -3898,7 +3957,7 @@ test "tlb: round-trip with metadata preserved"
     var deserialized = try deserialize_to_serializable_timeline(
         allocator,
         buffer.items,
-        .{ .file_contents_to_read = .all },
+        .all,
     );
     defer deserialized.deinit(allocator);
 
@@ -3944,7 +4003,7 @@ test "tlb: round-trip without metadata (skip on read)"
     var deserialized = try deserialize_to_serializable_timeline(
         allocator,
         buffer.items,
-        .{ .file_contents_to_read = .all_except_metadata },
+        .all_except_metadata,
     );
     defer deserialized.deinit(allocator);
 
@@ -4020,7 +4079,7 @@ test "tlb: large metadata handling"
     try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
 
     // Round-trip verification
-    var result = try deserialize_to_serializable_timeline(allocator, buffer.items, .{});
+    var result = try deserialize_to_serializable_timeline(allocator, buffer.items, .all);
     defer result.deinit(allocator);
 
     try std.testing.expect(result.metadata_map != null);
@@ -4067,7 +4126,7 @@ test "tlb: complex nested metadata round-trip"
     defer buffer.deinit(allocator);
     try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
 
-    var result = try deserialize_to_serializable_timeline(allocator, buffer.items, .{});
+    var result = try deserialize_to_serializable_timeline(allocator, buffer.items, .all);
     defer result.deinit(allocator);
 
     // Verify nested structure
@@ -4182,7 +4241,7 @@ fn run_roundtrip_test_from_paths(
     var timeline_from_tlb = try deserialize_to_serializable_timeline(
         allocator,
         tlb_content,
-        .{},
+        .all,
     );
     defer timeline_from_tlb.deinit(allocator);
 
@@ -4355,7 +4414,7 @@ test "binary: deserialize just_warp.tlb and deinit (leak test)"
     var timeline = try deserialize_to_serializable_timeline(
         allocator,
         tlb_content,
-        .{},
+        .all,
     );
     defer timeline.deinit(allocator);
 
@@ -4557,8 +4616,6 @@ pub fn read_binary_timeline_from_reader(
     metadata_mode: adapter.ReadOptions.ContentFilter,
 ) anyerror!ascii.SerializableTimeline
 {
-    _ = metadata_mode; // Binary format doesn't support metadata filtering
-
     const buffer = try reader.readAlloc(
         allocator,
         std.math.maxInt(u32),
@@ -4568,7 +4625,7 @@ pub fn read_binary_timeline_from_reader(
     return try deserialize_to_serializable_timeline(
         allocator,
         buffer,
-        .{},
+        metadata_mode,
     );
 }
 
