@@ -1,8 +1,13 @@
-//! TLZ Bundle - ZIP-based timeline archive format
+//! TLZ/TLCZ Bundle - ZIP-based timeline and collection archive format
 //!
 //! TLZ files are ZIP archives containing:
 //! - version.txt: Format version string
 //! - content.tla or content.tlb: Timeline data
+//! - media/: Directory containing media files (optional)
+//!
+//! TLCZ files are ZIP archives containing:
+//! - version.txt: Format version string
+//! - content.tlca or content.tlcb: Collection data
 //! - media/: Directory containing media files (optional)
 
 const std = @import("std");
@@ -226,7 +231,7 @@ pub fn read_from_file(
             return try binary_serialization_flatbufs.deserialize_to_serializable_timeline(
                 allocator,
                 data,
-                .{},
+                .all,
             );
         },
     }
@@ -454,6 +459,354 @@ pub fn write_to_file(
 
     // Flush buffered writer - use end() to finalize
     try buffered.end();
+}
+
+/// Read a TLCZ file and return the collection as SerializableCollection
+pub fn read_collection_from_file(
+    allocator: std.mem.Allocator,
+    filepath: []const u8,
+    options: ReadOptions,
+) !serialization.SerializableCollection
+{
+    // Open the ZIP file
+    const file = try std.fs.cwd().openFile(filepath, .{});
+    defer file.close();
+
+    // Read entire file into memory for ZIP parsing
+    const file_data = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
+    defer allocator.free(file_data);
+
+    var content_data: ?[]const u8 = null;
+    var content_format: ?utils.BundleFormat = null;
+    var version_found = false;
+
+    // Find end record to get central directory info
+    const end_record = find_end_record(file_data) orelse
+        return TlzError.InvalidArchive;
+
+    // Iterate through central directory entries
+    var cd_offset: usize = end_record.central_directory_offset;
+
+    for (0..end_record.record_count_total)
+        |_|
+    {
+        // Parse central directory file header
+        if (cd_offset + @sizeOf(zip.CentralDirectoryFileHeader) > file_data.len)
+        {
+            return TlzError.InvalidArchive;
+        }
+
+        // Check signature
+        if (!std.mem.eql(u8, file_data[cd_offset..][0..4], &zip.central_file_header_sig))
+        {
+            return TlzError.InvalidArchive;
+        }
+
+        // Parse header (skip signature which is 4 bytes)
+        const header_ptr: *align(1) const zip.CentralDirectoryFileHeader =
+            @ptrCast(file_data[cd_offset..][0..@sizeOf(zip.CentralDirectoryFileHeader)]);
+        const header = header_ptr.*;
+
+        // Get filename
+        const filename_start = cd_offset + @sizeOf(zip.CentralDirectoryFileHeader);
+        const filename_end = filename_start + header.filename_len;
+        if (filename_end > file_data.len)
+        {
+            return TlzError.InvalidArchive;
+        }
+        const filename = file_data[filename_start..filename_end];
+
+        // Process entry
+        if (std.mem.eql(u8, filename, utils.BUNDLE_VERSION_FILE))
+        {
+            version_found = true;
+        }
+        else if (std.mem.eql(u8, filename, utils.BUNDLE_CONTENT_TLCA))
+        {
+            content_format = .tla;
+            content_data = try readEntryDataFromBuffer(
+                allocator,
+                file_data,
+                header.local_file_header_offset,
+            );
+        }
+        else if (std.mem.eql(u8, filename, utils.BUNDLE_CONTENT_TLCB))
+        {
+            content_format = .tlb;
+            content_data = try readEntryDataFromBuffer(
+                allocator,
+                file_data,
+                header.local_file_header_offset,
+            );
+        }
+
+        // Handle extraction to directory if requested
+        if (options.extract_to_directory)
+            |extract_dir|
+        {
+            var dir = try std.fs.cwd().openDir(extract_dir, .{});
+            defer dir.close();
+
+            const data = try readEntryDataFromBuffer(
+                allocator,
+                file_data,
+                header.local_file_header_offset,
+            );
+            defer allocator.free(data);
+
+            // Create parent directories if needed
+            if (std.fs.path.dirname(filename))
+                |parent|
+            {
+                try dir.makePath(parent);
+            }
+
+            // Write file
+            const out_file = try dir.createFile(filename, .{});
+            defer out_file.close();
+            try out_file.writeAll(data);
+        }
+
+        // Move to next central directory entry
+        cd_offset += @sizeOf(zip.CentralDirectoryFileHeader) +
+            header.filename_len +
+            header.extra_len +
+            header.comment_len;
+    }
+
+    if (!version_found)
+    {
+        return TlzError.InvalidVersion;
+    }
+
+    if (content_data == null or content_format == null)
+    {
+        return TlzError.NoContentFile;
+    }
+
+    // Parse the content based on format
+    const data = content_data.?;
+    defer allocator.free(data);
+
+    switch (content_format.?) {
+        .tla => {
+            // ziggy.parseLeaky needs sentinel-terminated string
+            const data_z = try allocator.dupeZ(u8, data);
+            defer allocator.free(data_z);
+            return try ziggy.parseLeaky(
+                serialization.SerializableCollection,
+                allocator,
+                data_z,
+                .{},
+            );
+        },
+        .tlb => {
+            return try binary_serialization_flatbufs.deserialize_collection(
+                allocator,
+                data,
+            );
+        },
+    }
+}
+
+/// Write a SerializableCollection to a TLCZ file
+pub fn write_collection_to_file(
+    allocator: std.mem.Allocator,
+    collection: serialization.SerializableCollection,
+    filepath: []const u8,
+    options: WriteOptions,
+) !void
+{
+    // Use arena for temporary allocations
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const arena_alloc = arena.allocator();
+
+    // Collect media files if not AllMissing policy
+    var media_files: std.ArrayList(MediaFile) = .empty;
+    var modified_collection = collection;
+
+    if (options.media_policy != .AllMissing)
+    {
+        // Collect media references from collection
+        try collectMediaFromCollection(
+            arena_alloc,
+            &modified_collection,
+            &media_files,
+            options.media_policy,
+            options.media_base_dir,
+        );
+    }
+
+    // Serialize collection to bytes
+    var content_writer: std.Io.Writer.Allocating = .init(arena_alloc);
+    defer content_writer.deinit();
+
+    const content_name = switch (options.bundle_format) {
+        .tla => utils.BUNDLE_CONTENT_TLCA,
+        .tlb => utils.BUNDLE_CONTENT_TLCB,
+    };
+
+    switch (options.bundle_format) {
+        .tla => {
+            try ziggy.stringify(
+                modified_collection,
+                .{
+                    .whitespace = .space_4,
+                    .emit_null_fields = false,
+                },
+                &content_writer.writer,
+            );
+        },
+        .tlb => {
+            try binary_serialization_flatbufs.serialize_collection(
+                modified_collection,
+                arena_alloc,
+                &content_writer.writer,
+            );
+        },
+    }
+
+    const content_bytes = content_writer.writer.buffer[0..content_writer.writer.end];
+
+    // Prepare version.txt content
+    const version_data = utils.BUNDLE_VERSION;
+
+    // Calculate CRC32 for each entry
+    const version_crc = calculateCrc32(version_data);
+    const content_crc = calculateCrc32(content_bytes);
+
+    // If dryrun, just return without writing
+    if (options.dryrun)
+    {
+        return;
+    }
+
+    // Create output file
+    const out_file = try std.fs.cwd().createFile(filepath, .{});
+    defer out_file.close();
+
+    var buf: [16 * 1024]u8 = undefined;
+    var buffered = out_file.writer(&buf);
+    const writer = &buffered.interface;
+
+    // Calculate total number of entries (version + content + media files)
+    const total_entries: u16 = @intCast(2 + media_files.items.len);
+
+    // Build entries list dynamically
+    var entries: std.ArrayList(ZipEntry) = .empty;
+
+    var current_offset: u32 = 0;
+
+    // Entry 0: version.txt (uncompressed)
+    try entries.append(arena_alloc, .{
+        .name = utils.BUNDLE_VERSION_FILE,
+        .data = version_data,
+        .compress = false,
+        .crc32 = version_crc,
+        .compressed_size = @intCast(version_data.len),
+        .local_header_offset = current_offset,
+    });
+    current_offset += 30 + @as(u32, @intCast(utils.BUNDLE_VERSION_FILE.len)) +
+        @as(u32, @intCast(version_data.len));
+
+    // Entry 1: content.tlca or content.tlcb (uncompressed)
+    try entries.append(arena_alloc, .{
+        .name = content_name,
+        .data = content_bytes,
+        .compress = false,
+        .crc32 = content_crc,
+        .compressed_size = @intCast(content_bytes.len),
+        .local_header_offset = current_offset,
+    });
+    current_offset += 30 + @as(u32, @intCast(content_name.len)) +
+        @as(u32, @intCast(content_bytes.len));
+
+    // Add media file entries
+    for (media_files.items)
+        |media|
+    {
+        const media_path = try std.fmt.allocPrint(
+            arena_alloc,
+            "{s}/{s}",
+            .{ utils.BUNDLE_DIR_NAME, media.basename },
+        );
+        const media_crc = calculateCrc32(media.data);
+
+        try entries.append(arena_alloc, .{
+            .name = media_path,
+            .data = media.data,
+            .compress = false,
+            .crc32 = media_crc,
+            .compressed_size = @intCast(media.data.len),
+            .local_header_offset = current_offset,
+        });
+        current_offset += 30 + @as(u32, @intCast(media_path.len)) +
+            @as(u32, @intCast(media.data.len));
+    }
+
+    // Write local file headers and data
+    for (entries.items)
+        |entry|
+    {
+        try writeLocalFileHeader(writer, entry);
+        try writer.writeAll(entry.data);
+    }
+
+    // Record central directory start offset
+    const cd_offset = current_offset;
+
+    // Write central directory
+    var cd_size: u32 = 0;
+    for (entries.items)
+        |entry|
+    {
+        try writeCentralDirectoryHeader(writer, entry);
+        cd_size += 46 + @as(u32, @intCast(entry.name.len));
+    }
+
+    // Write end of central directory
+    try writeEndRecord(writer, total_entries, cd_size, cd_offset);
+
+    // Flush buffered writer
+    try buffered.end();
+}
+
+/// Collect media files from a collection and update references
+fn collectMediaFromCollection(
+    allocator: std.mem.Allocator,
+    collection: *serialization.SerializableCollection,
+    media_files: *std.ArrayList(MediaFile),
+    policy: utils.MediaReferencePolicy,
+    maybe_base_dir: ?[]const u8,
+) !void
+{
+    for (collection.children)
+        |*child|
+    {
+        switch (child.*) {
+            .timeline => |*tl| {
+                // Delegate to the existing timeline media collection
+                try collectMediaFiles(
+                    allocator,
+                    tl,
+                    media_files,
+                    policy,
+                    maybe_base_dir,
+                );
+            },
+            inline else => |*composable| {
+                // For non-timeline items, treat as composable
+                try collectMediaFromComposable(
+                    allocator,
+                    @ptrCast(composable),
+                    media_files,
+                    policy,
+                    maybe_base_dir,
+                );
+            },
+        }
+    }
 }
 
 /// Collect media files from the timeline and update references

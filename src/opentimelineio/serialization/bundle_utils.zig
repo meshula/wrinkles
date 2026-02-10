@@ -21,6 +21,12 @@ pub const BUNDLE_CONTENT_TLA = "content.tla";
 /// Name of the FlatBuffers binary content file in the bundle
 pub const BUNDLE_CONTENT_TLB = "content.tlb";
 
+/// Name of the Collection ASCII content file in the bundle
+pub const BUNDLE_CONTENT_TLCA = "content.tlca";
+
+/// Name of the Collection Binary content file in the bundle
+pub const BUNDLE_CONTENT_TLCB = "content.tlcb";
+
 // ----------------------------------------------------------------------------
 // Types
 // ----------------------------------------------------------------------------
