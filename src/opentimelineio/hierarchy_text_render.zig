@@ -103,7 +103,7 @@ pub fn render_stack(
     prefix: []const u8,
     chars: TreeChars,
     show_metadata: bool,
-    maybe_metadata_map: ?serialization.ascii.MetadataMap,
+    maybe_metadata_map: ?serialization.MetadataMap,
 ) void
 {
     for (stack.children, 0..) |child, i| {
@@ -120,7 +120,7 @@ pub fn render_item(
     is_last: bool,
     chars: TreeChars,
     show_metadata: bool,
-    maybe_metadata_map: ?serialization.ascii.MetadataMap,
+    maybe_metadata_map: ?serialization.MetadataMap,
 ) void
 {
     const connector = if (is_last) chars.last else chars.branch;
@@ -320,7 +320,7 @@ pub fn render_item(
 /// Render a metadata value with proper indentation
 pub fn render_metadata_value(
     allocator: std.mem.Allocator,
-    value: serialization.ascii.MetadataValue,
+    value: serialization.MetadataValue,
     prefix: []const u8,
     indent: usize,
 ) void
@@ -365,7 +365,7 @@ pub fn render_metadata_value(
 
 /// Render a simple metadata value inline (no newline)
 pub fn render_metadata_value_inline(
-    value: serialization.ascii.MetadataValue,
+    value: serialization.MetadataValue,
 ) void
 {
     switch (value) {
@@ -383,7 +383,7 @@ pub fn render_metadata_value_inline(
 /// Render a SerializableTimeline hierarchy
 pub fn render_serializable_timeline(
     allocator: std.mem.Allocator,
-    ser_timeline: serialization.ascii.SerializableTimeline,
+    ser_timeline: serialization.SerializableTimeline,
     chars: TreeChars,
     show_metadata: bool,
 ) void
@@ -403,12 +403,12 @@ pub fn render_serializable_timeline(
 /// Render a SerializableComposable item and its children recursively
 pub fn render_serializable_item(
     allocator: std.mem.Allocator,
-    item: serialization.ascii.SerializableComposable,
+    item: serialization.SerializableComposable,
     prefix: []const u8,
     is_last: bool,
     chars: TreeChars,
     show_metadata: bool,
-    maybe_metadata_map: ?serialization.ascii.MetadataMap,
+    maybe_metadata_map: ?serialization.MetadataMap,
 ) void
 {
     const connector = if (is_last) chars.last else chars.branch;
@@ -586,7 +586,7 @@ pub fn render_serializable_item(
 /// Format SerializableBounds
 pub fn format_serializable_bounds(
     allocator: std.mem.Allocator,
-    maybe_bounds: ?serialization.ascii.SerializableBounds,
+    maybe_bounds: ?serialization.SerializableBounds,
 ) ![]const u8
 {
     if (maybe_bounds) |bounds| {
@@ -609,7 +609,7 @@ pub fn format_serializable_bounds(
 /// Render a SerializableCollection hierarchy
 pub fn render_serializable_collection(
     allocator: std.mem.Allocator,
-    collection: serialization.ascii.SerializableCollection,
+    collection: serialization.SerializableCollection,
     chars: TreeChars,
     show_metadata: bool,
 ) void
@@ -632,12 +632,12 @@ pub fn render_serializable_collection(
 /// Render a SerializableCollectionItem and its children recursively
 pub fn render_serializable_collection_item(
     allocator: std.mem.Allocator,
-    item: serialization.ascii.SerializableCollectionItem,
+    item: serialization.SerializableCollectionItem,
     prefix: []const u8,
     is_last: bool,
     chars: TreeChars,
     show_metadata: bool,
-    maybe_metadata_map: ?serialization.ascii.MetadataMap,
+    maybe_metadata_map: ?serialization.MetadataMap,
 ) void
 {
     const connector = if (is_last) chars.last else chars.branch;
