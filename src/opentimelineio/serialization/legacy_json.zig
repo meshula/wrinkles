@@ -13,10 +13,9 @@ const interval = opentime.interval;
 const string = @import("string_stuff");
 const topology = @import("topology");
 const sampling = @import("sampling");
+const adapter = @import("adapter.zig");
 
 const ascii = @import("ascii.zig");
-const binary = @import("binary.zig");
-const bundle = @import("bundle.zig");
 
 const SerializableObjectTypes = enum {
     Timeline,
@@ -76,13 +75,9 @@ fn maybe_string(
 ) !?[]const u8
 {
     return (
-        if (obj.get(key)) 
-        |n| 
-        switch (n) 
-        {
-            .string => |s| try allocator.dupe(u8, s),
-            else => null
-        } 
+        if (_read_maybe([]const u8, obj, key)) 
+            |s| 
+            try allocator.dupe(u8, s)
         else null
     );
 }
@@ -281,13 +276,10 @@ fn read_schema(
     obj: std.json.ObjectMap,
 ) !EnumType
 {
-    const maybe_schema_and_version_str = obj.get("OTIO_SCHEMA");
-
-    if (maybe_schema_and_version_str == null) {
-        return error.NotAnOtioSchemaObject;
-    }
-
-    const full_string = maybe_schema_and_version_str.?.string;
+    const full_string = (
+        if (obj.get("OTIO_SCHEMA")) |val| val.string
+        else return error.NotAnOtioSchemaObject
+    );
 
     var split_schema_string = std.mem.splitSequence(
         u8,
@@ -295,22 +287,16 @@ fn read_schema(
         "."
     );
 
-    const maybe_schema_str = split_schema_string.next();
-    if (maybe_schema_str == null) {
-        return error.MalformedSchemaString;
-    }
-    const schema_str = maybe_schema_str.?;
-
-    const maybe_schema_enum = std.meta.stringToEnum(
-        EnumType,
-        schema_str
+    const schema_str = (
+        if (split_schema_string.next()) |str| str 
+        else return error.MalformedSchemaString
     );
-    if (maybe_schema_enum == null) {
-        errdefer std.log.err("No schema: {s}\n", .{schema_str});
-        return error.NoSuchSchema;
-    }
 
-    return maybe_schema_enum.?;
+    errdefer std.log.err("No schema: {s}\n", .{schema_str});
+    return (
+        if (std.meta.stringToEnum(EnumType, schema_str)) |schema| schema
+        else error.NoSuchSchema
+    );
 }
 
 fn read_float(
@@ -356,15 +342,10 @@ fn read_rate(
     maybe_obj:?std.json.ObjectMap
 ) ?u32
 {
-
     if (maybe_obj)
         |o|
     {
-        if (o.get("rate")) 
-            |r| 
-        {
-            return @intFromFloat(read_float(r));
-        }
+        return _read_maybe(u32, o, "rate") orelse null;
     }
 
     return null;
@@ -787,14 +768,8 @@ fn read_markers(
 
         // Read marker name
         const marker_name = (
-            if (marker_obj.get("name"))
-                |name_val|
-            switch (name_val) {
-                .string => |s| try allocator.dupe(u8, s),
-                .null => try allocator.dupe(u8, ""),
-                else => try allocator.dupe(u8, ""),
-            }
-            else try allocator.dupe(u8, "")
+            try maybe_string(allocator, marker_obj, "name") 
+            orelse ""
         );
 
         // Read marked_range
@@ -813,25 +788,16 @@ fn read_markers(
 
         // Read color
         const color = (
-            if (marker_obj.get("color"))
-                |color_val|
-            switch (color_val) {
-                .string => |s| otio.MarkerColor.from_string(s) orelse .red,
-                else => .red,
-            }
+            if (try maybe_string(allocator, marker_obj, "color")) 
+                |color_str|
+                otio.MarkerColor.from_string(color_str) orelse .red
             else .red
         );
 
         // Read comment
         const comment = (
-            if (marker_obj.get("comment"))
-                |comment_val|
-            switch (comment_val) {
-                .string => |s| if (s.len > 0) try allocator.dupe(u8, s) else "",
-                .null => "",
-                else => "",
-            }
-            else ""
+            try maybe_string(allocator, marker_obj, "comment")
+            orelse ""
         );
 
         markers[i] = .{
@@ -878,7 +844,10 @@ fn read_otio_object(
         obj,
     );
 
-    const name = try maybe_string(allocator, obj, "name") orelse try allocator.dupe(u8, "");
+    const name = (
+        try maybe_string(allocator, obj, "name") 
+        orelse ""
+    );
 
     switch (schema_enum) {
         .Timeline => {
@@ -947,7 +916,10 @@ fn read_otio_object(
                 if (obj.get("markers"))
                     |markers_val|
                 switch (markers_val) {
-                    .array => |arr| try read_markers(allocator, arr),
+                    .array => |arr| try read_markers(
+                        allocator,
+                        arr,
+                    ),
                     else => try allocator.alloc(otio.Marker, 0),
                 }
                 else try allocator.alloc(otio.Marker, 0)
@@ -970,7 +942,10 @@ fn read_otio_object(
                 if (obj.get("markers"))
                     |markers_val|
                 switch (markers_val) {
-                    .array => |arr| try read_markers(allocator, arr),
+                    .array => |arr| try read_markers(
+                        allocator,
+                        arr,
+                    ),
                     else => try allocator.alloc(otio.Marker, 0),
                 }
                 else try allocator.alloc(otio.Marker, 0)
@@ -1001,7 +976,10 @@ fn read_otio_object(
                 if (obj.get("markers"))
                     |markers_val|
                 switch (markers_val) {
-                    .array => |arr| try read_markers(allocator, arr),
+                    .array => |arr| try read_markers(
+                        allocator,
+                        arr,
+                    ),
                     else => try allocator.alloc(otio.Marker, 0),
                 }
                 else try allocator.alloc(otio.Marker, 0)
@@ -1044,7 +1022,11 @@ fn read_otio_object(
                     |meta_val|
                 blk: {
                     // Only store non-empty metadata objects
-                    if (std.meta.activeTag(meta_val) == .object and meta_val.object.count() > 0) {
+                    if (
+                        std.meta.activeTag(meta_val) == .object 
+                        and meta_val.object.count() > 0
+                    ) 
+                    {
                         break :blk meta_val;
                     }
                     break :blk null;
@@ -1057,7 +1039,10 @@ fn read_otio_object(
                 if (obj.get("markers"))
                     |markers_val|
                 switch (markers_val) {
-                    .array => |arr| try read_markers(allocator, arr),
+                    .array => |arr| try read_markers(
+                        allocator,
+                        arr,
+                    ),
                     else => try allocator.alloc(otio.Marker, 0),
                 }
                 else try allocator.alloc(otio.Marker, 0)
@@ -1068,7 +1053,10 @@ fn read_otio_object(
                 if (obj.get("media_reference"))
                     |mr_val|
                 switch (mr_val) {
-                    .object => |mr_obj| try read_media_reference(allocator, mr_obj),
+                    .object => |mr_obj| try read_media_reference(
+                        allocator,
+                        mr_obj,
+                    ),
                     else => otio.schema.MediaReference.null_picture,
                 }
                 else otio.schema.MediaReference.null_picture
@@ -1104,7 +1092,10 @@ fn read_otio_object(
                 if (obj.get("markers"))
                     |markers_val|
                 switch (markers_val) {
-                    .array => |arr| try read_markers(allocator, arr),
+                    .array => |arr| try read_markers(
+                        allocator,
+                        arr,
+                    ),
                     else => try allocator.alloc(otio.Marker, 0),
                 }
                 else try allocator.alloc(otio.Marker, 0)
@@ -1189,109 +1180,25 @@ fn read_otio_object(
     return error.NotImplemented;
 }
 
-/// Read a timeline from .otio (JSON), .tla, or .tlb (binary) file.
-/// The file format is determined by the file extension.
+/// Read OTIO JSON from a file path.
 pub fn read_from_file(
     in_allocator: std.mem.Allocator,
     file_path: string.latin_s8,
     options: ReadOptions,
 ) !otio.CompositionItemHandle
 {
-    // @TODO: move this up into root.zig
-
-    // Check file extension to determine format
-    const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
-        return error.NoFileExtension;
-    };
-    const extension = file_path[ext_start..];
-
-    // TODO: should have a SUPPORTED_EXTENSIONS enum that maps it to the right
-    //       deserializer... and the same in the serialization code
-
-    if (std.mem.eql(u8, extension, ".tla"))
-    {
-        // Read tla format
-        const file = try std.fs.cwd().openFile(file_path, .{});
-        defer file.close();
-
-        const source = try file.readToEndAllocOptions(
-            in_allocator,
-            std.math.maxInt(u32),
-            null,
-            .@"1",
-            0,
-        );
-        defer in_allocator.free(source);
-
-        const timeline = try ascii.deserialize_timeline(
-            in_allocator,
-            source,
-            options,
-        );
-
-        return .{ .timeline = timeline };
-    }
-
-    if (std.mem.eql(u8, extension, ".tlb"))
-    {
-        const file = try std.fs.cwd().openFile(file_path, .{});
-        defer file.close();
-
-        const source = try file.readToEndAlloc(
-            in_allocator,
-            std.math.maxInt(u32),
-        );
-        defer in_allocator.free(source);
-
-        const timeline = try binary.deserialize_timeline(
-            in_allocator,
-            source,
-            options,
-        );
-
-        return .{ .timeline = timeline };
-    }
-
-    if (std.mem.eql(u8, extension, ".tlz"))
-    {
-
-        const ser_timeline = try bundle.read_from_file(
-            in_allocator,
-            file_path,
-            .{},
-        );
-
-        const timeline = try ascii.serializable_to_timeline(
-            in_allocator,
-            ser_timeline,
-        );
-
-        return .{ .timeline = timeline };
-    }
-
-    // Default to JSON format (.otio)
     const fi = try std.fs.cwd().openFile(file_path, .{});
     defer fi.close();
 
-    var arena = std.heap.ArenaAllocator.init(in_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
     const source = try fi.readToEndAlloc(
-        allocator,
+        in_allocator,
         std.math.maxInt(u32),
     );
+    defer in_allocator.free(source);
 
-    const result = try std.json.parseFromSliceLeaky(
-        std.json.Value,
-        allocator,
-        source,
-        .{},
-    );
-
-    return try read_otio_object(
+    return try read_from_string(
         in_allocator,
-        result.object,
+        source,
         options,
     );
 }
@@ -1314,7 +1221,11 @@ pub fn read_from_string(
         .{},
     );
 
-    return read_otio_object(in_allocator, result.object, options);
+    return read_otio_object(
+        in_allocator,
+        result.object,
+        options,
+    );
 }
 
 test "read_from_file test (simple)"
@@ -1395,41 +1306,6 @@ test "read_from_file test (multiple, smoke)"
     defer  tl.deinit(allocator);
 }
 
-test "read_from_file with all_except_metadata option"
-{
-    const allocator = std.testing.allocator;
-
-    // Test reading a tla file with metadata
-    const tla_file = "otio_sample_data/simple_cut.tla";
-
-    // Read with all content
-    var tl_all = try read_from_file(
-        allocator,
-        tla_file,
-        .{ .file_contents_to_read = .all },
-    );
-    defer tl_all.deinit(allocator);
-
-    // Read with metadata skipped
-    var tl_no_meta = try read_from_file(
-        allocator,
-        tla_file,
-        .{ .file_contents_to_read = .all_except_metadata },
-    );
-    defer tl_no_meta.deinit(allocator);
-
-    // Both should have the same structure
-    try expectEqual(
-        tl_all.timeline.tracks.children.len,
-        tl_no_meta.timeline.tracks.children.len,
-    );
-
-    // Both timelines should have the same name
-    if (tl_all.timeline.name.len > 0) {
-        try std.testing.expectEqualStrings(tl_all.timeline.name, tl_no_meta.timeline.name);
-    }
-}
-
 test "read_from_file with all_except_metadata on OTIO JSON file"
 {
     const allocator = std.testing.allocator;
@@ -1440,7 +1316,7 @@ test "read_from_file with all_except_metadata on OTIO JSON file"
     var tl_all = try read_from_file(
         allocator,
         otio_file,
-        .{ .file_contents_to_read = .all },
+        .{},
     );
     defer tl_all.deinit(allocator);
 
@@ -1471,25 +1347,34 @@ test "read_from_file with all_except_metadata on OTIO JSON file"
             track_no_meta.children[0].clip.name,
         );
     }
-
-    // However, for JSON files, the clip's metadata should be null when skipped
-    // (Note: In this simple test file, clips may not have metadata anyway)
 }
 
 /// Bridge function for reading OTIO JSON format from a reader.
 /// Note: OTIO format is read-only; writing is not supported.
+/// Used by the unified SerializableFormat interface for format-agnostic I/O.
 pub fn read_otio_timeline_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
+    metadata_mode: adapter.ReadOptions.ContentFilter,
 ) anyerror!ascii.SerializableTimeline
 {
+    if (metadata_mode != .all)
+    {
+        return error.LegacyOtioReaderAlwaysIncludesMetadata;
+    }
+
+    // Read the full buffer rather than streaming via parseFromTokenSourceLeaky
+    // with a std.json.Reader. read_otio_object does random-access traversal of
+    // the std.json.Value DOM (.get("tracks"), .get("children"), etc.), so the
+    // entire tree must be in memory regardless. Streaming would also force
+    // .alloc_always for every string, whereas parseFromSliceLeaky (called by
+    // read_from_string) can reference strings directly from the input slice.
     const buffer = try reader.readAlloc(
         allocator,
         std.math.maxInt(u32),
     );
     defer allocator.free(buffer);
 
-    // Parse OTIO JSON to get a CompositionItemHandle
     const item = try read_from_string(
         allocator,
         buffer,
@@ -1500,4 +1385,3 @@ pub fn read_otio_timeline_from_reader(
     const timeline = item.timeline;
     return try ascii.SerializableTimeline.from(allocator, timeline);
 }
-
