@@ -1,12 +1,8 @@
 .DS_Store
 .vscode/
 .zig-cache/
-zig-cache/
 zig-out/
 *.out
 *.o
 imgui.ini
-# symlink to otvis executable
-otvis
-.cache
 production_test_files
