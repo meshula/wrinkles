@@ -515,6 +515,171 @@ fn update_tlb_schema(
     );
 }
 
+/// Compiles an executable from C++
+fn cpp_binary(
+    b: *std.Build,
+    options: Options,
+    opentimelineio_cpp: *std.Build.Step.Compile,
+    comptime name: []const u8,
+    cpp_file_path: []const u8,
+    run_desc: []const u8,
+) *std.Build.Step.Compile
+{
+    const exe = b.addExecutable(
+        .{
+            .name = name,
+            .root_module = b.createModule(
+                .{
+                    .target = options.target,
+                    .optimize = options.optimize,
+                },
+            ),
+        },
+    );
+
+    exe.addCSourceFile(
+        .{
+            .file = b.path(cpp_file_path),
+            .flags = &.{"-std=c++17"},
+        },
+    );
+
+    exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
+    exe.addIncludePath(b.path("src/language_bindings/c"));
+    exe.linkLibrary(opentimelineio_cpp);
+    exe.linkLibCpp();
+
+    const install_exe_step = b.addInstallArtifact(
+        exe,
+        .{},
+    );
+    b.getInstallStep().dependOn(&install_exe_step.step);
+
+    var run_step = b.step(
+        "run-" ++ name,
+        run_desc,
+    );
+    var run_cmd = b.addRunArtifact(exe);
+    run_step.dependOn(&run_cmd.step);
+    if (b.args) 
+        |args| 
+    {
+        run_cmd.addArgs(args);
+    }
+
+    return exe;
+}
+
+/// Compiles all the C++ Code
+/// @TODO: move this into a downstream repo
+fn cpp_bindings_and_examples(
+    b: *std.Build,
+    options: Options,
+    opentimelineio_c_static: *std.Build.Step.Compile,
+    test_output: bool,
+) !void
+{
+    // C++ binding library
+    const opentimelineio_cpp = b.addLibrary(
+        .{
+            .name = "opentimelineio_cpp",
+            .linkage = .static,
+            .root_module = b.createModule(
+                .{
+                    .target = options.target,
+                    .optimize = options.optimize,
+                },
+            ),
+        },
+    );
+
+    opentimelineio_cpp.addCSourceFile(
+        .{
+            .file = b.path(
+                "src/language_bindings/cpp/src/opentimelineio.cpp"
+            ),
+            .flags = &.{"-std=c++17"},
+        },
+    );
+
+    opentimelineio_cpp.addIncludePath(b.path("src/language_bindings/cpp/include"));
+    opentimelineio_cpp.addIncludePath(b.path("src/language_bindings/c"));
+    opentimelineio_cpp.linkLibrary(opentimelineio_c_static);
+    opentimelineio_cpp.linkLibCpp();
+
+    b.installArtifact(opentimelineio_cpp);
+
+    // C++ example: otio_hierarchy_view_cpp
+    {
+        _ = cpp_binary(
+            b,
+            options,
+            opentimelineio_cpp,
+            "cpp-otio_hierarchy_view",
+            "src/cpp_examples/otio_hierarchy_view.cpp",
+            "Run C++ timeline hierarchy viewer",
+        );
+    }
+
+    // C++ example: otio_measure_timeline_cpp
+    {
+        _ = cpp_binary(
+            b,
+            options,
+            opentimelineio_cpp,
+            "cpp-otio_measure_timeline",
+            "src/cpp_examples/otio_measure_timeline.cpp",
+            "Run C++ timeline measurement tool",
+        );
+    }
+
+    // C++ example: otiocat_cpp
+    {
+        _ = cpp_binary(
+            b,
+            options,
+            opentimelineio_cpp,
+            "cpp-otiocat",
+            "src/cpp_examples/otiocat.cpp",
+            "Run C++ timeline format viewer",
+        );
+    }
+
+    // C++ unit tests
+    {
+        const cpp_test_exe = cpp_binary(
+            b,
+            options,
+            opentimelineio_cpp,
+            "cpp-test-opentimelineio",
+            "src/language_bindings/cpp/test/test_opentimelineio.cpp",
+            "Run C++ timeline format viewer",
+        );
+
+        // Run the C++ tests with a sample file
+        const run_cpp_tests = b.addRunArtifact(cpp_test_exe);
+        run_cpp_tests.addArg("sample_otio_files/multiple_track.otio");
+
+        // expectExitCode(0) hides the output and just checks the exit code
+        if (!test_output)
+        {
+            run_cpp_tests.expectExitCode(0);
+        }
+
+        const cpp_test_step = b.step(
+            "test_cpp",
+            "Run C++ binding unit tests",
+        );
+        cpp_test_step.dependOn(&run_cpp_tests.step);
+
+        // @TODO: add a filter that can catch the CPP Tests
+        if (options.test_filter == null) 
+        {
+            options.test_step.dependOn(cpp_test_step);
+        }
+    }
+}
+
 /// main entry point for building wrinkles
 pub fn build(
     b: *std.Build,
@@ -1261,233 +1426,15 @@ pub fn build(
     );
 
     //
-    // C++ binding library and examples - only build if not in Wasm mode
+    // C++ binding library and examples
     //
     if (options.target.result.cpu.arch.isWasm() == false) 
     {
-        // C++ binding library
-        const opentimelineio_cpp = b.addLibrary(
-            .{
-                .name = "opentimelineio_cpp",
-                .linkage = .static,
-                .root_module = b.createModule(
-                    .{
-                        .target = options.target,
-                        .optimize = options.optimize,
-                    },
-                ),
-            },
+        try cpp_bindings_and_examples(
+            b,
+            options,
+            opentimelineio_c_static,
+            test_output,
         );
-
-        opentimelineio_cpp.addCSourceFile(
-            .{
-                .file = b.path(
-                    "src/language_bindings/cpp/src/opentimelineio.cpp"
-                ),
-                .flags = &.{"-std=c++17"},
-            },
-        );
-
-        opentimelineio_cpp.addIncludePath(b.path("src/language_bindings/cpp/include"));
-        opentimelineio_cpp.addIncludePath(b.path("src/language_bindings/c"));
-        opentimelineio_cpp.linkLibrary(opentimelineio_c_static);
-        opentimelineio_cpp.linkLibCpp();
-
-        b.installArtifact(opentimelineio_cpp);
-
-        // C++ example: otio_hierarchy_view_cpp
-        {
-            const exe = b.addExecutable(
-                .{
-                    .name = "otio_hierarchy_view_cpp",
-                    .root_module = b.createModule(
-                        .{
-                            .target = options.target,
-                            .optimize = options.optimize,
-                        },
-                    ),
-                },
-            );
-
-            exe.addCSourceFile(
-                .{
-                    .file = b.path(
-                        "src/cpp_examples/otio_hierarchy_view.cpp",
-                    ),
-                    .flags = &.{"-std=c++17"},
-                },
-            );
-
-            exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
-            exe.addIncludePath(b.path("src/language_bindings/c"));
-            exe.linkLibrary(opentimelineio_cpp);
-            exe.linkLibCpp();
-
-            const install_exe_step = b.addInstallArtifact(
-                exe,
-                .{},
-            );
-            b.getInstallStep().dependOn(&install_exe_step.step);
-
-            var run_step = b.step(
-                "run-otio_hierarchy_view_cpp",
-                "Run C++ timeline hierarchy viewer",
-            );
-            var run_cmd = b.addRunArtifact(exe);
-            run_step.dependOn(&run_cmd.step);
-            if (b.args) 
-                |args| 
-            {
-                run_cmd.addArgs(args);
-            }
-        }
-
-        // C++ example: otio_measure_timeline_cpp
-        {
-            const exe = b.addExecutable(
-                .{
-                    .name = "otio_measure_timeline_cpp",
-                    .root_module = b.createModule(
-                        .{
-                            .target = options.target,
-                            .optimize = options.optimize,
-                        },
-                    ),
-                },
-            );
-
-            exe.addCSourceFile(
-                .{
-                    .file = b.path(
-                        "src/cpp_examples/otio_measure_timeline.cpp"
-                    ),
-                    .flags = &.{"-std=c++17"},
-                },
-            );
-
-            exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
-            exe.addIncludePath(b.path("src/language_bindings/c"));
-            exe.linkLibrary(opentimelineio_cpp);
-            exe.linkLibCpp();
-
-            const install_exe_step = (
-                b.addInstallArtifact(exe, .{})
-            );
-            b.getInstallStep().dependOn(&install_exe_step.step);
-
-            var run_step = b.step(
-                "run-otio_measure_timeline_cpp",
-                "Run C++ timeline measurement tool",
-            );
-            var run_cmd = b.addRunArtifact(exe);
-            run_step.dependOn(&run_cmd.step);
-            if (b.args) 
-                |args| 
-            {
-                run_cmd.addArgs(args);
-            }
-        }
-
-        // C++ example: otiocat_cpp
-        {
-            const exe = b.addExecutable(
-                .{
-                    .name = "otiocat_cpp",
-                    .root_module = b.createModule(
-                        .{
-                            .target = options.target,
-                            .optimize = options.optimize,
-                        },
-                    ),
-                },
-            );
-
-            exe.addCSourceFile(
-                .{
-                    .file = b.path("src/cpp_examples/otiocat.cpp"),
-                    .flags = &.{"-std=c++17"},
-                },
-            );
-
-            exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
-            exe.addIncludePath(b.path("src/language_bindings/c"));
-            exe.linkLibrary(opentimelineio_cpp);
-            exe.linkLibCpp();
-
-            const install_exe_step = b.addInstallArtifact(
-                exe,
-                .{},
-            );
-            b.getInstallStep().dependOn(&install_exe_step.step);
-
-            var run_step = b.step(
-                "run-otiocat_cpp",
-                "Run C++ timeline format viewer",
-            );
-            var run_cmd = b.addRunArtifact(exe);
-            run_step.dependOn(&run_cmd.step);
-            if (b.args) 
-                |args| 
-            {
-                run_cmd.addArgs(args);
-            }
-        }
-
-        // C++ unit tests
-        {
-            const cpp_test_exe = b.addExecutable(
-                .{
-                    .name = "test_opentimelineio_cpp",
-                    .root_module = b.createModule(
-                        .{
-                            .target = options.target,
-                            .optimize = options.optimize,
-                        },
-                    ),
-                },
-            );
-
-            cpp_test_exe.addCSourceFile(
-                .{
-                    .file = b.path(
-                        "src/language_bindings/cpp/test/test_opentimelineio.cpp"
-                    ),
-                    .flags = &.{"-std=c++17"},
-                },
-            );
-
-            cpp_test_exe.addIncludePath(
-                b.path("src/language_bindings/cpp/include")
-            );
-            cpp_test_exe.addIncludePath(
-                b.path("src/language_bindings/c")
-            );
-            cpp_test_exe.linkLibrary(opentimelineio_cpp);
-            cpp_test_exe.linkLibCpp();
-
-            b.installArtifact(cpp_test_exe);
-
-            // Run the C++ tests with a sample file
-            const run_cpp_tests = b.addRunArtifact(cpp_test_exe);
-            run_cpp_tests.addArg("sample_otio_files/multiple_track.otio");
-
-            // expectExitCode(0) hides the output and just checks the exit code
-            if (!test_output)
-            {
-                run_cpp_tests.expectExitCode(0);
-            }
-
-            const cpp_test_step = b.step(
-                "test_cpp",
-                "Run C++ binding unit tests",
-            );
-            cpp_test_step.dependOn(&run_cpp_tests.step);
-
-            // @TODO: add a filter that can catch the CPP Tests
-            if (options.test_filter == null) 
-            {
-                options.test_step.dependOn(cpp_test_step);
-            }
-        }
     }
 }
