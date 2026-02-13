@@ -411,13 +411,13 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] Joshs' composition objects (generic stack/track thingy)
 * [ ] land serialization in main (IE review and land all the code that is in
       flight on that branch serialization)
-    * [ ] add metadata_map to runtime types (not just serializable types)
+    * [x] add metadata_map to runtime types (not just serializable types)
         * [x] otio.schema.Clip
-        * [ ] other types?
-    * [ ] removed unused functions
+        * [x] other types?
+    * [x] removed unused functions
     * [ ] remove unused binaries
     * [x] update references to .ziggy files to refer to .tla
-    * [ ] clean up gitignore
+    * [x] clean up gitignore
     * [x] Serialization gets wrapped up into a library
         * [x] serialization.zig -> serialization/ascii.zig
         * [x] binary_serialization_flatbufs.zig -> serialization/binary.zig
@@ -432,9 +432,9 @@ didn't impact the deisgn or problems we were specifically solving.
     * [x] confirm that the python bindings are not impacted by the relocatable
           issue
     * [ ] update the raven-wrinkles project
-    * [ ] add a FileFormat struct that maps formats to extensions and
+    * [x] add a FileFormat struct that maps formats to extensions and
           serializers/deserializers.
-        * [ ] Maybe another way to put this is to reorganize the Serializer
+        * [x] Maybe another way to put this is to reorganize the Serializer
               library to have a clearer top down structure.  An Adapter[] which 
               has a number of structs that know what the features of each
               supported format is.
@@ -442,14 +442,14 @@ didn't impact the deisgn or problems we were specifically solving.
           that up
     * [x] optional strings can just be empty strings unless there is a
           meaningful difference.
-    * [ ] store metdata with a hash... doesn't need to be a hash string though (ascii.zig:963)
+    * [x] store metdata with a hash... doesn't need to be a hash string though (ascii.zig:963)
     * [ ] preserve whether the user wants the bounds in continuous or discrete
           bounds, not with the heuristic on whether there is a discrete 
           partition or not
     * [ ] serializer/optional/type conversion functions can probably be
           collapsed
     * [ ] double check v0 -> v1 translation in ascii.zig
-* [ ] Update the adapter to make sure its Read and Write, integrate into
+* [x] Update the adapter to make sure its Read and Write, integrate into
       project
 * [ ] a treecode (treecode.clone) test fails on --release=fast but no other
       mode?
