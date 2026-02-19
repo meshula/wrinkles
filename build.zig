@@ -14,16 +14,17 @@ fn graphviz_dot_on_path(
             .allocator = allocator,
             .argv = &[_][]const u8{
                 "which",
-                "dot"
+                "dot",
             },
         }
     ) catch return null;
 
-    if (result.term.Exited == 0) {
+    if (result.term.Exited == 0) 
+    {
         const path = std.mem.trim(
             u8,
             result.stdout,
-            "\n "
+            "\n ",
         );
         return path;
     }
