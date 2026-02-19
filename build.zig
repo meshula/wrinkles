@@ -588,6 +588,8 @@ fn cpp_bindings_and_examples(
                 .{
                     .target = options.target,
                     .optimize = options.optimize,
+                    .link_libcpp = true,
+                    .link_libc = true,
                 },
             ),
         },
@@ -978,6 +980,7 @@ pub fn build(
                     ),
                     .target = options.target,
                     .optimize = options.optimize,
+                    .link_libc = true,
                 },
             ),
             .linkage = .static,
@@ -1132,45 +1135,34 @@ pub fn build(
         },
     );
 
-    // Helper to configure a C binding library module
-    const CLibraryConfig = struct {
-        lib: *std.Build.Step.Compile,
-
-        fn configure(
-            self: @This(),
-            b_inner: *std.Build,
-            opentime_mod: *std.Build.Module,
-            opentimelineio_mod: *std.Build.Module,
-            topology_mod: *std.Build.Module,
-        ) void
-        {
-            self.lib.addIncludePath(b_inner.path("src/language_bindings/c/"));
-            self.lib.root_module.addImport("opentime", opentime_mod);
-            self.lib.root_module.addImport("opentimelineio", opentimelineio_mod);
-            self.lib.root_module.addImport("topology", topology_mod);
-            self.lib.linkLibCpp();
+    // Core module that gets build both statically and dynamically for various
+    // uses.
+    const opentimelineio_c_root_mod = b.createModule(
+        .{
+            .target = options.target,
+            .optimize = options.optimize,
+            .root_source_file = b.path(
+                "src/language_bindings/c/opentimelineio_c.zig",
+            ),
+            .link_libc = true,
+            .imports = &.{
+                .{ .name = "opentime", .module=opentime, },
+                .{ .name = "opentimelineio", .module= opentimelineio, },
+                .{ .name = "topology", .module= topology, },
+            },
         }
-    };
+    );
 
     // Dynamic library (for C/C++ executables)
     const opentimelineio_c = b.addLibrary(
         .{
             .name = "opentimelineio_c",
             .linkage = .dynamic,
-            .root_module = b.createModule(
-                .{
-                    .target = options.target,
-                    .optimize = options.optimize,
-                    .root_source_file = b.path(
-                        "src/language_bindings/c/opentimelineio_c.zig",
-                    ),
-                },
-            ),
+            .root_module = opentimelineio_c_root_mod,
         },
     );
     {
-        const cfg = CLibraryConfig{ .lib = opentimelineio_c };
-        cfg.configure(b, opentime, opentimelineio, topology);
+        opentimelineio_c.addIncludePath(b.path("src/language_bindings/c/"));
         b.installArtifact(opentimelineio_c);
     }
 
@@ -1179,20 +1171,11 @@ pub fn build(
         .{
             .name = "opentimelineio_c_static",
             .linkage = .static,
-            .root_module = b.createModule(
-                .{
-                    .target = options.target,
-                    .optimize = options.optimize,
-                    .root_source_file = b.path(
-                        "src/language_bindings/c/opentimelineio_c.zig",
-                    ),
-                },
-            ),
+            .root_module = opentimelineio_c_root_mod,
         },
     );
     {
-        const cfg = CLibraryConfig{ .lib = opentimelineio_c_static };
-        cfg.configure(b, opentime, opentimelineio, topology);
+        opentimelineio_c_static.addIncludePath(b.path("src/language_bindings/c/"));
         // Bundle compiler-rt so consumers get __divtf3 and other soft-float symbols
         opentimelineio_c_static.bundle_compiler_rt = true;
         b.installArtifact(opentimelineio_c_static);
@@ -1206,6 +1189,7 @@ pub fn build(
                     .{
                         .optimize = options.optimize,
                         .target = options.target,
+                        .link_libc = true,
                     },
                 ),
             },
