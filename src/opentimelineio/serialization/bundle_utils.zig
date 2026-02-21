@@ -57,14 +57,14 @@ pub const BundleFormat = enum {
 // ----------------------------------------------------------------------------
 
 /// Validate that all media basenames are unique. Returns an error if any
-/// duplicate basenames are found, as TLZ bundles require unique basenames
-/// in the flat media directory structure.
+/// duplicate basenames are found, as TLZ bundles require unique basenames in
+/// the flat media directory structure.
 pub fn guarantee_unique_basenames(
     paths: []const []const u8,
 ) !void
 {
     var seen = std.StringHashMap(void).init(
-        std.heap.page_allocator
+        std.heap.page_allocator,
     );
     defer seen.deinit();
 
@@ -91,7 +91,7 @@ pub fn path_to_unix_style(
 {
     const result = try allocator.alloc(
         u8,
-        path.len
+        path.len,
     );
 
     for (path, 0..)

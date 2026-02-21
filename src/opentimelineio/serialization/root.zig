@@ -63,29 +63,39 @@ pub const MetadataValue = ascii.MetadataValue;
 pub const CompositionItemHandle = adapter.CompositionItemHandle;
 
 /// Read a serializable timeline from file (preserves metadata hash maps).
-pub const read_serializable_timeline_from_file = adapter.read_serializable_timeline_from_file;
+pub const read_serializable_timeline_from_file = (
+    adapter.read_serializable_timeline_from_file
+);
 
 /// Read a serializable collection from file.
-pub const read_serializable_collection_from_file = adapter.read_serializable_collection_from_file;
+pub const read_serializable_collection_from_file = (
+    adapter.read_serializable_collection_from_file
+);
 
 /// Write a serializable timeline to file.
-pub const write_serializable_timeline_to_file = adapter.write_serializable_timeline_to_file;
+pub const write_serializable_timeline_to_file = (
+    adapter.write_serializable_timeline_to_file
+);
 
 /// Write a serializable timeline to a writer in the specified format.
 pub const write_serializable_to_writer = adapter.write_serializable_to_writer;
 
 /// Write a serializable collection to file.
-pub const write_serializable_collection_to_file = ascii.write_collection_to_file;
+pub const write_serializable_collection_to_file = (
+    ascii.write_collection_to_file
+);
 
 /// Write a serializable collection to a writer in the specified format.
-pub const write_serializable_collection_to_writer = ascii.write_collection_to_writer;
+pub const write_serializable_collection_to_writer = (
+    ascii.write_collection_to_writer
+);
 
 // ============================================================================
 // Serializable Submodule - Returns serializable types
 // ============================================================================
 
-/// Submodule for working with SerializableRoot directly.
-/// Use this when you need to preserve/manipulate the intermediate representation.
+/// Submodule for working with SerializableRoot directly. Use this when you
+/// need to preserve/manipulate the intermediate representation.
 pub const serializable = adapter.serializable;
 
 // ============================================================================
@@ -97,4 +107,3 @@ pub const binary = @import("binary.zig");
 pub const bundle = @import("bundle.zig");
 pub const bundle_utils = @import("bundle_utils.zig");
 pub const legacy_json = @import("legacy_json.zig");
-

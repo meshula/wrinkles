@@ -84,8 +84,8 @@ pub const FormatDescriptor = struct {
     adapter: SerializableFormat,
 };
 
-/// Supported file formats for read/write operations.
-/// Format is auto-detected from file extension, or can be specified explicitly.
+/// Supported file formats for read/write operations. Format is auto-detected
+/// from file extension, or can be specified explicitly.
 pub const FileFormat = enum {
     /// Timeline ASCII format (ziggy-based, human-readable)
     tla,
@@ -105,7 +105,10 @@ pub const FileFormat = enum {
     /// Comptime format descriptors for each format
     pub const descriptors = struct {
         pub const tla: FormatDescriptor = .{
-            .description = "Timeline ASCII format (ziggy-based, human-readable)",
+            .description = (
+                "Timeline ASCII format (ziggy-based, "
+                ++ "human-readable)"
+            ),
             .is_collection = false,
             .is_bundle = false,
             .is_read_only = false,
@@ -114,7 +117,10 @@ pub const FileFormat = enum {
         };
 
         pub const tlb: FormatDescriptor = .{
-            .description = "Timeline Binary format (FlatBuffers, high performance)",
+            .description = (
+                "Timeline Binary format (FlatBuffers, high "
+                ++ "performance)"
+            ),
             .is_collection = false,
             .is_bundle = false,
             .is_read_only = false,
@@ -123,7 +129,10 @@ pub const FileFormat = enum {
         };
 
         pub const tlz: FormatDescriptor = .{
-            .description = "Timeline Bundle (ZIP archive with embedded media)",
+            .description = (
+                "Timeline Bundle (ZIP archive with embedded "
+                ++ "media)"
+            ),
             .is_collection = false,
             .is_bundle = true,
             .is_read_only = false,
@@ -150,7 +159,10 @@ pub const FileFormat = enum {
         };
 
         pub const tlcz: FormatDescriptor = .{
-            .description = "Collection Bundle (ZIP archive with embedded media)",
+            .description = (
+                "Collection Bundle (ZIP archive with embedded "
+                ++ "media)"
+            ),
             .is_collection = true,
             .is_bundle = true,
             .is_read_only = false,
@@ -204,8 +216,8 @@ pub const FileFormat = enum {
     }
 };
 
-/// Union of serializable root types (timeline or collection).
-/// Used by the serializable submodule for preserving intermediate representations.
+/// Union of serializable root types (timeline or collection). Used by the
+/// serializable submodule for preserving intermediate representations.
 pub const SerializableRoot = union(enum) {
     timeline: ascii.SerializableTimeline,
     collection: ascii.SerializableCollection,
@@ -663,7 +675,7 @@ pub fn read_timeline_from_file(
 
     return try ascii.serializable_to_timeline(
         allocator,
-        ser_timeline
+        ser_timeline,
     );
 }
 
@@ -678,7 +690,11 @@ pub fn read_serializable_collection_from_file(
     // Handle .tlcz separately since it manages its own file reading
     if (format == .tlcz)
     {
-        return try bundle.read_collection_from_file(allocator, file_path, .{});
+        return try bundle.read_collection_from_file(
+            allocator,
+            file_path,
+            .{},
+        );
     }
 
     return try ascii.read_collection_from_file(allocator, file_path);
@@ -693,11 +709,19 @@ fn write_collection_to_file(
 ) !void
 {
     // Convert schema.Collection to SerializableCollection
-    var ser_collection = try ascii.collection_to_serializable(allocator, collection);
+    var ser_collection = try ascii.collection_to_serializable(
+        allocator,
+        collection,
+    );
     defer ser_collection.deinit(allocator);
 
     // Write to file
-    try ascii.write_collection_to_file(allocator, ser_collection, file_path, metadata_mode);
+    try ascii.write_collection_to_file(
+        allocator,
+        ser_collection,
+        file_path,
+        metadata_mode,
+    );
 }
 
 // ============================================================================
@@ -724,7 +748,10 @@ pub fn read_from_file(
         );
         defer ser_collection.deinit(allocator);
 
-        const collection = try ascii.serializable_to_collection(allocator, ser_collection);
+        const collection = try ascii.serializable_to_collection(
+            allocator,
+            ser_collection,
+        );
         return .{ .collection = collection };
     }
 
@@ -736,7 +763,10 @@ pub fn read_from_file(
     );
     defer ser_timeline.deinit(allocator);
 
-    const timeline = try ascii.serializable_to_timeline(allocator, ser_timeline);
+    const timeline = try ascii.serializable_to_timeline(
+        allocator,
+        ser_timeline,
+    );
     return .{ .timeline = timeline };
 }
 
@@ -759,7 +789,9 @@ pub fn write_to_file(
 
     if (desc.is_bundle)
     {
-        const bundle_opts = options.bundle_options orelse WriteOptions.BundleOptions{};
+        const bundle_opts = (
+            options.bundle_options orelse WriteOptions.BundleOptions{}
+        );
         const bundle_write_opts = bundle.WriteOptions{
             .bundle_format = switch (bundle_opts.content_format) {
                 .tla => .tla,
@@ -1042,7 +1074,9 @@ pub const serializable = struct {
 
         if (desc.is_bundle)
         {
-            const bundle_opts = options.bundle_options orelse WriteOptions.BundleOptions{};
+            const bundle_opts = (
+                options.bundle_options orelse WriteOptions.BundleOptions{}
+            );
             const bundle_write_opts = bundle.WriteOptions{
                 .bundle_format = switch (bundle_opts.content_format) {
                     .tla => .tla,

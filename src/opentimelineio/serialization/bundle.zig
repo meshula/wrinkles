@@ -98,16 +98,22 @@ pub fn read_from_file(
     defer file.close();
 
     // Read entire file into memory for ZIP parsing
-    const file_data = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
+    const file_data = try file.readToEndAlloc(
+        allocator,
+        std.math.maxInt(usize),
+    );
     defer allocator.free(file_data);
 
     var content_data: ?[]const u8 = null;
     var content_format: ?utils.BundleFormat = null;
     var version_found = false;
 
-    // Find end record to get central directory info
-    // Note: We implement our own finder because std.zip.EndRecord.findBuffer has a bug
-    // in Zig 0.15.2 where it returns error.EndOfStream which is not in FindBufferError
+    // Find end record to get central directory info 
+    //
+    // Note: We implement our own
+    // finder because std.zip.EndRecord.findBuffer has a bug in Zig 0.15.2
+    // where it returns error.EndOfStream which is not in FindBufferError
+    // @TODO ^ double check this
     const end_record = find_end_record(file_data) orelse
         return TlzError.InvalidArchive;
 
@@ -118,7 +124,10 @@ pub fn read_from_file(
         |_|
     {
         // Parse central directory file header
-        if (cd_offset + @sizeOf(zip.CentralDirectoryFileHeader) > file_data.len)
+        if (
+            cd_offset + @sizeOf(zip.CentralDirectoryFileHeader)
+            > file_data.len
+        )
         {
             return TlzError.InvalidArchive;
         }
@@ -135,7 +144,9 @@ pub fn read_from_file(
         const header = header_ptr.*;
 
         // Get filename
-        const filename_start = cd_offset + @sizeOf(zip.CentralDirectoryFileHeader);
+        const filename_start = (
+            cd_offset + @sizeOf(zip.CentralDirectoryFileHeader)
+        );
         const filename_end = filename_start + header.filename_len;
         if (filename_end > file_data.len)
         {
@@ -238,11 +249,22 @@ pub fn read_from_file(
 }
 
 /// Find ZIP end record in buffer (workaround for std.zip bug in Zig 0.15.2)
-fn find_end_record(buffer: []const u8) ?zip.EndRecord
+fn find_end_record(
+    buffer: []const u8,
+) ?zip.EndRecord
 {
-    const pos = std.mem.lastIndexOf(u8, buffer, &zip.end_record_sig) orelse return null;
-    if (pos + @sizeOf(zip.EndRecord) > buffer.len) return null;
-    const record_ptr: *align(1) const zip.EndRecord = @ptrCast(buffer[pos..][0..@sizeOf(zip.EndRecord)]);
+    const pos = std.mem.lastIndexOf(
+        u8,
+        buffer,
+        &zip.end_record_sig,
+    ) orelse return null;
+    if (pos + @sizeOf(zip.EndRecord) > buffer.len)
+    {
+        return null;
+    }
+    const record_ptr: *align(1) const zip.EndRecord = (
+        @ptrCast(buffer[pos..][0..@sizeOf(zip.EndRecord)])
+    );
     return record_ptr.*;
 }
 
@@ -270,7 +292,9 @@ fn readEntryDataFromBuffer(
         header.filename_len +
         header.extra_len;
 
-    const compressed_data = archive_data[data_offset..][0..header.compressed_size];
+    const compressed_data = (
+        archive_data[data_offset..][0..header.compressed_size]
+    );
 
     // Handle decompression based on compression method
     // TLZ files are written with store method (no compression) for simplicity
@@ -327,7 +351,8 @@ pub fn write_to_file(
         );
     }
 
-    // Serialize timeline to bytes based on format using std.Io.Writer.Allocating
+    // Serialize timeline to bytes based on format using
+    // std.Io.Writer.Allocating
     var content_writer: std.Io.Writer.Allocating = .init(arena_alloc);
     defer content_writer.deinit();
 
@@ -356,7 +381,9 @@ pub fn write_to_file(
         },
     }
 
-    const content_bytes = content_writer.writer.buffer[0..content_writer.writer.end];
+    const content_bytes = (
+        content_writer.writer.buffer[0..content_writer.writer.end]
+    );
 
     // Prepare version.txt content
     const version_data = utils.BUNDLE_VERSION;
@@ -388,26 +415,32 @@ pub fn write_to_file(
     var current_offset: u32 = 0;
 
     // Entry 0: version.txt (uncompressed)
-    try entries.append(arena_alloc, .{
-        .name = utils.BUNDLE_VERSION_FILE,
-        .data = version_data,
-        .compress = false,
-        .crc32 = version_crc,
-        .compressed_size = @intCast(version_data.len),
-        .local_header_offset = current_offset,
-    });
+    try entries.append(
+        arena_alloc,
+        .{
+            .name = utils.BUNDLE_VERSION_FILE,
+            .data = version_data,
+            .compress = false,
+            .crc32 = version_crc,
+            .compressed_size = @intCast(version_data.len),
+            .local_header_offset = current_offset,
+        },
+    );
     current_offset += 30 + @as(u32, @intCast(utils.BUNDLE_VERSION_FILE.len)) +
         @as(u32, @intCast(version_data.len));
 
     // Entry 1: content.tla or content.tlb (uncompressed for now)
-    try entries.append(arena_alloc, .{
-        .name = content_name,
-        .data = content_bytes,
-        .compress = false,
-        .crc32 = content_crc,
-        .compressed_size = @intCast(content_bytes.len),
-        .local_header_offset = current_offset,
-    });
+    try entries.append(
+        arena_alloc,
+        .{
+            .name = content_name,
+            .data = content_bytes,
+            .compress = false,
+            .crc32 = content_crc,
+            .compressed_size = @intCast(content_bytes.len),
+            .local_header_offset = current_offset,
+        },
+    );
     current_offset += 30 + @as(u32, @intCast(content_name.len)) +
         @as(u32, @intCast(content_bytes.len));
 
@@ -422,14 +455,17 @@ pub fn write_to_file(
         );
         const media_crc = calculateCrc32(media.data);
 
-        try entries.append(arena_alloc, .{
-            .name = media_path,
-            .data = media.data,
-            .compress = false,  // Media files stored uncompressed
-            .crc32 = media_crc,
-            .compressed_size = @intCast(media.data.len),
-            .local_header_offset = current_offset,
-        });
+        try entries.append(
+            arena_alloc,
+            .{
+                .name = media_path,
+                .data = media.data,
+                .compress = false,  // Media files stored uncompressed
+                .crc32 = media_crc,
+                .compressed_size = @intCast(media.data.len),
+                .local_header_offset = current_offset,
+            },
+        );
         current_offset += 30 + @as(u32, @intCast(media_path.len)) +
             @as(u32, @intCast(media.data.len));
     }
@@ -473,7 +509,10 @@ pub fn read_collection_from_file(
     defer file.close();
 
     // Read entire file into memory for ZIP parsing
-    const file_data = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
+    const file_data = try file.readToEndAlloc(
+        allocator,
+        std.math.maxInt(usize),
+    );
     defer allocator.free(file_data);
 
     var content_data: ?[]const u8 = null;
@@ -491,7 +530,10 @@ pub fn read_collection_from_file(
         |_|
     {
         // Parse central directory file header
-        if (cd_offset + @sizeOf(zip.CentralDirectoryFileHeader) > file_data.len)
+        if (
+            cd_offset + @sizeOf(zip.CentralDirectoryFileHeader)
+            > file_data.len
+        )
         {
             return TlzError.InvalidArchive;
         }
@@ -508,7 +550,9 @@ pub fn read_collection_from_file(
         const header = header_ptr.*;
 
         // Get filename
-        const filename_start = cd_offset + @sizeOf(zip.CentralDirectoryFileHeader);
+        const filename_start = (
+            cd_offset + @sizeOf(zip.CentralDirectoryFileHeader)
+        );
         const filename_end = filename_start + header.filename_len;
         if (filename_end > file_data.len)
         {
@@ -667,7 +711,9 @@ pub fn write_collection_to_file(
         },
     }
 
-    const content_bytes = content_writer.writer.buffer[0..content_writer.writer.end];
+    const content_bytes = (
+        content_writer.writer.buffer[0..content_writer.writer.end]
+    );
 
     // Prepare version.txt content
     const version_data = utils.BUNDLE_VERSION;
@@ -699,26 +745,32 @@ pub fn write_collection_to_file(
     var current_offset: u32 = 0;
 
     // Entry 0: version.txt (uncompressed)
-    try entries.append(arena_alloc, .{
-        .name = utils.BUNDLE_VERSION_FILE,
-        .data = version_data,
-        .compress = false,
-        .crc32 = version_crc,
-        .compressed_size = @intCast(version_data.len),
-        .local_header_offset = current_offset,
-    });
+    try entries.append(
+        arena_alloc,
+        .{
+            .name = utils.BUNDLE_VERSION_FILE,
+            .data = version_data,
+            .compress = false,
+            .crc32 = version_crc,
+            .compressed_size = @intCast(version_data.len),
+            .local_header_offset = current_offset,
+        },
+    );
     current_offset += 30 + @as(u32, @intCast(utils.BUNDLE_VERSION_FILE.len)) +
         @as(u32, @intCast(version_data.len));
 
     // Entry 1: content.tlca or content.tlcb (uncompressed)
-    try entries.append(arena_alloc, .{
-        .name = content_name,
-        .data = content_bytes,
-        .compress = false,
-        .crc32 = content_crc,
-        .compressed_size = @intCast(content_bytes.len),
-        .local_header_offset = current_offset,
-    });
+    try entries.append(
+        arena_alloc,
+        .{
+            .name = content_name,
+            .data = content_bytes,
+            .compress = false,
+            .crc32 = content_crc,
+            .compressed_size = @intCast(content_bytes.len),
+            .local_header_offset = current_offset,
+        },
+    );
     current_offset += 30 + @as(u32, @intCast(content_name.len)) +
         @as(u32, @intCast(content_bytes.len));
 
@@ -733,14 +785,17 @@ pub fn write_collection_to_file(
         );
         const media_crc = calculateCrc32(media.data);
 
-        try entries.append(arena_alloc, .{
-            .name = media_path,
-            .data = media.data,
-            .compress = false,
-            .crc32 = media_crc,
-            .compressed_size = @intCast(media.data.len),
-            .local_header_offset = current_offset,
-        });
+        try entries.append(
+            arena_alloc,
+            .{
+                .name = media_path,
+                .data = media.data,
+                .compress = false,
+                .crc32 = media_crc,
+                .compressed_size = @intCast(media.data.len),
+                .local_header_offset = current_offset,
+            },
+        );
         current_offset += 30 + @as(u32, @intCast(media_path.len)) +
             @as(u32, @intCast(media.data.len));
     }
@@ -822,7 +877,13 @@ fn collectMediaFiles(
     for (timeline.children)
         |*child|
     {
-        try collectMediaFromComposable(allocator, child, media_files, policy, maybe_base_dir);
+        try collectMediaFromComposable(
+            allocator,
+            child,
+            media_files,
+            policy,
+            maybe_base_dir,
+        );
     }
 }
 
@@ -847,15 +908,21 @@ fn collectMediaFromComposable(
                     // Skip absolute file:/// URIs that don't exist locally
                     // These are typically placeholders
                 }
-                else if (!std.mem.startsWith(u8, uri, "http://") and
-                         !std.mem.startsWith(u8, uri, "https://"))
+                else if (
+                    !std.mem.startsWith(u8, uri, "http://")
+                and !std.mem.startsWith(u8, uri, "https://")
+                )
                 {
                     // Relative path - try to resolve it
-                    const disk_path = if (maybe_base_dir)
+                    const disk_path = (
+                        if (maybe_base_dir)
                         |base_dir|
-                        try std.fs.path.join(allocator, &.{ base_dir, uri })
-                    else
-                        uri;
+                            try std.fs.path.join(
+                                allocator,
+                                &.{ base_dir, uri },
+                            )
+                        else uri
+                    );
 
                     // Check if file exists
                     const file_exists = blk: {
@@ -868,19 +935,28 @@ fn collectMediaFromComposable(
                     if (file_exists)
                     {
                         // Read the file
-                        const file = try std.fs.cwd().openFile(disk_path, .{});
+                        const file = try std.fs.cwd().openFile(
+                            disk_path,
+                            .{},
+                        );
                         defer file.close();
 
-                        const data = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
+                        const data = try file.readToEndAlloc(
+                            allocator,
+                            std.math.maxInt(usize),
+                        );
                         const basename = utils.get_basename(uri);
 
                         // Add to media files list
-                        try media_files.append(allocator, .{
-                            .source_uri = uri,
-                            .disk_path = disk_path,
-                            .basename = basename,
-                            .data = data,
-                        });
+                        try media_files.append(
+                            allocator,
+                            .{
+                                .source_uri = uri,
+                                .disk_path = disk_path,
+                                .basename = basename,
+                                .data = data,
+                            },
+                        );
 
                         // Update the URI to point to media/ directory
                         clip.media.data_reference.uri.target_uri = try std.fmt.allocPrint(
@@ -901,24 +977,48 @@ fn collectMediaFromComposable(
             for (track.children)
                 |*child|
             {
-                try collectMediaFromComposable(allocator, child, media_files, policy, maybe_base_dir);
+                try collectMediaFromComposable(
+                    allocator,
+                    child,
+                    media_files,
+                    policy,
+                    maybe_base_dir,
+                );
             }
         },
         .stack => |*stack| {
             for (stack.children)
                 |*child|
             {
-                try collectMediaFromComposable(allocator, child, media_files, policy, maybe_base_dir);
+                try collectMediaFromComposable(
+                    allocator,
+                    child,
+                    media_files,
+                    policy,
+                    maybe_base_dir,
+                );
             }
         },
         .warp => |*warp| {
-            try collectMediaFromComposable(allocator, warp.child, media_files, policy, maybe_base_dir);
+            try collectMediaFromComposable(
+                allocator,
+                warp.child,
+                media_files,
+                policy,
+                maybe_base_dir,
+            );
         },
         .transition => |*transition| {
             for (transition.container.children)
                 |*child|
             {
-                try collectMediaFromComposable(allocator, child, media_files, policy, maybe_base_dir);
+                try collectMediaFromComposable(
+                    allocator,
+                    child,
+                    media_files,
+                    policy,
+                    maybe_base_dir,
+                );
             }
         },
         .gap => {},
@@ -953,7 +1053,8 @@ fn writeLocalFileHeader(
     try writer.writeInt(u16, 0, .little);
 
     // Compression method
-    const method: u16 = if (entry.compress) 8 else 0; // 8 = deflate, 0 = store
+    // 8 = deflate, 0 = store
+    const method: u16 = if (entry.compress) 8 else 0;
     try writer.writeInt(u16, method, .little);
 
     // Last mod file time (use fixed value for reproducibility)
@@ -1139,7 +1240,8 @@ test "tlz_bundle: write and verify ZIP structure"
 
     // Verify file size is reasonable (should have version.txt + content.tla)
     const stat = try file.stat();
-    try std.testing.expect(stat.size > 100); // Should be more than just headers
+    // Should be more than just headers
+    try std.testing.expect(stat.size > 100);
 }
 
 test "tlz_bundle: media bundling with app.png"
@@ -1151,8 +1253,14 @@ test "tlz_bundle: media bundling with app.png"
 
     // Load the test timeline that references app.png
     const timeline_path = "test_files/simple_cut_with_media.tla";
-    const timeline_file = std.fs.cwd().openFile(timeline_path, .{}) catch |err| {
-        std.debug.print("Skipping test: could not open {s}: {}\n", .{ timeline_path, err });
+    const timeline_file = std.fs.cwd().openFile(
+        timeline_path,
+        .{},
+    ) catch |err| {
+        std.debug.print(
+            "Skipping test: could not open {s}: {}\n",
+            .{ timeline_path, err },
+        );
         return;
     };
     defer timeline_file.close();
@@ -1174,11 +1282,18 @@ test "tlz_bundle: media bundling with app.png"
 
     // Write to /var/tmp with media bundling
     const test_path = "/var/tmp/test_media_bundle.tlz";
-    try write_to_file(allocator, timeline, test_path, .{
-        .bundle_format = .tla,
-        .media_policy = .MissingIfNotFile,  // Don't error on missing files
-        .media_base_dir = "test_files",  // Resolve relative paths from tla file location
-    });
+    try write_to_file(
+        allocator,
+        timeline,
+        test_path,
+        .{
+            .bundle_format = .tla,
+            // Don't error on missing files
+            .media_policy = .MissingIfNotFile,
+            // Resolve relative paths from tla file location
+            .media_base_dir = "test_files",
+        },
+    );
 
     defer std.fs.cwd().deleteFile(test_path) catch {};
 
@@ -1192,16 +1307,22 @@ test "tlz_bundle: media bundling with app.png"
     try std.testing.expectEqualSlices(u8, &zip.local_file_header_sig, &sig);
 
     // Use unzip -l to verify contents (via child process)
-    const result = try std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = &.{ "unzip", "-l", test_path },
-    });
+    const result = try std.process.Child.run(
+        .{
+            .allocator = allocator,
+            .argv = &.{ "unzip", "-l", test_path },
+        },
+    );
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
 
     // Check that version.txt and content.tla are present
-    try std.testing.expect(std.mem.indexOf(u8, result.stdout, "version.txt") != null);
-    try std.testing.expect(std.mem.indexOf(u8, result.stdout, "content.tla") != null);
+    try std.testing.expect(
+        std.mem.indexOf(u8, result.stdout, "version.txt") != null,
+    );
+    try std.testing.expect(
+        std.mem.indexOf(u8, result.stdout, "content.tla") != null,
+    );
 
     // Check if app.png was bundled (only if it exists)
     if (std.mem.indexOf(u8, result.stdout, "media/app.png"))
@@ -1213,11 +1334,14 @@ test "tlz_bundle: media bundling with app.png"
         try std.fs.cwd().makePath(extract_dir);
         defer std.fs.cwd().deleteTree(extract_dir) catch {};
 
-        const extract_result = try std.process.Child.run(.{
-            .allocator = allocator,
-            .argv = &.{ "unzip", "-o", "-d", extract_dir, test_path },
-            .max_output_bytes = 1024 * 1024, // 1MB should be enough for listing
-        });
+        const extract_result = try std.process.Child.run(
+            .{
+                .allocator = allocator,
+                .argv = &.{ "unzip", "-o", "-d", extract_dir, test_path },
+                // 1MB should be enough for listing
+                .max_output_bytes = 1024 * 1024,
+            },
+        );
         defer allocator.free(extract_result.stdout);
         defer allocator.free(extract_result.stderr);
 
@@ -1225,13 +1349,19 @@ test "tlz_bundle: media bundling with app.png"
         const extracted_path = extract_dir ++ "/media/app.png";
         const extracted_file = try std.fs.cwd().openFile(extracted_path, .{});
         defer extracted_file.close();
-        const extracted_data = try extracted_file.readToEndAlloc(allocator, std.math.maxInt(usize));
+        const extracted_data = try extracted_file.readToEndAlloc(
+            allocator,
+            std.math.maxInt(usize),
+        );
         defer allocator.free(extracted_data);
 
         // Read original app.png
         const original_file = try std.fs.cwd().openFile("app.png", .{});
         defer original_file.close();
-        const original_data = try original_file.readToEndAlloc(allocator, std.math.maxInt(usize));
+        const original_data = try original_file.readToEndAlloc(
+            allocator,
+            std.math.maxInt(usize),
+        );
         defer allocator.free(original_data);
 
         // Compare

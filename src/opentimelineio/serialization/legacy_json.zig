@@ -183,9 +183,9 @@ fn read_transform(
             const result = topology.Topology {
                 .mappings = &.{ 
                     topology.MappingCurveLinearMonotonic.init_knots(
-                        try buffer.toOwnedSlice(allocator)
+                        try buffer.toOwnedSlice(allocator),
                     ).mapping(),
-                }
+                },
             };
 
             return result;
@@ -244,7 +244,7 @@ fn read_transform(
                             .p3 = buffer.items[3],
                         }
                     },
-                }
+                },
             );
 
             return result;
@@ -265,7 +265,7 @@ fn read_schema(
     var split_schema_string = std.mem.splitSequence(
         u8,
         full_string,
-        "."
+        ".",
     );
 
     const schema_str = (
@@ -347,7 +347,7 @@ fn read_time_range(
         );
         return .{ 
             .start = start_time, 
-            .end = start_time.add(duration)
+            .end = start_time.add(duration),
         };
     } 
     else 
@@ -360,7 +360,8 @@ fn _read_range(
     maybe_obj: ?std.json.ObjectMap
 ) ?interval.ContinuousInterval
 {
-    if (maybe_obj == null) {
+    if (maybe_obj == null)
+    {
         return null;
     }
 
@@ -401,7 +402,8 @@ fn _read_rate(
     maybe_obj: ?std.json.ObjectMap
 ) ?u32
 {
-    if (maybe_obj == null) {
+    if (maybe_obj == null)
+    {
         return null;
     }
 
@@ -513,7 +515,7 @@ inline fn read_children(
                              track.object.get("OTIO_SCHEMA")
                              orelse std.json.Value{.string = ""}
                             ).string
-                        }
+                        },
                     );
                     continue;
                 },
@@ -526,7 +528,8 @@ inline fn read_children(
         current_index += 1;
     }
 
-    // true the allocated size of the slice to the number of children that were
+    // true the allocated size of the slice to the number of children that
+    // were
     // readable -- schemas that aren't readable by the zig system get skipped
     if (current_index != new_children.len)
     {
@@ -662,7 +665,7 @@ fn read_media_reference(
         const missing_frame_policy: 
             otio.schema.ImageSequenceReference.MissingFramePolicy = (
             .from_maybe_string(
-                missing_frame_policy_str
+                missing_frame_policy_str,
             )
         );
 
@@ -702,8 +705,8 @@ fn read_media_reference(
             _read_maybe(
                 []const u8, 
                 media_ref_obj, 
-                "target_url"
-            ) orelse ""
+                "target_url",
+            ) orelse "",
         );
 
         const maybe_bounds = _read_maybe(
@@ -715,8 +718,8 @@ fn read_media_reference(
         return .{
             .data_reference = .{ 
                 .uri = .{ 
-                    .target_uri = target_url 
-                } 
+                    .target_uri = target_url, 
+                }, 
             },
             .maybe_bounds_s = maybe_bounds,
             .domain = .picture,
@@ -732,7 +735,8 @@ fn read_markers(
     markers_array: std.json.Array,
 ) ![]otio.Marker
 {
-    if (markers_array.items.len == 0) {
+    if (markers_array.items.len == 0)
+    {
         return try allocator.alloc(otio.Marker, 0);
     }
 
@@ -760,9 +764,13 @@ fn read_markers(
             switch (range_val) {
                 .object => |range_obj| (
                     read_time_range(range_obj)
-                    orelse opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 })
+                    orelse opentime.ContinuousInterval.init(
+                        .{ .start = 0, .end = 0 },
+                    )
                 ),
-                else => opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 }),
+                else => opentime.ContinuousInterval.init(
+                    .{ .start = 0, .end = 0 },
+                ),
             }
             else opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 })
         );
@@ -846,7 +854,9 @@ fn read_otio_object(
             const tl = try allocator.create(otio.Timeline);
 
             // discrete information
-            var ddp: otio.schema.DiscretePartitionDomainMap = .no_discretizations;
+            var ddp: otio.schema.DiscretePartitionDomainMap = (
+                .no_discretizations
+            );
 
             // fetch parent object if it exists
             if (maybe_object(obj.get("discrete_space_partitions")))
@@ -885,7 +895,7 @@ fn read_otio_object(
 
                             std.debug.print(
                                 "found: blah {?f}\n",
-                                .{discrete.*}
+                                .{discrete.*},
                             );
                         }
                     }
@@ -1052,11 +1062,13 @@ fn read_otio_object(
                 .markers = markers,
             };
 
-            // Set discrete partition from rate if available and not already set
+            // Set discrete partition from rate if available and not already
+            // set
             if (maybe_rate)
                 |rate|
             {
-                if (cl.media.maybe_discrete_partition == null) {
+                if (cl.media.maybe_discrete_partition == null)
+                {
                     cl.media.maybe_discrete_partition = .{
                         .sample_rate_hz = .{ .Integer = rate },
                     };
@@ -1102,7 +1114,7 @@ fn read_otio_object(
                 ),
                 .transform = try read_transform(
                     allocator,
-                    obj.get("transform").?.object
+                    obj.get("transform").?.object,
                 ),
             };
 
@@ -1236,7 +1248,7 @@ test "read_from_file test (simple)"
         try expectEqual(@as(usize, 4), track0.children.len);
         try std.testing.expectEqualStrings(
             "Clip-001",
-            track0.children[0].clip.name
+            track0.children[0].clip.name,
         );
     }
 
@@ -1322,7 +1334,8 @@ test "read_from_file with all_except_metadata on OTIO JSON file"
     try expectEqual(track_all.children.len, track_no_meta.children.len);
 
     // First clip should have the same name in both
-    if (track_all.children[0].clip.name.len > 0) {
+    if (track_all.children[0].clip.name.len > 0)
+    {
         try std.testing.expectEqualStrings(
             track_all.children[0].clip.name,
             track_no_meta.children[0].clip.name,
