@@ -428,7 +428,7 @@ didn't impact the deisgn or problems we were specifically solving.
     * [ ] style pass
     * [x] figure out where the ERROR CONVERTING messages come from
     * [x] C++ binaries need to be portable - fix the rpath issue
-    * [ ] refactor C++ build portion of build.zig into a cleaner state
+    * [x] refactor C++ build portion of build.zig into a cleaner state
     * [x] confirm that the python bindings are not impacted by the relocatable
           issue
     * [ ] update the raven-wrinkles project
