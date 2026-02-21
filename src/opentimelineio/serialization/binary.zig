@@ -3235,7 +3235,7 @@ pub fn deserialize_to_serializable_timeline(
         }
         // Then check for separated metadata
         else if (has_separate_metadata) {
-            const metadata_data = data[header.metadata_offset..];
+            const metadata_data = data[@intCast(header.metadata_offset)..];
 
             // FlatBuffers requires 8-byte alignment
             const needs_copy = @intFromPtr(metadata_data.ptr) % 8 != 0;
