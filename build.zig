@@ -1265,6 +1265,24 @@ pub fn build(
     }
 
     //
+    // timeline widget (reusable Gantt-chart renderer, no OTIO dependency)
+    //
+    const timeline_widget = module_with_tests_and_artifact(
+        "timeline_widget",
+        .{
+            .b = b,
+            .options = options,
+            .fpath = "src/timeline_widget.zig",
+            .deps = &.{
+                .{
+                    .name = "zgui_cimgui_implot_sokol",
+                    .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol"),
+                },
+            },
+        },
+    );
+
+    //
     // executables
     //
     const common_deps:[]const std.Build.Module.Import = &.{
@@ -1289,6 +1307,7 @@ pub fn build(
         .{ .name = "sampling", .module = sampling },
 
         .{ .name = "opentimelineio", .module = opentimelineio },
+        .{ .name = "timeline_widget", .module = timeline_widget },
     };
 
     // probably gone for good, but haven't removed yet

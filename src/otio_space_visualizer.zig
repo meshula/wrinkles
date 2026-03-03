@@ -14,6 +14,7 @@ const cimgui = ziis.cimgui;
 
 const opentime = @import("opentime");
 const otio = @import("opentimelineio");
+const timeline_widget = @import("timeline_widget");
 const otio_serialization = @import("opentimelineio").serialization;
 const topology = @import("topology");
 const treecode = @import("treecode");
@@ -87,61 +88,20 @@ const STATE = struct {
 
     /// Timeline view state (raven-like)
     var timeline: struct {
-        scale: f32 = 100.0,  // Pixels per second
-        track_height: f32 = 30.0,
         playhead: f32 = 0.0,  // Playhead position in seconds
-        scroll_to_playhead: bool = false,
         start: f32 = 0.0,  // Timeline start time in seconds
         duration: f32 = 10.0,  // Timeline duration in seconds
         inspector_width: f32 = 200.0,  // Inspector panel width (resizable)
     } = .{};
+
+    /// Widget state for the Gantt-chart timeline renderer.
+    var tl_widget_state: timeline_widget.State = .{
+        .scale = 100.0,
+        .track_height = 30.0,
+        .label_width = 80.0,
+    };
 };
 
-/// Colors for timeline view (raven-style)
-const TimelineColors = struct {
-    const background: u32 = 0xFF141414;
-    const track_label: u32 = 0xFF2A2A2A;
-    const track_label_hover: u32 = 0xFF3A3A3A;
-    const track_label_selected: u32 = 0xFF176B42;
-    // Video item colors - greenish like raven
-    const item: u32 = 0xFF355535;  // Muted green
-    const item_hover: u32 = 0xFF456545;  // Brighter green on hover
-    const item_selected: u32 = 0xFF176B42;  // Bright green when selected
-    // Audio item colors - bluish like raven
-    const audio_item: u32 = 0xFF3A3A5A;  // Muted blue
-    const audio_item_hover: u32 = 0xFF4A4A7A;  // Brighter blue on hover
-    const gap: u32 = 0xFF1E1E1E;  // Darker than track, visible as empty space
-    const gap_hover: u32 = 0xFF2E2E2E;
-    // Transition/effect badge - gold/yellow
-    const transition_badge: u32 = 0xFFC8A020;  // Gold color for transition markers
-    const effect_badge: u32 = 0xFFCC4444;  // Red for effects
-    // Playhead - gold/yellow like raven
-    const playhead: u32 = 0x80C8A020;  // Semi-transparent gold
-    const playhead_line: u32 = 0xFFC8A020;  // Solid gold line
-    const tick_major: u32 = 0xFF808080;
-    const tick_minor: u32 = 0xFF404040;
-    const label: u32 = 0xFFF0F0F0;
-    // Inspector
-    const inspector_bg: u32 = 0xFF1A1A1A;
-    const inspector_header: u32 = 0xFF2A2A2A;
-
-    // Marker colors (ABGR format for ImGui)
-    fn marker_color(color: otio.marker.MarkerColor) u32 {
-        return switch (color) {
-            .pink => 0xFFCB7CCB,
-            .red => 0xFF4444FF,
-            .orange => 0xFF44A5FF,
-            .yellow => 0xFF44FFFF,
-            .green => 0xFF44FF44,
-            .cyan => 0xFFFFFF44,
-            .blue => 0xFFFF4444,
-            .purple => 0xFFFF44A5,
-            .magenta => 0xFFFF44FF,
-            .black => 0xFF000000,
-            .white => 0xFFFFFFFF,
-        };
-    }
-};
 
 /// Track kind enum for display purposes
 const TrackKind = enum {
@@ -1116,16 +1076,6 @@ fn child_tree(
 // Timeline View (raven-like)
 // ============================================================================
 
-/// Convert time in seconds to pixel position
-fn time_to_pixel(time_seconds: f32, scale: f32) f32 {
-    return (time_seconds - STATE.timeline.start) * scale;
-}
-
-/// Convert pixel position to time in seconds
-fn pixel_to_time(pixel: f32, scale: f32) f32 {
-    return STATE.timeline.start + pixel / scale;
-}
-
 /// Format time as timecode string HH:MM:SS:FF (assuming 24fps)
 fn format_timecode(buf: []u8, time_seconds: f32) []const u8 {
     const fps: f32 = 24.0;
@@ -1142,438 +1092,6 @@ fn format_timecode(buf: []u8, time_seconds: f32) []const u8 {
         "{d:0>2}:{d:0>2}:{d:0>2}:{d:0>2}",
         .{ hours, minutes, seconds, frames },
     ) catch "00:00:00:00";
-}
-
-/// Draw the timecode ruler at the top of the timeline
-fn draw_timecode_ruler(
-    origin: [2]f32,
-    width: f32,
-    height: f32,
-    scale: f32,
-) void
-{
-    const draw_list = zgui.getWindowDrawList();
-
-    // Calculate tick interval based on zoom level
-    const pixels_per_second = scale;
-    var tick_interval: f32 = 1.0; // Start at 1 second
-    const min_tick_width: f32 = 100.0;
-
-    // Adjust tick interval based on zoom
-    if (pixels_per_second * tick_interval < min_tick_width) {
-        tick_interval = 2.0;
-    }
-    if (pixels_per_second * tick_interval < min_tick_width) {
-        tick_interval = 5.0;
-    }
-    if (pixels_per_second * tick_interval < min_tick_width) {
-        tick_interval = 10.0;
-    }
-    if (pixels_per_second * tick_interval > min_tick_width * 5) {
-        tick_interval = 0.5;
-    }
-    if (pixels_per_second * tick_interval > min_tick_width * 5) {
-        tick_interval = 0.25;
-    }
-
-    // Draw background
-    draw_list.addRectFilled(
-        .{
-            .pmin = .{ origin[0], origin[1] },
-            .pmax = .{ origin[0] + width, origin[1] + height },
-            .col = TimelineColors.background,
-        },
-    );
-
-    // Draw tick marks
-    var time: f32 = STATE.timeline.start;
-    while (time < STATE.timeline.start + STATE.timeline.duration + tick_interval) : (time += tick_interval) {
-        const x = origin[0] + time_to_pixel(time, scale);
-        if (x < origin[0] or x > origin[0] + width) continue;
-
-        // Draw tick line
-        draw_list.addLine(
-            .{
-                .p1 = .{ x, origin[1] + height * 0.6 },
-                .p2 = .{ x, origin[1] + height },
-                .col = TimelineColors.tick_major,
-                .thickness = 1.0,
-            },
-        );
-
-        // Draw time label in timecode format
-        var tc_buf: [16]u8 = undefined;
-        const tc_str = format_timecode(&tc_buf, time);
-        draw_list.addText(
-            .{ x + 3, origin[1] + 2 },
-            TimelineColors.label,
-            "{s}",
-            .{tc_str},
-        );
-    }
-}
-
-/// Draw a track label in the left column (legacy function, kept for compatibility)
-fn draw_track_label(
-    track_name: []const u8,
-    _: []const u8,  // track_kind - unused, we always show "V" prefix
-    index: usize,
-    height: f32,
-    is_selected: bool,
-) void
-{
-    const width = zgui.getContentRegionAvail()[0];
-
-    zgui.beginGroup();
-    defer zgui.endGroup();
-
-    _ = zgui.invisibleButton(
-        "##TrackLabel",
-        .{ .w = width, .h = height },
-    );
-
-    const p0 = zgui.getItemRectMin();
-    const p1 = zgui.getItemRectMax();
-
-    var fill_color = TimelineColors.track_label;
-    if (zgui.isItemHovered(.{})) {
-        fill_color = TimelineColors.track_label_hover;
-    }
-    if (is_selected) {
-        fill_color = TimelineColors.track_label_selected;
-    }
-
-    const draw_list = zgui.getWindowDrawList();
-    draw_list.addRectFilled(
-        .{
-            .pmin = p0,
-            .pmax = p1,
-            .col = fill_color,
-        },
-    );
-
-    // Draw label text - format like raven: "V1: Track-00"
-    var buf: [64]u8 = undefined;
-    const label = std.fmt.bufPrintZ(
-        &buf,
-        "V{d}: {s}",
-        .{
-            index,
-            track_name,
-        },
-    ) catch "?";
-
-    draw_list.addText(
-        .{ p0[0] + 5, p0[1] + 5 },
-        TimelineColors.label,
-        "{s}",
-        .{label},
-    );
-}
-
-/// Draw a single item (clip or gap) on the timeline
-fn draw_timeline_item(
-    item: otio.CompositionItemHandle,
-    start_time: f32,
-    duration_seconds: f32,
-    origin: [2]f32,
-    height: f32,
-    scale: f32,
-    track_kind: TrackKind,
-    has_transition_before: bool,
-    has_transition_after: bool,
-) void
-{
-    if (duration_seconds <= 0) return;
-
-    // start_time is relative to track start (not absolute timeline time)
-    // so we just multiply by scale directly, don't use time_to_pixel
-    const x = origin[0] + (start_time * scale);
-    const width = duration_seconds * scale;
-
-    if (width < 1) return;
-
-    // Calculate screen-space rectangle for this item
-    const p0 = [2]f32{ x, origin[1] };
-    const p1 = [2]f32{ x + width, origin[1] + height };
-
-    // Use manual hit-testing instead of invisible buttons to avoid coordinate issues
-    const mouse_pos = zgui.getMousePos();
-    const is_hovered = (
-        mouse_pos[0] >= p0[0] and mouse_pos[0] < p1[0] and
-        mouse_pos[1] >= p0[1] and mouse_pos[1] < p1[1]
-    );
-    const is_clicked = is_hovered and zgui.isMouseClicked(.left);
-
-    // Determine colors based on item type, track kind, and state
-    var fill_color: u32 = undefined;
-    var hover_color: u32 = undefined;
-    var show_label = true;
-    const is_gap = item == .gap;
-    const is_audio = track_kind == .audio;
-
-    switch (item) {
-        .gap => {
-            fill_color = TimelineColors.gap;
-            hover_color = TimelineColors.gap_hover;
-            show_label = false;
-        },
-        .clip => {
-            fill_color = if (is_audio) TimelineColors.audio_item else TimelineColors.item;
-            hover_color = if (is_audio) TimelineColors.audio_item_hover else TimelineColors.item_hover;
-        },
-        .transition => {
-            fill_color = TimelineColors.transition_badge;
-            hover_color = TimelineColors.transition_badge;
-        },
-        else => {
-            fill_color = if (is_audio) TimelineColors.audio_item else TimelineColors.item;
-            hover_color = if (is_audio) TimelineColors.audio_item_hover else TimelineColors.item_hover;
-        },
-    }
-
-    if (is_hovered) {
-        fill_color = hover_color;
-    }
-
-    if (STATE.maybe_current_selected_object) |selected| {
-        if (std.meta.eql(selected, item)) {
-            fill_color = TimelineColors.item_selected;
-        }
-    }
-
-    // Handle click
-    if (is_clicked) {
-        STATE.maybe_current_selected_object = item;
-    }
-
-    const draw_list = zgui.getWindowDrawList();
-
-    // Draw rectangle - rounded for clips, square for gaps
-    if (is_gap) {
-        // Gaps: simple rectangle with no rounding
-        draw_list.addRectFilled(
-            .{
-                .pmin = p0,
-                .pmax = p1,
-                .col = fill_color,
-                .rounding = 0,
-            },
-        );
-    } else {
-        // Clips: rounded rectangle (top-left, bottom-right corners rounded)
-        const rounding: f32 = 5.0;
-        draw_list.addRectFilled(
-            .{
-                .pmin = p0,
-                .pmax = p1,
-                .col = fill_color,
-                .rounding = rounding,
-                .flags = .{
-                    .round_corners_top_left = true,
-                    .round_corners_bottom_right = true,
-                },
-            },
-        );
-
-        // Draw transition badges (diagonal marks) if adjacent to transitions
-        const badge_size: f32 = @min(height * 0.4, 8.0);
-        if (has_transition_before) {
-            // Draw small diagonal mark at left edge
-            draw_list.addTriangleFilled(
-                .{
-                    .p1 = .{ p0[0], p0[1] },
-                    .p2 = .{ p0[0] + badge_size, p0[1] },
-                    .p3 = .{ p0[0], p0[1] + badge_size },
-                    .col = TimelineColors.transition_badge,
-                },
-            );
-        }
-        if (has_transition_after) {
-            // Draw small diagonal mark at right edge
-            draw_list.addTriangleFilled(
-                .{
-                    .p1 = .{ p1[0], p0[1] },
-                    .p2 = .{ p1[0] - badge_size, p0[1] },
-                    .p3 = .{ p1[0], p0[1] + badge_size },
-                    .col = TimelineColors.transition_badge,
-                },
-            );
-        }
-    }
-
-    // Draw label if there's room
-    if (show_label and width > 20) {
-        const name = item.name() orelse "";
-        if (name.len > 0) {
-            draw_list.addText(
-                .{ p0[0] + 5, p0[1] + 5 },
-                TimelineColors.label,
-                "{s}",
-                .{name},
-            );
-        }
-    }
-
-    // Draw markers as small flags at the top of the item
-    const markers: []const otio.Marker = switch (item) {
-        .clip => |clip| clip.markers,
-        .gap => |gap_ptr| gap_ptr.markers,
-        .track => |track_ptr| track_ptr.markers,
-        .stack => |stack_ptr| stack_ptr.markers,
-        else => &.{},
-    };
-
-    if (markers.len > 0) {
-        const marker_height: f32 = @min(height * 0.4, 10.0);
-        const marker_width: f32 = 6.0;
-
-        for (markers) |marker| {
-            // Calculate marker position - use start of marked range
-            const marker_start = marker.marked_range.start.as(f32);
-            const marker_x = x + (marker_start * scale);
-
-            // Skip if marker is outside visible area
-            if (marker_x < p0[0] or marker_x > p1[0]) continue;
-
-            const marker_color = TimelineColors.marker_color(marker.color);
-
-            // Draw flag shape (triangle + rectangle stem)
-            const flag_top = p0[1];
-            const flag_bottom = p0[1] + marker_height;
-
-            // Flag triangle
-            draw_list.addTriangleFilled(
-                .{
-                    .p1 = .{ marker_x, flag_top },
-                    .p2 = .{ marker_x + marker_width, flag_top + marker_height * 0.4 },
-                    .p3 = .{ marker_x, flag_top + marker_height * 0.8 },
-                    .col = marker_color,
-                },
-            );
-
-            // Flag stem (small vertical line)
-            draw_list.addLine(
-                .{
-                    .p1 = .{ marker_x, flag_top },
-                    .p2 = .{ marker_x, flag_bottom },
-                    .col = marker_color,
-                    .thickness = 2.0,
-                },
-            );
-        }
-    }
-
-    // Tooltip on hover (using manual hit-test result)
-    if (is_hovered) {
-        zgui.setNextWindowPos(.{
-            .x = mouse_pos[0] + 15,
-            .y = mouse_pos[1] + 15,
-        });
-        if (zgui.beginTooltip()) {
-            defer zgui.endTooltip();
-
-            zgui.text("{s}: {s}", .{
-                @tagName(item),
-                item.name() orelse "(unnamed)",
-            });
-            zgui.text("Duration: {d:.2}s", .{duration_seconds});
-        }
-    }
-}
-
-/// Draw a single track's content
-fn draw_track_content(
-    allocator: std.mem.Allocator,
-    track: otio.CompositionItemHandle,
-    origin: [2]f32,
-    full_width: f32,
-    height: f32,
-    scale: f32,
-    track_kind: TrackKind,
-) !void
-{
-    _ = full_width;
-
-    // Get track children
-    const children = try track.children_refs(allocator);
-    defer allocator.free(children);
-
-    // Calculate positions for each child
-    var current_time: f32 = 0.0;
-
-    for (children, 0..) |child, i| {
-        // Get duration of this item using bounds_of
-        const bounds = child.bounds_of(allocator, .presentation) catch null;
-        const duration_seconds: f32 = if (bounds) |b| b.duration().as(f32) else 1.0;
-
-        // Check for adjacent transitions
-        const has_transition_before = if (i > 0)
-            children[i - 1] == .transition
-        else
-            false;
-        const has_transition_after = if (i + 1 < children.len)
-            children[i + 1] == .transition
-        else
-            false;
-
-        // Draw the item
-        draw_timeline_item(
-            child,
-            current_time,
-            duration_seconds,
-            origin,
-            height,
-            scale,
-            track_kind,
-            has_transition_before,
-            has_transition_after,
-        );
-
-        current_time += duration_seconds;
-    }
-}
-
-/// Draw the playhead indicator
-fn draw_playhead(
-    origin: [2]f32,
-    height: f32,
-    scale: f32,
-    track_height: f32,
-) void
-{
-    const playhead_x = origin[0] + time_to_pixel(STATE.timeline.playhead, scale);
-
-    const draw_list = zgui.getWindowDrawList();
-
-    // Draw vertical line
-    draw_list.addLine(
-        .{
-            .p1 = .{ playhead_x, origin[1] },
-            .p2 = .{ playhead_x, origin[1] + height },
-            .col = TimelineColors.playhead_line,
-            .thickness = 2.0,
-        },
-    );
-
-    // Draw triangle at top
-    const arrow_size: f32 = @min(track_height / 2, 12);
-    draw_list.addTriangleFilled(
-        .{
-            .p1 = .{ playhead_x - arrow_size / 2, origin[1] },
-            .p2 = .{ playhead_x + arrow_size / 2, origin[1] },
-            .p3 = .{ playhead_x, origin[1] + arrow_size },
-            .col = TimelineColors.playhead_line,
-        },
-    );
-
-    // Draw time label
-    draw_list.addText(
-        .{ playhead_x + 5, origin[1] + 2 },
-        TimelineColors.label,
-        "{d:.2}s",
-        .{STATE.timeline.playhead},
-    );
 }
 
 /// Draw inspector tab content for selected object
@@ -1655,7 +1173,7 @@ fn draw_settings_tab() void {
     _ = zgui.sliderFloat(
         "##TrackHeight",
         .{
-            .v = &STATE.timeline.track_height,
+            .v = &STATE.tl_widget_state.track_height,
             .min = 20.0,
             .max = 60.0,
             .cfmt = "%.0f px",
@@ -1668,7 +1186,7 @@ fn draw_settings_tab() void {
     _ = zgui.sliderFloat(
         "##ZoomSetting",
         .{
-            .v = &STATE.timeline.scale,
+            .v = &STATE.tl_widget_state.scale,
             .min = 10.0,
             .max = 500.0,
             .cfmt = "%.0f",
@@ -1710,277 +1228,211 @@ fn draw_timeline_tab(
 ) !void
 {
     // Update timeline duration from the loaded OTIO
-    if (STATE.maybe_proj_builder) |builder| {
-        if (builder.input_bounds()) |bounds| {
+    if (STATE.maybe_proj_builder) |builder|
+    {
+        if (builder.input_bounds()) |bounds|
+        {
             STATE.timeline.start = bounds.start.as(f32);
             STATE.timeline.duration = bounds.duration().as(f32);
         }
     }
 
-    const scale = STATE.timeline.scale;
-    const track_height = STATE.timeline.track_height;
-    const track_label_width: f32 = 80.0;
     const splitter_width: f32 = 8.0;
     const min_inspector_width: f32 = 150.0;
     const max_inspector_width: f32 = 400.0;
 
-    // Get available size for timeline
     const avail = zgui.getContentRegionAvail();
-
-    // Calculate timeline area width based on resizable inspector
     const timeline_area_width = avail[0] - STATE.timeline.inspector_width - splitter_width;
-    const content_width = timeline_area_width - track_label_width - 20;
 
-    // Calculate timeline content width - use at least the visible width
-    const timeline_content_width = @max(content_width, STATE.timeline.duration * scale);
-
-    // Collect and categorize tracks using shared function
+    // ── Build widget tracks from OTIO ──
     var categorized = try categorize_tracks(allocator, STATE.otio_root);
     defer categorized.deinit(allocator);
 
     const video_tracks = categorized.video_tracks.items;
     const audio_tracks = categorized.audio_tracks.items;
-    const num_tracks = video_tracks.len + audio_tracks.len;
 
-    // Add gap row between video and audio if both present
-    const has_av_gap = video_tracks.len > 0 and audio_tracks.len > 0;
-    const gap_row_height: f32 = if (has_av_gap) track_height * 0.5 else 0;
+    // Collect widget tracks + item data.
+    // We store handles alongside so we can map clicks back to OTIO objects.
+    const MAX_TRACKS = 64;
+    const MAX_ITEMS = 256;
+    var widget_tracks_buf: [MAX_TRACKS]timeline_widget.Track = undefined;
+    var items_bufs: [MAX_TRACKS][MAX_ITEMS]timeline_widget.Item = undefined;
+    // Parallel array mapping widget track index → OTIO track handle.
+    var track_handles: [MAX_TRACKS]otio.CompositionItemHandle = undefined;
+    // Parallel array mapping (track, item) → OTIO child handle.
+    var item_handles: [MAX_TRACKS][MAX_ITEMS]otio.CompositionItemHandle = undefined;
 
-    // Main horizontal layout: Timeline | Inspector
-    // Timeline area (left)
+    var wt_count: usize = 0;
+
+    // Video tracks (reversed so highest number is at the top)
+    {
+        const total_video = video_tracks.len;
+        var vid_idx: usize = video_tracks.len;
+        while (vid_idx > 0)
+        {
+            vid_idx -= 1;
+            const child = video_tracks[vid_idx];
+            if (wt_count >= MAX_TRACKS) break;
+            switch (child)
+            {
+                .track => |track_ptr|
+                {
+                    var label_buf: [64]u8 = undefined;
+                    const label = video_track_label(
+                        total_video - 1 - vid_idx,
+                        total_video,
+                        if (track_ptr.name.len > 0) track_ptr.name else null,
+                    );
+                    const track_label_str = label.format(&label_buf);
+
+                    const children = child.children_refs(allocator) catch continue;
+                    defer allocator.free(children);
+
+                    var current_time: f32 = 0.0;
+                    var item_count: usize = 0;
+
+                    for (children)
+                        |otio_child|
+                    {
+                        if (item_count >= MAX_ITEMS) break;
+                        const bounds = otio_child.bounds_of(
+                            allocator,
+                            .presentation,
+                        ) catch null;
+                        const dur: f32 = if (bounds) |b| b.duration().as(f32) else 1.0;
+
+                        const is_gap = otio_child == .gap;
+                        items_bufs[wt_count][item_count] = .{
+                            .name = otio_child.name() orelse "",
+                            .start_time = current_time,
+                            .duration = dur,
+                            .maybe_color = if (is_gap) @as(?u32, 0xFF1E1E1E) else null,
+                        };
+                        item_handles[wt_count][item_count] = otio_child;
+                        item_count += 1;
+                        current_time += dur;
+                    }
+
+                    track_handles[wt_count] = child;
+                    widget_tracks_buf[wt_count] = .{
+                        .label = track_label_str,
+                        .items = items_bufs[wt_count][0..item_count],
+                        .maybe_color = 0xFF355535, // video green
+                    };
+                    wt_count += 1;
+                },
+                else => {},
+            }
+        }
+    }
+
+    // Audio tracks (in order)
+    for (audio_tracks, 0..)
+        |child, aud_idx|
+    {
+        if (wt_count >= MAX_TRACKS) break;
+        switch (child)
+        {
+            .track => |track_ptr|
+            {
+                var label_buf: [64]u8 = undefined;
+                const label = audio_track_label(
+                    aud_idx,
+                    if (track_ptr.name.len > 0) track_ptr.name else null,
+                );
+                const track_label_str = label.format(&label_buf);
+
+                const children = child.children_refs(allocator) catch continue;
+                defer allocator.free(children);
+
+                var current_time: f32 = 0.0;
+                var item_count: usize = 0;
+
+                for (children)
+                    |otio_child|
+                {
+                    if (item_count >= MAX_ITEMS) break;
+                    const bounds = otio_child.bounds_of(
+                        allocator,
+                        .presentation,
+                    ) catch null;
+                    const dur: f32 = if (bounds) |b| b.duration().as(f32) else 1.0;
+
+                    const is_gap = otio_child == .gap;
+                    items_bufs[wt_count][item_count] = .{
+                        .name = otio_child.name() orelse "",
+                        .start_time = current_time,
+                        .duration = dur,
+                        .maybe_color = if (is_gap) @as(?u32, 0xFF1E1E1E) else null,
+                    };
+                    item_handles[wt_count][item_count] = otio_child;
+                    item_count += 1;
+                    current_time += dur;
+                }
+
+                track_handles[wt_count] = child;
+                widget_tracks_buf[wt_count] = .{
+                    .label = track_label_str,
+                    .items = items_bufs[wt_count][0..item_count],
+                    .maybe_color = 0xFF3A3A5A, // audio blue
+                };
+                wt_count += 1;
+            },
+            else => {},
+        }
+    }
+
+    // ── Timeline area (left) ──
     if (zgui.beginChild(
         "TimelineArea",
         .{
             .w = timeline_area_width,
             .h = avail[1],
         },
-    )) {
+    ))
+    {
         defer zgui.endChild();
 
-        const controls_height: f32 = 30.0;  // Height for transport controls at bottom
+        const maybe_cursor: ?f32 = if (STATE.timeline.playhead > 0)
+            STATE.timeline.playhead - STATE.timeline.start
+        else
+            null;
 
-        // Timeline scroll area (takes remaining space above controls)
-        const timeline_avail = zgui.getContentRegionAvail();
-        if (zgui.beginChild(
-            "TimelineScrollArea",
+        const widget_result = timeline_widget.draw(
+            &STATE.tl_widget_state,
             .{
-                .w = timeline_avail[0],
-                .h = timeline_avail[1] - controls_height - 5,  // Leave space for controls
-                .window_flags = .{
-                    .horizontal_scrollbar = true,
-                },
+                .tracks = widget_tracks_buf[0..wt_count],
+                .total_duration = STATE.timeline.duration,
+                .maybe_cursor_time = maybe_cursor,
             },
-        )) {
-            defer zgui.endChild();
+        );
 
-            const window_pos = zgui.getCursorScreenPos();
-            const draw_list = zgui.getWindowDrawList();
-
-            // Total height = ruler + video tracks + gap + audio tracks
-            const total_height = @as(f32, @floatFromInt(num_tracks + 1)) * track_height + gap_row_height;
-            draw_list.addRectFilled(
-                .{
-                    .pmin = window_pos,
-                    .pmax = .{
-                        window_pos[0] + track_label_width + timeline_content_width,
-                        window_pos[1] + total_height,
-                    },
-                    .col = TimelineColors.background,
-                },
-            );
-
-            const ruler_origin: [2]f32 = .{
-                window_pos[0] + track_label_width,
-                window_pos[1],
-            };
-
-            // Timeline label
-            draw_list.addRectFilled(
-                .{
-                    .pmin = window_pos,
-                    .pmax = .{ window_pos[0] + track_label_width, window_pos[1] + track_height },
-                    .col = TimelineColors.track_label,
-                },
-            );
-            draw_list.addText(
-                .{ window_pos[0] + 5, window_pos[1] + 5 },
-                TimelineColors.label,
-                "Timeline",
-                .{},
-            );
-
-            draw_timecode_ruler(ruler_origin, timeline_content_width, track_height, scale);
-
-            // Ruler click-to-seek
-            zgui.setCursorScreenPos(ruler_origin);
-            _ = zgui.invisibleButton("##RulerSeek", .{ .w = timeline_content_width, .h = track_height });
-            if (zgui.isItemActive()) {
-                const mouse_pos = zgui.getMousePos();
-                STATE.timeline.playhead = pixel_to_time(mouse_pos[0] - ruler_origin[0], scale);
-                STATE.timeline.playhead = @max(
-                    STATE.timeline.start,
-                    @min(STATE.timeline.start + STATE.timeline.duration, STATE.timeline.playhead),
-                );
-            }
-
-            var row: usize = 1;
-            var row_y_offset: f32 = track_height; // Start after ruler row
-
-            // Draw video tracks in REVERSE order (last in file = highest number = drawn first at top)
-            // So if file has [V1, V2, V3, V4], we iterate backwards to draw V4, V3, V2, V1 top-to-bottom
-            // The label shows the track's position in file (1-indexed), which matches visual convention
-            const total_video = video_tracks.len;
-            var vid_idx: usize = video_tracks.len;
-            while (vid_idx > 0) {
-                vid_idx -= 1;
-                const child = video_tracks[vid_idx];
-                switch (child) {
-                    .track => |track_ptr| {
-                        const row_y = window_pos[1] + row_y_offset;
-                        const label_p0: [2]f32 = .{ window_pos[0], row_y };
-                        const label_p1: [2]f32 = .{ window_pos[0] + track_label_width, row_y + track_height };
-
-                        const is_selected = if (STATE.maybe_current_selected_object) |sel|
-                            std.meta.eql(sel, child)
-                        else
-                            false;
-
-                        draw_list.addRectFilled(
-                            .{
-                                .pmin = label_p0,
-                                .pmax = label_p1,
-                                .col = if (is_selected) TimelineColors.track_label_selected else TimelineColors.track_label,
-                            },
-                        );
-
-                        // Label uses 1-indexed position in file (vid_idx + 1)
-                        // Track at vid_idx=3 (last in file of 4) = V4 = displayed at top
-                        var label_buf: [64]u8 = undefined;
-                        const label = video_track_label(
-                            total_video - 1 - vid_idx,  // visual row: 0 for top track
-                            total_video,
-                            if (track_ptr.name.len > 0) track_ptr.name else null,
-                        );
-                        const track_label_str = label.format(&label_buf);
-
-                        draw_list.addText(.{ label_p0[0] + 5, label_p0[1] + 8 }, TimelineColors.label, "{s}", .{track_label_str});
-
-                        zgui.setCursorScreenPos(label_p0);
-                        zgui.pushPtrId(track_ptr);
-                        _ = zgui.invisibleButton("##TrackLabel", .{ .w = track_label_width, .h = track_height });
-                        if (zgui.isItemClicked(.left)) {
-                            STATE.maybe_current_selected_object = child;
-                        }
-                        zgui.popId();
-
-                        const content_origin: [2]f32 = .{ window_pos[0] + track_label_width, row_y };
-                        try draw_track_content(allocator, child, content_origin, timeline_content_width, track_height, scale, .video);
-
-                        row += 1;
-                        row_y_offset += track_height;
-                    },
-                    else => {},
-                }
-            }
-
-            // Add visual gap between video and audio tracks
-            if (has_av_gap) {
-                row_y_offset += gap_row_height;
-            }
-
-            // Draw audio tracks (in order, A1 at top of audio section)
-            for (audio_tracks, 0..) |child, aud_idx| {
-                switch (child) {
-                    .track => |track_ptr| {
-                        const row_y = window_pos[1] + row_y_offset;
-                        const label_p0: [2]f32 = .{ window_pos[0], row_y };
-                        const label_p1: [2]f32 = .{ window_pos[0] + track_label_width, row_y + track_height };
-
-                        const is_selected = if (STATE.maybe_current_selected_object) |sel|
-                            std.meta.eql(sel, child)
-                        else
-                            false;
-
-                        draw_list.addRectFilled(
-                            .{
-                                .pmin = label_p0,
-                                .pmax = label_p1,
-                                .col = if (is_selected) TimelineColors.track_label_selected else TimelineColors.track_label,
-                            },
-                        );
-
-                        var label_buf: [64]u8 = undefined;
-                        const label = audio_track_label(aud_idx, if (track_ptr.name.len > 0) track_ptr.name else null);
-                        const track_label_str = label.format(&label_buf);
-
-                        draw_list.addText(.{ label_p0[0] + 5, label_p0[1] + 8 }, TimelineColors.label, "{s}", .{track_label_str});
-
-                        zgui.setCursorScreenPos(label_p0);
-                        zgui.pushPtrId(track_ptr);
-                        _ = zgui.invisibleButton("##TrackLabel", .{ .w = track_label_width, .h = track_height });
-                        if (zgui.isItemClicked(.left)) {
-                            STATE.maybe_current_selected_object = child;
-                        }
-                        zgui.popId();
-
-                        const content_origin: [2]f32 = .{ window_pos[0] + track_label_width, row_y };
-                        try draw_track_content(allocator, child, content_origin, timeline_content_width, track_height, scale, .audio);
-
-                        row += 1;
-                        row_y_offset += track_height;
-                    },
-                    else => {},
-                }
-            }
-
-            // Calculate actual total height including gap
-            const total_height_with_gap = row_y_offset;
-            draw_playhead(ruler_origin, total_height_with_gap, scale, track_height);
-
-            zgui.setCursorScreenPos(.{
-                window_pos[0] + track_label_width + timeline_content_width,
-                window_pos[1] + total_height,
-            });
-            zgui.dummy(.{ .w = 1, .h = 1 });
-        }
-
-        // Transport controls at bottom
-        zgui.spacing();
+        // Map widget click back to OTIO selection
+        if (widget_result.maybe_clicked_item) |clicked|
         {
-            var tc_buf: [16]u8 = undefined;
-            const tc_str = format_timecode(&tc_buf, STATE.timeline.playhead);
-            zgui.text("{s}", .{tc_str});
-
-            zgui.sameLine(.{});
-            zgui.setNextItemWidth(120);
-            _ = zgui.sliderFloat(
-                "##Zoom",
-                .{
-                    .v = &STATE.timeline.scale,
-                    .min = 10.0,
-                    .max = 500.0,
-                    .cfmt = "Zoom: %.0f",
-                    .flags = .{ .logarithmic = true },
-                },
-            );
-
-            zgui.sameLine(.{});
-            if (zgui.button("Fit", .{})) {
-                if (STATE.timeline.duration > 0) {
-                    STATE.timeline.scale = content_width / STATE.timeline.duration;
-                }
+            if (clicked.track_idx < wt_count and
+                clicked.item_idx < widget_tracks_buf[clicked.track_idx].items.len)
+            {
+                STATE.maybe_current_selected_object =
+                    item_handles[clicked.track_idx][clicked.item_idx];
+            }
+        }
+        else if (widget_result.maybe_clicked_track) |track_idx|
+        {
+            if (track_idx < wt_count)
+            {
+                STATE.maybe_current_selected_object = track_handles[track_idx];
             }
         }
     }
 
     zgui.sameLine(.{});
 
-    // Splitter/resize handle between timeline and inspector
+    // ── Splitter ──
     {
         const cursor_pos = zgui.getCursorScreenPos();
         const draw_list = zgui.getWindowDrawList();
 
-        // Draw splitter bar
         const splitter_color: u32 = 0xFF3A3A3A;
         const splitter_hover_color: u32 = 0xFF5A5A5A;
 
@@ -1992,23 +1444,23 @@ fn draw_timeline_tab(
         const is_splitter_hovered = zgui.isItemHovered(.{});
         const is_splitter_active = zgui.isItemActive();
 
-        // Draw visual splitter
-        draw_list.addRectFilled(
-            .{
-                .pmin = cursor_pos,
-                .pmax = .{ cursor_pos[0] + splitter_width, cursor_pos[1] + avail[1] },
-                .col = if (is_splitter_hovered or is_splitter_active)
-                    splitter_hover_color
-                else
-                    splitter_color,
+        draw_list.addRectFilled(.{
+            .pmin = cursor_pos,
+            .pmax = .{
+                cursor_pos[0] + splitter_width,
+                cursor_pos[1] + avail[1],
             },
-        );
+            .col = if (is_splitter_hovered or is_splitter_active)
+                splitter_hover_color
+            else
+                splitter_color,
+        });
 
-        // Handle dragging to resize
-        if (is_splitter_active) {
+        if (is_splitter_active)
+        {
             const mouse_delta = zgui.getMouseDragDelta(.left, .{});
-            if (mouse_delta[0] != 0) {
-                // Dragging left increases inspector width, dragging right decreases it
+            if (mouse_delta[0] != 0)
+            {
                 STATE.timeline.inspector_width = @max(
                     min_inspector_width,
                     @min(
@@ -2020,27 +1472,25 @@ fn draw_timeline_tab(
             }
         }
 
-        // Change cursor to resize cursor when hovering
-        if (is_splitter_hovered or is_splitter_active) {
+        if (is_splitter_hovered or is_splitter_active)
+        {
             zgui.setMouseCursor(.resize_ew);
         }
     }
 
     zgui.sameLine(.{});
 
-    // Inspector panel (right)
+    // ── Inspector panel (right) ──
     if (zgui.beginChild(
         "InspectorPanel",
         .{
             .w = STATE.timeline.inspector_width,
             .h = avail[1],
-            .child_flags = .{
-                .border = true,
-            },
+            .child_flags = .{ .border = true },
         },
-    )) {
+    ))
+    {
         defer zgui.endChild();
-
         draw_inspector_panel(allocator);
     }
 }
@@ -2902,6 +2352,7 @@ fn cleanup (
     if (STATE.maybe_file_read_query)
         |query|
     {
+        query.deinit();
         allocator.destroy(query);
     }
 
