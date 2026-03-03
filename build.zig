@@ -733,13 +733,14 @@ pub fn build(
             ),
         ) orelse graphviz_dot_on_path(b.allocator);
 
-        if (graphviz_path == null) {
-            std.log.warn(
-                "`dot` program not on path and not passed in, disabling"
-                ++ " graphviz/dot support.\n",
-                .{}
-            );
-        }
+        // if (graphviz_path == null) 
+        // {
+        //     std.log.warn(
+        //         "`dot` program not on path and not passed in, disabling"
+        //         ++ " graphviz/dot support.\n",
+        //         .{}
+        //     );
+        // }
 
         build_options.addOption(
             ?[]const u8,
