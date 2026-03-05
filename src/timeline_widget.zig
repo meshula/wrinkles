@@ -59,6 +59,10 @@ pub const FrameResult = struct {
     maybe_clicked_track: ?usize = null,
     maybe_clicked_item: ?HoveredItem = null,
     maybe_hovered: ?HoveredItem = null,
+    /// Shift+click anywhere on the timeline content area: time in seconds.
+    maybe_shift_clicked_time: ?f32 = null,
+    /// Right-click on an item (for context menus).
+    maybe_right_clicked_item: ?HoveredItem = null,
 };
 
 pub const HoveredItem = struct {
@@ -432,6 +436,13 @@ pub fn draw(
                             .item_idx = item_idx,
                         };
                     }
+                    if (zgui.isMouseClicked(.right))
+                    {
+                        result.maybe_right_clicked_item = .{
+                            .track_idx = track_idx,
+                            .item_idx = item_idx,
+                        };
+                    }
                 }
                 if (is_focused)
                 {
@@ -462,6 +473,28 @@ pub fn draw(
                         zgui.text("Duration: {s}", .{dur_str});
                     }
                 }
+            }
+        }
+
+        // ── Shift+click anywhere on content area → report time ──
+        {
+            const mouse = zgui.getMousePos();
+            const content_x0 = win_pos[0] + lw;
+            const content_y0 = win_pos[1] + ruler_height;
+            const content_y1 = win_pos[1] + total_height;
+            const in_content = (
+                mouse[0] >= content_x0
+                and mouse[1] >= content_y0
+                and mouse[1] < content_y1
+            );
+            if (
+                in_content
+                and zgui.isMouseClicked(.left)
+                and (zgui.isKeyDown(.left_shift) or zgui.isKeyDown(.right_shift))
+            )
+            {
+                const px = mouse[0] - content_x0;
+                result.maybe_shift_clicked_time = pixel_to_time(px, scale);
             }
         }
 
