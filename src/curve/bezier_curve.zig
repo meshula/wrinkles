@@ -55,8 +55,8 @@ const epsilon = @import("epsilon.zig").epsilon;
 /// `opentime.Ordinate.InnerType`.
 pub const U_TYPE = opentime.Ordinate.InnerType;
 
-/// Returns true if val is between fst and snd regardless of whether fst or snd
-/// is greater.
+/// Returns true if val is between fst and snd regardless of whether fst or
+/// snd is greater.
 inline fn _is_between(
     /// value to check
     val: anytype,
@@ -64,46 +64,65 @@ inline fn _is_between(
     fst: anytype,
     /// second bound
     snd: anytype,
-) bool 
+) bool
 {
     return (
         (
-         fst.lt(val.sub(opentime.Ordinate.epsilon)) 
-         and val.lt(snd.sub(opentime.Ordinate.epsilon))
+            fst.lt(val.sub(opentime.Ordinate.epsilon))
+            and val.lt(snd.sub(opentime.Ordinate.epsilon))
         )
         or (
-            fst.gt(val.add(opentime.Ordinate.epsilon)) 
+            fst.gt(val.add(opentime.Ordinate.epsilon))
             and val.gt(snd.add(opentime.Ordinate.epsilon))
         )
     );
 }
 
-
-test "Bezier.Segment: can_project test" 
+test "Bezier.Segment: can_project test"
 {
     const half = Bezier.Segment.init_from_start_end(
-        .init(.{ .in = -0.5, .out = -0.25, }),
-        .init(.{ .in = 0.5, .out = 0.25, }),
+        .init(
+            .{
+                .in = -0.5,
+                .out = -0.25,
+            },
+        ),
+        .init(
+            .{
+                .in = 0.5,
+                .out = 0.25,
+            },
+        ),
     );
     const double = Bezier.Segment.init_from_start_end(
-        .init(.{ .in = -0.5, .out = -1, }),
-        .init(.{ .in = 0.5, .out = 1, }),
+        .init(
+            .{
+                .in = -0.5,
+                .out = -1,
+            },
+        ),
+        .init(
+            .{
+                .in = 0.5,
+                .out = 1,
+            },
+        ),
     );
 
     try std.testing.expectEqual(true, double.can_project(half));
     try std.testing.expectEqual(false, half.can_project(double));
 }
 
-test "Bezier.Segment: debug_str test" 
+test "Bezier.Segment: debug_str test"
 {
     const allocator = std.testing.allocator;
 
     const seg = Bezier.Segment.init_from_start_end(
-        .init(.{.in = -0.5, .out = -0.5}),
-        .init(.{.in =  0.5, .out = 0.5}),
+        .init(.{ .in = -0.5, .out = -0.5 }),
+        .init(.{ .in = 0.5, .out = 0.5 }),
     );
 
-    const result: []const u8=
+    const result: []const u8 =
         \\
         \\{
         \\    "p0": { "in": -0.500000, "out": -0.500000 },

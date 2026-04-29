@@ -1,6 +1,1 @@
-pub const libsamplerate = @cImport(
-    {
-        @cInclude("samplerate.h");
-    }
-);
-
+pub const libsamplerate = @import("samplerate_c");

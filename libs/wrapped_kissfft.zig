@@ -1,5 +1,1 @@
-pub const c = @cImport(
-    {
-        @cInclude("kiss_fft.h");
-    }
-);
+pub const c = @import("kisfft_c");

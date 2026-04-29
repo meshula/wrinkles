@@ -7,11 +7,13 @@ const ziis = @import("zgui_cimgui_implot_sokol");
 /// check for the `dot` program on $PATH
 fn graphviz_dot_on_path(
     allocator: std.mem.Allocator,
+    io: std.Io,
 ) ?[]const u8
 {
-    const result = std.process.Child.run(
+    const result = std.process.run(
+        allocator,
+        io,
         .{
-            .allocator = allocator,
             .argv = &[_][]const u8{
                 "which",
                 "dot",
@@ -19,7 +21,7 @@ fn graphviz_dot_on_path(
         }
     ) catch return null;
 
-    if (result.term.Exited == 0) 
+    if (result.term.exited == 0) 
     {
         const path = std.mem.trim(
             u8,
@@ -80,17 +82,19 @@ const C_ARGS = [_][]const u8{
 /// Returns the result of running `git rev-parse HEAD`
 pub fn rev_HEAD(
     allocator: std.mem.Allocator,
+    io: std.Io,
 ) ![]const u8
 {
     const max = 1024 ;
-    const dirg = try std.fs.cwd().openDir(".git", .{});
+    const dirg = try std.Io.Dir.cwd().openDir(io, ".git", .{});
 
     const head_file = std.mem.trim(
         u8,
         try dirg.readFileAlloc(
-            allocator,
+            io,
             "HEAD",
-            max,
+            allocator,
+            .limited(max),
         ),
         "\n",
     );
@@ -99,9 +103,10 @@ pub fn rev_HEAD(
     return std.mem.trim(
         u8,
         try dirg.readFileAlloc(
-            allocator,
+            io,
             head_file[5..],
-            max
+            allocator,
+            .limited(max),
         ),
         "\n",
     );
@@ -161,7 +166,7 @@ pub fn executable(
         );
     }
 
-    exe.want_lto = false;
+    exe.lto = .none;
 
     // run and install the executable
     if (options.target.result.cpu.arch.isWasm())
@@ -416,12 +421,7 @@ fn update_tlb_schema(
     parse_cmd.step.name = "run exe zfbs-parse-runner (tlb.bfbs -> tlb.zon)";
     parse_cmd.addFileArg(tlb_bfbs_path);
     parse_cmd.step.dependOn(&flatc_cmd.step);
-    const zon_output = parse_cmd.captureStdOut();
-
-    // XXX: zig 0.15.2: in 0.16 captureStdOut has a second argument which
-    //      allows you to specify the name of the captured output, until then
-    //      this is needed
-    parse_cmd.captured_stdout.?.basename = "stdout.zon";
+    const zon_output = parse_cmd.captureStdOut(.{ .basename = "stdout.zon" });
 
     // Step 2.3: copy to the source tree
     const install_zon = b.addUpdateSourceFiles();
@@ -470,7 +470,7 @@ fn update_tlb_schema(
         b.path("src/opentimelineio/serialization/tlb_schema/tlb.zon")
     );
     generate_cmd.step.dependOn(&install_zon.step);
-    const zig_output = generate_cmd.captureStdOut();
+    const zig_output = generate_cmd.captureStdOut(.{});
 
     // Step 3.3: copy the result to the source tree with the correct name
     const tlb_zig_source_path = (
@@ -526,29 +526,29 @@ fn cpp_binary(
     run_desc: []const u8,
 ) *std.Build.Step.Compile
 {
+    const exe_cpp = b.addTranslateC(
+        .{
+            .optimize = options.optimize,
+            .target = options.target,
+            .link_libc = true,
+            .root_source_file = b.path(cpp_file_path),
+        },
+    );
+    exe_cpp.linkSystemLibrary("c", .{});
+    // exe_cpp.linkSystemLibrary("cpp", .{});
+    exe_cpp.defineCMacroRaw("std=c++17");
+    exe_cpp.addIncludePath(b.path("src/language_bindings/cpp/include"));
+    exe_cpp.addIncludePath(b.path("src/language_bindings/c"));
+
     const exe = b.addExecutable(
         .{
             .name = name,
-            .root_module = b.createModule(
-                .{
-                    .target = options.target,
-                    .optimize = options.optimize,
-                },
-            ),
+            .root_module = exe_cpp.createModule(),
         },
     );
 
-    exe.addCSourceFile(
-        .{
-            .file = b.path(cpp_file_path),
-            .flags = &.{"-std=c++17"},
-        },
-    );
-
-    exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
-    exe.addIncludePath(b.path("src/language_bindings/c"));
-    exe.linkLibrary(opentimelineio_cpp);
-    exe.linkLibCpp();
+    exe.root_module.linkLibrary(opentimelineio_cpp);
+    exe.root_module.link_libcpp = true;
 
     const install_exe_step = b.addInstallArtifact(
         exe,
@@ -580,35 +580,45 @@ fn cpp_bindings_and_examples(
     test_output: bool,
 ) !void
 {
+    const opentimelineio_cpp_translate_c = b.addTranslateC(
+        .{
+            .target = options.target,
+            .optimize = options.optimize,
+            .root_source_file = b.path(
+                "src/language_bindings/cpp/src/opentimelineio.cpp"
+            ),
+            .link_libc = true,
+        },
+    );
+    
+    opentimelineio_cpp_translate_c.addIncludePath(b.path("src/language_bindings/cpp/include"));
+    opentimelineio_cpp_translate_c.addIncludePath(b.path("src/language_bindings/c"));
+
+    const otio_cpp_mod = opentimelineio_cpp_translate_c.createModule();
+    otio_cpp_mod.link_libcpp = true;
+
     // C++ binding library
     const opentimelineio_cpp = b.addLibrary(
         .{
             .name = "opentimelineio_cpp",
             .linkage = .static,
-            .root_module = b.createModule(
-                .{
-                    .target = options.target,
-                    .optimize = options.optimize,
-                    .link_libcpp = true,
-                    .link_libc = true,
-                },
-            ),
+            // .root_module = opentimelineio_cpp_translate_c.createModule(),
+            .root_module = opentimelineio_cpp_translate_c.createModule(),
+
         },
     );
 
-    opentimelineio_cpp.addCSourceFile(
-        .{
-            .file = b.path(
-                "src/language_bindings/cpp/src/opentimelineio.cpp"
-            ),
-            .flags = &.{"-std=c++17"},
-        },
-    );
+    // opentimelineio_cpp.addCSourceFile(
+    //     .{
+    //         .file = b.path(
+    //             "src/language_bindings/cpp/src/opentimelineio.cpp"
+    //         ),
+    //         .flags = &.{"-std=c++17"},
+    //     },
+    // );
 
-    opentimelineio_cpp.addIncludePath(b.path("src/language_bindings/cpp/include"));
-    opentimelineio_cpp.addIncludePath(b.path("src/language_bindings/c"));
-    opentimelineio_cpp.linkLibrary(opentimelineio_c_static);
-    opentimelineio_cpp.linkLibCpp();
+    opentimelineio_cpp.root_module.linkLibrary(opentimelineio_c_static);
+    opentimelineio_cpp.root_module.link_libcpp = true;
 
     b.installArtifact(opentimelineio_cpp);
 
@@ -721,7 +731,10 @@ pub fn build(
         build_options.addOption(
             []const u8,
             "hash",
-            rev_HEAD(b.allocator) catch "COULDNT READ HASH",
+            (
+                    rev_HEAD(b.allocator, b.graph.io) 
+                    catch "COULDNT READ HASH"
+            ),
         );
 
         const graphviz_path = b.option(
@@ -731,7 +744,7 @@ pub fn build(
              "path to the `dot` executable from graphviz. Used to generate "
              ++ "diagrams of temporal hierarchies."
             ),
-        ) orelse graphviz_dot_on_path(b.allocator);
+        ) orelse graphviz_dot_on_path(b.allocator, b.graph.io);
 
         // if (graphviz_path == null) 
         // {
@@ -901,23 +914,8 @@ pub fn build(
             .deps = &.{},
         },
     );
-
-    const kissfft = b.addLibrary(
-        .{
-            .name = "kissfft",
-            .root_module = b.createModule(
-                .{
-                    .root_source_file = b.path(
-                        "libs/wrapped_kissfft.zig"
-                    ),
-                    .target = options.target,
-                    .optimize = options.optimize,
-                },
-            ),
-            .linkage = .static,
-        },
-    );
-    {
+        
+    const kissfft = mod: {
         const dep_kissfft = b.dependency(
             "kissfft",
             .{ 
@@ -926,13 +924,43 @@ pub fn build(
             },
         );
 
-        kissfft.addIncludePath(dep_kissfft.path("."));
-        kissfft.addCSourceFile(
+        const kissfft_translate_c = b.addTranslateC(
             .{
-                .file = dep_kissfft.path("kiss_fft.c"),
-                .flags = &C_ARGS,
+                .optimize = options.optimize,
+                .target = options.target,
+                .root_source_file = dep_kissfft.path("kiss_fft.h"),
             },
         );
+
+        kissfft_translate_c.addIncludePath(
+            dep_kissfft.path(".")
+        );
+        kissfft_translate_c.addIncludePath(
+            dep_kissfft.path("src")
+        );
+
+        break :mod b.addLibrary(
+            .{
+                .name = "kissfft",
+                .root_module = b.createModule(
+                    .{
+                        .root_source_file = b.path(
+                            "libs/wrapped_kissfft.zig"
+                        ),
+                        .target = options.target,
+                        .optimize = options.optimize,
+                        .imports = &.{
+                            .{
+                                .name = "kisfft_c",
+                                .module = kissfft_translate_c.createModule(),
+                            },
+                        },
+                    },
+                ),
+                .linkage = .static,
+            },
+        );
+
         // @TODO: fix the WASM build
         // if (options.target.result.cpu.arch.isWasm())
         // {
@@ -944,502 +972,524 @@ pub fn build(
         //         )
         //     );
         // }
-    }
-
-    const treecode = module_with_tests_and_artifact(
-        "treecode",
-        .{
-            .b = b,
-            .options = options,
-            .fpath = "src/treecode/root.zig",
-            .deps = &.{
-                .{ .name = "build_options", .module = build_options_mod},
-            },
-        },
-    );
-
-    const opentime = module_with_tests_and_artifact(
-        "opentime",
-        .{
-            .b = b,
-            .options = options,
-            .fpath = "src/opentime/root.zig",
-            .deps = &.{
-                .{ .name = "string_stuff", .module = string_stuff },
-                .{ .name = "comath", .module = comath_dep.module("comath") },
-                .{ .name = "build_options", .module = build_options_mod},
-            },
-        },
-    );
-
-    const spline_gym = b.addLibrary(
-        .{
-            .name = "spline_gym",
-            .root_module = b.createModule(
-                .{
-                    .root_source_file = b.path(
-                        "spline-gym/src/hodographs.zig",
-                    ),
-                    .target = options.target,
-                    .optimize = options.optimize,
-                    .link_libc = true,
-                },
-            ),
-            .linkage = .static,
-        },
-    );
-    {
-        spline_gym.addIncludePath(b.path("spline-gym/src"));
-        spline_gym.addCSourceFile(
-            .{
-                .file = b.path("spline-gym/src/hodographs.c"),
-                .flags = &C_ARGS,
-            },
-        );
-        // @TODO: fix the wasm build
-        // if (options.target.result.cpu.arch.isWasm())
-        // {
-        //     spline_gym.addSystemIncludePath(
-        //         ziis.fetchEmSdkIncludePath(
-        //             options.dep_ziis.?,
-        //             options.optimize,
-        //             options.target,
-        //         )
-        //     );
-        //     spline_gym.linkLibC();
-        // }
-        b.installArtifact(spline_gym);
-    }
-
-    const curve = module_with_tests_and_artifact(
-        "curve",
-        .{
-            .b = b,
-            .options = options,
-            .fpath = "src/curve/root.zig",
-            .deps = &.{
-                .{ .name = "spline_gym", .module = spline_gym.root_module },
-                .{ .name = "string_stuff", .module = string_stuff },
-                .{ .name = "opentime", .module = opentime },
-                .{ .name = "comath", .module = comath_dep.module("comath") },
-            },
-        },
-    );
-
-    const libsamplerate = b.addLibrary(
-        .{
-            .name = "libsamplerate",
-            .root_module = b.createModule(
-                .{
-                    .target = options.target,
-                    .optimize = options.optimize,
-                    .root_source_file = b.path(
-                        "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig",
-                    ),
-                },
-            )
-        },
-    );
-    {
-        const dep_libsamplerate = b.dependency(
-            "libsamplerate",
-            .{ 
-                .target = options.target,
-                .optimize = options.optimize,
-            },
-        );
-        
-        libsamplerate.addIncludePath(dep_libsamplerate.path("include"));
-        libsamplerate.addIncludePath(dep_libsamplerate.path("src"));
-        libsamplerate.addIncludePath(b.path("libs/wrapped_libsamplerate"));
-
-        libsamplerate.addCSourceFile(
-            .{
-                .file = b.path(
-                    "libs/wrapped_libsamplerate/wrapped_libsamplerate.c",
-                ),
-                .flags = &C_ARGS,
-            },
-        );
-        // if (options.target.result.cpu.arch.isWasm())
-        // {
-        //     libsamplerate.addSystemIncludePath(
-        //         ziis.fetchEmSdkIncludePath(
-        //             options.dep_ziis.?,
-        //             options.optimize,
-        //             options.target,
-        //         )
-        //     );
-        // }
-    }
-
-    options.c_deps = &.{
-        libsamplerate,
-        spline_gym,
-        kissfft,
     };
 
-    const topology = module_with_tests_and_artifact(
-        "topology",
-        .{
-            .b = b,
-            .options = options,
-            .fpath = "src/topology/root.zig",
-            .deps = &.{
-                .{ .name = "opentime", .module = opentime },
-                .{ .name = "curve", .module = curve },
-            },
-        },
-    );
+        const treecode = module_with_tests_and_artifact(
+            "treecode",
+            .{
+                .b = b,
+                .options = options,
+                .fpath = "src/treecode/root.zig",
+                .deps = &.{
+                    .{ .name = "build_options", .module = build_options_mod},
+                },
+                },
+            );
 
-    const sampling = module_with_tests_and_artifact(
-        "sampling",
-        .{
-            .b = b,
-            .options = options,
-            .fpath = "src/sampling.zig",
-            .deps = &.{
+        const opentime = module_with_tests_and_artifact(
+            "opentime",
+            .{
+                .b = b,
+                .options = options,
+                .fpath = "src/opentime/root.zig",
+                .deps = &.{
+                    .{ .name = "string_stuff", .module = string_stuff },
+                    .{ .name = "comath", .module = comath_dep.module("comath") },
+                    .{ .name = "build_options", .module = build_options_mod},
+                },
+                },
+            );
+
+        const spline_gym = mod: {
+            const spline_gym_translate_c = b.addTranslateC(
+                .{
+                    .optimize = options.optimize,
+                    .target = options.target,
+                    .root_source_file = b.path("spline-gym/src/hodographs.c"),
+                },
+            );
+            spline_gym_translate_c.addIncludePath(b.path("spline-gym/src"));
+
+            // @TODO: fix the wasm build
+            // if (options.target.result.cpu.arch.isWasm())
+            // {
+            //     spline_gym.addSystemIncludePath(
+            //         ziis.fetchEmSdkIncludePath(
+            //             options.dep_ziis.?,
+            //             options.optimize,
+            //             options.target,
+            //         )
+            //     );
+            //     spline_gym.linkLibC();
+            // }
+
+            break :mod b.addLibrary(
+               .{
+                   .name = "spline_gym",
+                   .root_module = b.createModule(
+                       .{
+                           .root_source_file = b.path(
+                               "spline-gym/src/hodographs.zig",
+                           ),
+                           .target = options.target,
+                           .optimize = options.optimize,
+                           .link_libc = true,
+                           .imports = &.{
+                               .{
+                                   .name = "hodographs_c",
+                                   .module = (
+                                       spline_gym_translate_c.createModule()
+                                   ),
+                               },
+                           },
+                       },
+                   ),
+                   .linkage = .static,
+               },
+           );
+        };
+        b.installArtifact(spline_gym);
+
+        const curve = module_with_tests_and_artifact(
+            "curve",
+            .{
+                .b = b,
+                .options = options,
+                .fpath = "src/curve/root.zig",
+                .deps = &.{
+                    .{ .name = "spline_gym", .module = spline_gym.root_module },
+                    .{ .name = "string_stuff", .module = string_stuff },
+                    .{ .name = "opentime", .module = opentime },
+                    .{ .name = "comath", .module = comath_dep.module("comath") },
+                },
+            },
+        );
+
+        const libsamplerate = mod: {
+            const dep_libsamplerate = b.dependency(
+                "libsamplerate",
+                .{ 
+                    .target = options.target,
+                    .optimize = options.optimize,
+                },
+            );
+
+            const libsamplerate_translate_c = b.addTranslateC(
+                .{
+                    .optimize = options.optimize,
+                    .target = options.target,
+                    .root_source_file = b.path("libs/wrapped_libsamplerate/wrapped_libsamplerate.c"),
+                },
+            );
+            libsamplerate_translate_c.addIncludePath(dep_libsamplerate.path("include"));
+            libsamplerate_translate_c.addIncludePath(dep_libsamplerate.path("src"));
+
+            // if (options.target.result.cpu.arch.isWasm())
+            // {
+            //     libsamplerate.addSystemIncludePath(
+            //         ziis.fetchEmSdkIncludePath(
+            //             options.dep_ziis.?,
+            //             options.optimize,
+            //             options.target,
+            //         )
+            //     );
+            // }
+            break :mod b.addLibrary(
                 .{
                     .name = "libsamplerate",
-                    .module = libsamplerate.root_module,
+                    .root_module = b.createModule(
+                        .{
+                            .target = options.target,
+                            .optimize = options.optimize,
+                            .root_source_file = b.path(
+                                "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig",
+                            ),
+                            .imports = &.{
+                                .{
+                                    .name = "samplerate_c",
+                                    .module = libsamplerate_translate_c.createModule(),
+                                },
+                            },
+                        },
+                    )
                 },
-                .{
-                    .name = "kissfft",
-                    .module = kissfft.root_module,
-                },
-                .{ .name = "curve", .module = curve },
-                .{ .name = "wav", .module = wav_dep },
-                .{ .name = "opentime", .module = opentime, },
-                .{ .name = "topology", .module = topology, },
-                .{ .name = "build_options", .module = build_options_mod, },
-            },
-        },
-    );
+            );
+        };
 
-    const opentimelineio = module_with_tests_and_artifact(
-        "opentimelineio",
-        .{
-            .b = b,
-            .options = options,
-            .fpath = "src/opentimelineio/root.zig",
-            .deps = &.{
-                .{ .name = "string_stuff", .module = string_stuff },
-                .{ .name = "opentime", .module = opentime },
-                .{ .name = "curve", .module = curve },
-                .{ .name = "topology", .module = topology },
-                .{ .name = "treecode", .module = treecode },
-                .{ .name = "sampling", .module = sampling },
-                .{ .name = "build_options", .module = build_options_mod},
-                .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
-                .{ .name = "flatbuffers", .module = dep_flatbuffers.module("flatbuffers") },
-                .{ .name = "tlb_schema", .module = tlb_schema },
-            },
-        },
-    );
+        options.c_deps = &.{
+            libsamplerate,
+            spline_gym,
+            kissfft,
+        };
 
-    // Core module that gets build both statically and dynamically for various
-    // uses.
-    const opentimelineio_c_root_mod = b.createModule(
-        .{
-            .target = options.target,
-            .optimize = options.optimize,
-            .root_source_file = b.path(
-                "src/language_bindings/c/opentimelineio_c.zig",
-            ),
-            .link_libc = true,
-            .imports = &.{
-                .{ .name = "opentime", .module=opentime, },
-                .{ .name = "opentimelineio", .module= opentimelineio, },
-                .{ .name = "topology", .module= topology, },
-            },
-        }
-    );
-
-    // Dynamic library (for C/C++ executables)
-    const opentimelineio_c = b.addLibrary(
-        .{
-            .name = "opentimelineio_c",
-            .linkage = .dynamic,
-            .root_module = opentimelineio_c_root_mod,
-        },
-    );
-    {
-        opentimelineio_c.addIncludePath(b.path("src/language_bindings/c/"));
-        b.installArtifact(opentimelineio_c);
-    }
-
-    // Static library (for Python bindings and static linking)
-    const opentimelineio_c_static = b.addLibrary(
-        .{
-            .name = "opentimelineio_c_static",
-            .linkage = .static,
-            .root_module = opentimelineio_c_root_mod,
-        },
-    );
-    {
-        opentimelineio_c_static.addIncludePath(b.path("src/language_bindings/c/"));
-        // Bundle compiler-rt so consumers get __divtf3 and other soft-float symbols
-        opentimelineio_c_static.bundle_compiler_rt = true;
-        b.installArtifact(opentimelineio_c_static);
-    }
-
-    {
-        const exe = b.addExecutable(
+        const topology = module_with_tests_and_artifact(
+            "topology",
             .{
-                .name = "test_opentimelineio_c",
-                .root_module = b.createModule(
+                .b = b,
+                .options = options,
+                .fpath = "src/topology/root.zig",
+                .deps = &.{
+                    .{ .name = "opentime", .module = opentime },
+                    .{ .name = "curve", .module = curve },
+                },
+                },
+            );
+
+        const sampling = module_with_tests_and_artifact(
+            "sampling",
+            .{
+                .b = b,
+                .options = options,
+                .fpath = "src/sampling.zig",
+                .deps = &.{
                     .{
-                        .optimize = options.optimize,
-                        .target = options.target,
-                        .link_libc = true,
+                        .name = "libsamplerate",
+                        .module = libsamplerate.root_module,
                     },
-                ),
-            },
-        );
-        exe.addCSourceFile(
+                    .{
+                        .name = "kissfft",
+                        .module = kissfft.root_module,
+                    },
+                    .{ .name = "curve", .module = curve },
+                    .{ .name = "wav", .module = wav_dep },
+                    .{ .name = "opentime", .module = opentime, },
+                    .{ .name = "topology", .module = topology, },
+                    .{ .name = "build_options", .module = build_options_mod, },
+                },
+                },
+            );
+
+        const opentimelineio = module_with_tests_and_artifact(
+            "opentimelineio",
             .{
-                .file = b.path(
-                    "src/language_bindings/c/test_opentimelineio_c.c",
-                ),
-                .flags = &C_ARGS,
+                .b = b,
+                .options = options,
+                .fpath = "src/opentimelineio/root.zig",
+                .deps = &.{
+                    .{ .name = "string_stuff", .module = string_stuff },
+                    .{ .name = "opentime", .module = opentime },
+                    .{ .name = "curve", .module = curve },
+                    .{ .name = "topology", .module = topology },
+                    .{ .name = "treecode", .module = treecode },
+                    .{ .name = "sampling", .module = sampling },
+                    .{ .name = "build_options", .module = build_options_mod},
+                    .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
+                    .{ .name = "flatbuffers", .module = dep_flatbuffers.module("flatbuffers") },
+                    .{ .name = "tlb_schema", .module = tlb_schema },
+                },
             },
         );
-        exe.addIncludePath(b.path("src/language_bindings/c"));
-        exe.linkLibC();
-        exe.linkLibrary(opentimelineio_c_static);
 
-        b.installArtifact(exe);
+        const opentimelineio_translate_c = b.addTranslateC(
+            .{
+                .optimize = options.optimize,
+                .target = options.target,
+                .root_source_file = b.path(
+                    "src/language_bindings/c/opentimelineio_c.h"
+                ),
+            },
+        );
 
-        const run_exe = b.addRunArtifact(exe);
-        run_exe.addArg("sample_otio_files/multiple_track.otio");
+        // Core module that gets build both statically and dynamically for various
+        // uses.
+        const opentimelineio_c_root_mod = b.createModule(
+            .{
+                .target = options.target,
+                .optimize = options.optimize,
+                .root_source_file = b.path(
+                    "src/language_bindings/c/opentimelineio_c.zig",
+                ),
+                .link_libc = true,
+                .imports = &.{
+                    .{ .name = "opentime", .module=opentime, },
+                    .{ .name = "opentimelineio", .module= opentimelineio, },
+                    .{ .name = "topology", .module= topology, },
+                    .{
+                        .name = "opentimelineio_c", 
+                        .module = opentimelineio_translate_c.createModule(),
+                    },
+                },
+            }
+        );
 
-        if (options.test_filter == null) {
-            options.test_step.dependOn(&run_exe.step);
+        // Dynamic library (for C/C++ executables)
+        const opentimelineio_c = b.addLibrary(
+            .{
+                .name = "opentimelineio_c",
+                .linkage = .dynamic,
+                .root_module = opentimelineio_c_root_mod,
+            },
+            );
+        {
+            b.installArtifact(opentimelineio_c);
+        }
+
+        // Static library (for Python bindings and static linking)
+        const opentimelineio_c_static = b.addLibrary(
+            .{
+                .name = "opentimelineio_c_static",
+                .linkage = .static,
+                .root_module = opentimelineio_c_root_mod,
+            },
+            );
+        {
+            // Bundle compiler-rt so consumers get __divtf3 and other
+            // soft-float symbols
+            opentimelineio_c_static.bundle_compiler_rt = true;
+            b.installArtifact(opentimelineio_c_static);
+        }
+
+        {
+            const test_otio_c = b.addTranslateC(
+                .{
+                    .target = options.target,
+                    .optimize = options.optimize,
+                    .root_source_file = b.path(
+                        "src/language_bindings/c/test_opentimelineio_c.c",
+                    ),
+                    .link_libc = true,
+                },
+            );
+            const exe = b.addExecutable(
+                .{
+                    .name = "test_opentimelineio_c",
+                    .root_module = test_otio_c.createModule(),
+                },
+            );
+            exe.root_module.linkLibrary(opentimelineio_c_static);
+
+            b.installArtifact(exe);
+
+            const run_exe = b.addRunArtifact(exe);
+            run_exe.addArg("sample_otio_files/multiple_track.otio");
+
+            if (options.test_filter == null) {
+                options.test_step.dependOn(&run_exe.step);
+            }
+        }
+
+        // Documentation Module that exposes the others (as a sort of landing page)
+        const opentimelineio_docs = module_with_tests_and_artifact(
+            "docs",
+            .{
+                .b = b,
+                .options = options,
+                .fpath = "src/docs/root.zig",
+                .deps = &.{
+                    .{ .name = "string_stuff", .module = string_stuff },
+                    .{ .name = "opentime", .module = opentime },
+                    .{ .name = "opentimelineio", .module = opentimelineio },
+                    .{ .name = "curve", .module = curve },
+                    .{ .name = "topology", .module = topology },
+                    .{ .name = "treecode", .module = treecode },
+                    .{ .name = "sampling", .module = sampling },
+                    .{ .name = "build_options", .module = build_options_mod},
+                },
+                },
+            );
+
+        {
+            const opentimelineio_docs_test = b.addTest(
+                .{
+                    .name = "test_docs",
+                    .root_module = opentimelineio_docs,
+                    .filters = &.{
+                        options.test_filter orelse &.{},
+                    },
+                    },
+                );
+            const install_docs = b.addInstallDirectory(
+                .{
+                    .source_dir = opentimelineio_docs_test.getEmittedDocs(),
+                    .install_dir = .prefix,
+                    .install_subdir = "docs",
+                },
+                );
+
+            // each module gets an individual docs step
+            const docs_step = b.step(
+                "docs_wrinkles",
+                "User-facing documentation for the wrinkles library.",
+            );
+            docs_step.dependOn(&install_docs.step);
+            options.all_docs_step.dependOn(docs_step);
+        }
+
+        //
+        // timeline widget (reusable Gantt-chart renderer, no OTIO dependency)
+        //
+        const timeline_widget = module_with_tests_and_artifact(
+            "timeline_widget",
+            .{
+                .b = b,
+                .options = options,
+                .fpath = "src/timeline_widget.zig",
+                .deps = &.{
+                    .{
+                        .name = "zgui_cimgui_implot_sokol",
+                        .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol"),
+                    },
+                    },
+                },
+                );
+
+        //
+        // executables
+        //
+        const common_deps:[]const std.Build.Module.Import = &.{
+            .{ .name = "build_options", .module = build_options_mod},
+
+            // external deps
+            .{ .name = "comath", .module = comath_dep.module("comath") },
+            .{ .name = "wav", .module = wav_dep },
+            .{
+                .name = "zgui_cimgui_implot_sokol",
+                .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol")
+            },
+
+            // internal deps
+            .{ .name = "string_stuff", .module = string_stuff },
+            .{ .name = "opentime", .module = opentime },
+            .{ .name = "curve", .module = curve },
+            .{ .name = "topology", .module = topology },
+
+            // libraries with c components
+            .{ .name = "spline_gym", .module = spline_gym.root_module },
+            .{ .name = "sampling", .module = sampling },
+
+            .{ .name = "opentimelineio", .module = opentimelineio },
+            .{ .name = "timeline_widget", .module = timeline_widget },
+        };
+
+        // probably gone for good, but haven't removed yet
+        try executable(
+            b,
+            "curvet",
+            "Interactive curve editor and visualizer",
+            "src/curvet.zig",
+            options,
+            common_deps,
+        );
+
+        try executable(
+            b,
+            "sokol_test",
+            "Sokol graphics backend test",
+            "src/sokol_test.zig",
+            options,
+            common_deps,
+        );
+
+        try executable(
+            b,
+            "transformation_visualizer",
+            "Visualize time transformations between spaces",
+            "src/transformation_visualizer.zig",
+            options,
+            common_deps,
+        );
+
+        try executable(
+            b,
+            "wrinkles_visual_debugger",
+            "Visual debugger for wrinkles data structures",
+            "src/wrinkles_visual_debugger.zig",
+            options,
+            common_deps,
+        );
+
+        try executable(
+            b,
+            "otio_space_visualizer",
+            "Visualize OTIO timeline coordinate spaces",
+            "src/otio_space_visualizer.zig",
+            options,
+            common_deps,
+        );
+
+        try executable(
+            b,
+            "otio_leak_test",
+            "Memory leak detection test for OTIO parsing",
+            "src/otio_leak_test.zig",
+            options,
+            common_deps,
+        );
+
+        try executable(
+            b,
+            "otio_dump_graph",
+            "Dump OTIO file as a graphviz dot graph",
+            "src/otio_dump_graph.zig",
+            options,
+            &.{
+                .{ .name = "string_stuff", .module = string_stuff },
+                .{ .name = "opentimelineio", .module = opentimelineio },
+            },
+            );
+
+        try executable(
+            b,
+            "otio_measure_timeline",
+            "Measure and display OTIO timeline durations",
+            "src/otio_measure_timeline.zig",
+            options,
+            &.{
+                .{ .name = "string_stuff", .module = string_stuff },
+                .{ .name = "opentimelineio", .module = opentimelineio },
+                .{ .name = "opentime", .module = opentime },
+            },
+            );
+
+        try executable(
+            b,
+            "otio_hierarchy_view",
+            "Display OTIO file structure as a tree",
+            "src/otio_hierarchy_view.zig",
+            options,
+            &.{
+                .{ .name = "string_stuff", .module = string_stuff },
+                .{ .name = "opentimelineio", .module = opentimelineio },
+                .{ .name = "opentime", .module = opentime },
+                .{ .name = "sampling", .module = sampling },
+                .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
+            },
+            );
+
+        try executable(
+            b,
+            "otiocat",
+            "Convert files between formats (.otio, .tl*)",
+            "src/otiocat.zig",
+            options,
+            &.{
+                .{ .name = "string_stuff", .module = string_stuff },
+                .{ .name = "opentimelineio", .module = opentimelineio },
+                .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
+            },
+            );
+
+        try executable(
+            b,
+            "test_roundtrip_leak",
+            "Test roundtrip for memory leaks",
+            "src/tools/test_roundtrip_leak.zig",
+            options,
+            &.{
+                .{ .name = "opentimelineio", .module = opentimelineio },
+            },
+            );
+
+        //
+        // C++ binding library and examples
+        //
+        if (options.target.result.cpu.arch.isWasm() == false) 
+        {
+            try cpp_bindings_and_examples(
+                b,
+                options,
+                opentimelineio_c_static,
+                test_output,
+            );
         }
     }
-
-    // Documentation Module that exposes the others (as a sort of landing page)
-    const opentimelineio_docs = module_with_tests_and_artifact(
-        "docs",
-        .{
-            .b = b,
-            .options = options,
-            .fpath = "src/docs/root.zig",
-            .deps = &.{
-                .{ .name = "string_stuff", .module = string_stuff },
-                .{ .name = "opentime", .module = opentime },
-                .{ .name = "opentimelineio", .module = opentimelineio },
-                .{ .name = "curve", .module = curve },
-                .{ .name = "topology", .module = topology },
-                .{ .name = "treecode", .module = treecode },
-                .{ .name = "sampling", .module = sampling },
-                .{ .name = "build_options", .module = build_options_mod},
-            },
-        },
-    );
-
-    {
-        const opentimelineio_docs_test = b.addTest(
-            .{
-                .name = "test_docs",
-                .root_module = opentimelineio_docs,
-                .filters = &.{
-                    options.test_filter orelse &.{},
-                },
-            },
-        );
-        const install_docs = b.addInstallDirectory(
-            .{
-                .source_dir = opentimelineio_docs_test.getEmittedDocs(),
-                .install_dir = .prefix,
-                .install_subdir = "docs",
-            },
-        );
-
-        // each module gets an individual docs step
-        const docs_step = b.step(
-            "docs_wrinkles",
-            "User-facing documentation for the wrinkles library.",
-        );
-        docs_step.dependOn(&install_docs.step);
-        options.all_docs_step.dependOn(docs_step);
-    }
-
-    //
-    // timeline widget (reusable Gantt-chart renderer, no OTIO dependency)
-    //
-    const timeline_widget = module_with_tests_and_artifact(
-        "timeline_widget",
-        .{
-            .b = b,
-            .options = options,
-            .fpath = "src/timeline_widget.zig",
-            .deps = &.{
-                .{
-                    .name = "zgui_cimgui_implot_sokol",
-                    .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol"),
-                },
-            },
-        },
-    );
-
-    //
-    // executables
-    //
-    const common_deps:[]const std.Build.Module.Import = &.{
-        .{ .name = "build_options", .module = build_options_mod},
-
-        // external deps
-        .{ .name = "comath", .module = comath_dep.module("comath") },
-        .{ .name = "wav", .module = wav_dep },
-        .{
-            .name = "zgui_cimgui_implot_sokol",
-            .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol")
-        },
-
-        // internal deps
-        .{ .name = "string_stuff", .module = string_stuff },
-        .{ .name = "opentime", .module = opentime },
-        .{ .name = "curve", .module = curve },
-        .{ .name = "topology", .module = topology },
-
-        // libraries with c components
-        .{ .name = "spline_gym", .module = spline_gym.root_module },
-        .{ .name = "sampling", .module = sampling },
-
-        .{ .name = "opentimelineio", .module = opentimelineio },
-        .{ .name = "timeline_widget", .module = timeline_widget },
-    };
-
-    // probably gone for good, but haven't removed yet
-    try executable(
-        b,
-        "curvet",
-        "Interactive curve editor and visualizer",
-        "src/curvet.zig",
-        options,
-        common_deps,
-    );
-
-    try executable(
-        b,
-        "sokol_test",
-        "Sokol graphics backend test",
-        "src/sokol_test.zig",
-        options,
-        common_deps,
-    );
-
-    try executable(
-        b,
-        "transformation_visualizer",
-        "Visualize time transformations between spaces",
-        "src/transformation_visualizer.zig",
-        options,
-        common_deps,
-    );
-
-    try executable(
-        b,
-        "wrinkles_visual_debugger",
-        "Visual debugger for wrinkles data structures",
-        "src/wrinkles_visual_debugger.zig",
-        options,
-        common_deps,
-    );
-
-    try executable(
-        b,
-        "otio_space_visualizer",
-        "Visualize OTIO timeline coordinate spaces",
-        "src/otio_space_visualizer.zig",
-        options,
-        common_deps,
-    );
-
-    try executable(
-        b,
-        "otio_leak_test",
-        "Memory leak detection test for OTIO parsing",
-        "src/otio_leak_test.zig",
-        options,
-        common_deps,
-    );
-
-    try executable(
-        b,
-        "otio_dump_graph",
-        "Dump OTIO file as a graphviz dot graph",
-        "src/otio_dump_graph.zig",
-        options,
-        &.{
-            .{ .name = "string_stuff", .module = string_stuff },
-            .{ .name = "opentimelineio", .module = opentimelineio },
-        },
-    );
-
-    try executable(
-        b,
-        "otio_measure_timeline",
-        "Measure and display OTIO timeline durations",
-        "src/otio_measure_timeline.zig",
-        options,
-        &.{
-            .{ .name = "string_stuff", .module = string_stuff },
-            .{ .name = "opentimelineio", .module = opentimelineio },
-            .{ .name = "opentime", .module = opentime },
-        },
-    );
-
-    try executable(
-        b,
-        "otio_hierarchy_view",
-        "Display OTIO file structure as a tree",
-        "src/otio_hierarchy_view.zig",
-        options,
-        &.{
-            .{ .name = "string_stuff", .module = string_stuff },
-            .{ .name = "opentimelineio", .module = opentimelineio },
-            .{ .name = "opentime", .module = opentime },
-            .{ .name = "sampling", .module = sampling },
-            .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
-        },
-    );
-
-    try executable(
-        b,
-        "otiocat",
-        "Convert files between formats (.otio, .tl*)",
-        "src/otiocat.zig",
-        options,
-        &.{
-            .{ .name = "string_stuff", .module = string_stuff },
-            .{ .name = "opentimelineio", .module = opentimelineio },
-            .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
-        },
-    );
-
-    try executable(
-        b,
-        "test_roundtrip_leak",
-        "Test roundtrip for memory leaks",
-        "src/tools/test_roundtrip_leak.zig",
-        options,
-        &.{
-            .{ .name = "opentimelineio", .module = opentimelineio },
-        },
-    );
-
-    //
-    // C++ binding library and examples
-    //
-    if (options.target.result.cpu.arch.isWasm() == false) 
-    {
-        try cpp_bindings_and_examples(
-            b,
-            options,
-            opentimelineio_c_static,
-            test_output,
-        );
-    }
-}

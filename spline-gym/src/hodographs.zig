@@ -1,10 +1,6 @@
 //! Zig wrapper of the hodographs c-library.
 
-const libhodographs = @cImport(
-    {
-        @cInclude("hodographs.h");
-    }
-);
+const libhodographs = @import("hodographs_c");
 
 pub const Vector2 = libhodographs.Vector2;
 pub const compute_hodograph = libhodographs.compute_hodograph;

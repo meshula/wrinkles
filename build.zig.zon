@@ -5,8 +5,7 @@
     .minimum_zig_version = "0.15.1",
     .dependencies = .{
         .comath = .{
-            .url = "git+https://github.com/inkryption/comath.git#502c5e65c3708e14f19e19fb78c18123e4cb752c",
-            .hash = "comath-0.1.0-wKZ2n-ffAQD0U6AGU-dnus5nW1yRJP5SXtycwQDQoKNb",
+            .path = "../../../external_sources/comath/",
         },
         .kissfft = .{
             .url = "git+https://github.com/mborgerding/kissfft.git#febd4caeed32e33ad8b2e0bb5ea77542c40f18ec",
@@ -21,16 +20,14 @@
             .hash = "zig_wav_io-0.1.0-PYygzNEMAQDo94KcwXYc99epSh1go4VSYgIdCmPB02Kr",
         },
         .zgui_cimgui_implot_sokol = .{
-            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol#95dcaa47ff6f1e6f4233c975b6c9a431a07f96cc",
-            .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXq5sCQBOlN0qqksv-2HBPeE6qaLhJolAmFldWhO4",
+            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#57941f5bfe9279d061662a6281c67dadec49911b",
+            .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXvm_DABqtqIrmChkGcxDGkwSQDYwXxojX868JoMg",
         },
         .ziggy = .{
-            .url = "git+https://github.com/ssteinbach/ziggy#ddeed2f372f2fbd9db74fdf7ac12a62e3826abf0",
-            .hash = "ziggy-0.1.0-kTg8v6xfBgAoHwFLhSFnmwpTc7_qO3rQ3ixqqyKHwSq0",
+            .path = "../../../external_sources/ziggy",
         },
         .flatbuffers = .{
-            .url = "git+https://github.com/ssteinbach/zig-flatbuffers.git#b67833b4886b4864f3fe62bb6bfba1b5d2cf4fee",
-            .hash = "flatbuffers-0.1.2-Ntd6Di8pAgB0hYjVEbQ2k0-MBotZRGHb3MP-gJgw9t0v",
+            .path = "../zig-flatbuffers",
         },
     },
     .paths = .{

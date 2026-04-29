@@ -4,11 +4,7 @@ const opentime = @import("opentime");
 const otio = @import("opentimelineio");
 const topology = @import("topology");
 
-const c = @cImport(
-    {
-        @cInclude("opentimelineio_c.h");
-    }
-);
+const c = @import("opentimelineio_c");
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const ALLOCATOR:std.mem.Allocator = gpa.allocator();
