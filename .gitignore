@@ -2,6 +2,7 @@
 .vscode/
 .zig-cache/
 zig-out/
+zig-pkg
 *.out
 *.o
 imgui.ini
