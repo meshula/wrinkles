@@ -1176,16 +1176,18 @@ fn read_otio_object(
 /// Read OTIO JSON from a file path.
 pub fn read_from_file(
     in_allocator: std.mem.Allocator,
+    io: std.Io,
     file_path: string.latin_s8,
     content_filter: adapter.ReadOptions.ContentFilter,
 ) !otio.CompositionItemHandle
 {
-    const fi = try std.fs.cwd().openFile(file_path, .{});
-    defer fi.close();
+    const fi = try std.Io.Dir.cwd().openFile(io, file_path, .{});
+    defer fi.close(io);
 
-    const source = try fi.readToEndAlloc(
+    var file_reader = fi.reader(io, &.{});
+    const source = try file_reader.interface.allocRemaining(
         in_allocator,
-        std.math.maxInt(u32),
+        .limited(1024*1024),
     );
     defer in_allocator.free(source);
 
@@ -1224,6 +1226,7 @@ pub fn read_from_string(
 test "read_from_file test (simple)"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const root = "simple_cut";
     const otio_fpath = root ++ ".otio";
@@ -1231,6 +1234,7 @@ test "read_from_file test (simple)"
 
     var tl_ref = try read_from_file(
         std.testing.allocator,
+        io,
         "sample_otio_files/"++otio_fpath,
         .all,
     );
@@ -1271,6 +1275,7 @@ test "read_from_file test (simple)"
     
     try tl_pres_projection_builder.tree.write_dot_graph(
         allocator,
+        io,
         "/var/tmp/" ++ dot_fpath,
         "read_from_file_test",
         .{},
@@ -1287,12 +1292,14 @@ test "read_from_file test (simple)"
 test "read_from_file test (multiple, smoke)" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const root = "multiple_track";
     const otio_fpath = root ++ ".otio";
 
     var tl = try read_from_file(
         std.testing.allocator,
+        io,
         "sample_otio_files/"++otio_fpath,
         .all,
     );
@@ -1302,12 +1309,14 @@ test "read_from_file test (multiple, smoke)"
 test "read_from_file with all_except_metadata on OTIO JSON file"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const otio_file = "sample_otio_files/simple_cut.otio";
 
     // Read with all content
     var tl_all = try read_from_file(
         allocator,
+        io,
         otio_file,
         .all,
     );
@@ -1316,6 +1325,7 @@ test "read_from_file with all_except_metadata on OTIO JSON file"
     // Read with metadata skipped
     var tl_no_meta = try read_from_file(
         allocator,
+        io,
         otio_file,
         .all_except_metadata,
     );

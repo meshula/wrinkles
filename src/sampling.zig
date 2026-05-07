@@ -10,7 +10,7 @@
 //! @TODO: handle acyclical sampling (IE - variable bitrate data, held frames)
 
 const std = @import("std");
-const libsamplerate = @import("libsamplerate").libsamplerate;
+const libsamplerate = @import("libsamplerate");
 const kissfft = @import("kissfft").c;
 const wav = @import("wav");
 
@@ -151,17 +151,19 @@ pub const Sampling = struct {
     /// serialize the sampling to a wav file
     pub fn write_file(
         self: @This(),
+        io: std.Io,
         fpath: []const u8,
     ) !void 
     {
-        var file = try std.fs.cwd().createFile(
+        var file = try std.Io.Dir.cwd().createFile(
+            io,
             fpath,
             .{},
         );
-        defer file.close();
+        defer file.close(io);
         
         var buf:[4096]u8 = undefined;
-        var writer = file.writer(&buf);
+        var writer = file.writer(io, &buf);
 
         try wav.write_wav(
             &writer.interface,
@@ -180,6 +182,7 @@ pub const Sampling = struct {
     pub fn write_file_prefix(
         self: @This(),
         allocator: std.mem.Allocator,
+        io: std.Io,
         dirname: []const u8,
         prefix: []const u8,
         maybe_parent_signal: ?SignalGenerator,
@@ -214,7 +217,7 @@ pub const Sampling = struct {
         );
         defer allocator.free(name);
 
-        return self.write_file(name);
+        return self.write_file(io, name);
     }
 
     /// fetch the value of the buffer at the provided ordinate
@@ -1086,7 +1089,7 @@ pub fn transform_resample_linear_interpolating_dd(
         input_data: []sample_value_t,
     };
 
-    var transform_specs: std.ArrayList(TransformSpec) = .{};
+    var transform_specs: std.ArrayList(TransformSpec) = .empty;
     defer transform_specs.deinit(allocator);
 
     for (
@@ -1273,6 +1276,7 @@ pub fn transform_resample_linear_interpolating_dd(
 test "sampling: resample from 48khz to 44" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const sine_signal_48kz_100 = SignalGenerator{
         .frequency_hz = 100,
@@ -1292,6 +1296,7 @@ test "sampling: resample from 48khz to 44"
     if (WRITE_TEST_FILES) {
         try sine_samples_48khz_100.write_file_prefix(
             allocator,
+            io,
             TMPDIR,
             "resample_test_input.",
             sine_signal_48kz_100,
@@ -1308,6 +1313,7 @@ test "sampling: resample from 48khz to 44"
     if (WRITE_TEST_FILES) {
         try sine_samples_44khz.write_file_prefix(
             allocator,
+            io,
             TMPDIR,
             "resample_test_output.",
             sine_signal_48kz_100,
@@ -1329,6 +1335,7 @@ test "sampling: resample from 48khz to 44"
 test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1khz" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const samples_48 = SignalGenerator{
         .frequency_hz = 100,
@@ -1347,6 +1354,7 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
     if (WRITE_TEST_FILES) {
         try s48.write_file_prefix(
             allocator,
+            io,
             TMPDIR,
             "transform_test_input.",
             samples_48,
@@ -1416,6 +1424,7 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
     if (WRITE_TEST_FILES) {
         try samples_48_transformd.write_file_prefix(
             allocator,
+            io,
             TMPDIR,
             "transform_test_transformd_pre_resample.",
             samples_48,
@@ -1433,6 +1442,7 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
     if (WRITE_TEST_FILES) {
         try samples_44.write_file_prefix(
             allocator,
+            io,
             TMPDIR,
             "transform_test_output.",
             samples_48,
@@ -1468,6 +1478,7 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
 test "sampling: transform 48khz samples with a nonlinear acceleration curve and resample" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const samples_48 = SignalGenerator{
         .frequency_hz = 100,
@@ -1530,6 +1541,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     {
         try samples_48_transformd_cubic.write_file_prefix(
             allocator,
+            io,
             TMPDIR,
             "transform_cubic_test_transformd_pre_resample.",
             samples_48,
@@ -1542,7 +1554,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     );
     const inc:sample_value_t = 4.0/24.0;
 
-    var knots: std.ArrayList(curve.ControlPoint) = .{};
+    var knots: std.ArrayList(curve.ControlPoint) = .empty;
     defer knots.deinit(allocator);
 
     try knots.append(
@@ -1607,6 +1619,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     if (WRITE_TEST_FILES) {
         try samples_48_transformd.write_file_prefix(
             allocator,
+            io,
             TMPDIR,
             "transform_cubic_test_transformd_linearized24hz_pre_resample.",
             samples_48,
@@ -1625,6 +1638,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     if (WRITE_TEST_FILES) {
         try samples_44.write_file_prefix(
             allocator,
+            io,
             TMPDIR,
             "transform_cubic_test_transformd_linearized24hz_resampled.",
             samples_48,
@@ -1687,6 +1701,7 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
 test "sampling: serialize a 24hz ramp to disk, to visualize ramp output" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const ramp_signal = SignalGenerator{
         .frequency_hz = 24,
@@ -1706,6 +1721,7 @@ test "sampling: serialize a 24hz ramp to disk, to visualize ramp output"
     if (WRITE_TEST_FILES) {
         try ramp_samples.write_file_prefix(
             allocator,
+            io,
             TMPDIR,
             "24hz_signal.",
             ramp_signal,

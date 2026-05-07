@@ -223,9 +223,11 @@ pub fn linearize_segment(
 test "segment: linearize basic test" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const segment = try read_segment_json(
         allocator,
+        io,
         "segments/upside_down_u.json"
     );
 
@@ -319,9 +321,11 @@ test "segment from point array"
 test "segment: linearize already linearized curve" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const segment = try read_segment_json(
         allocator,
+        io,
         "segments/linear.json"
     );
     const linearized_knots = try linearize_segment(
@@ -338,15 +342,17 @@ test "segment: linearize already linearized curve"
 /// Read a Bezier segment from a json file on disk.
 pub fn read_segment_json(
     allocator:std.mem.Allocator,
+    io: std.Io,
     file_path: []const u8,
 ) !Bezier.Segment 
 {
-    const fi = try std.fs.cwd().openFile(file_path, .{});
-    defer fi.close();
+    const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
+    defer file.close(io);
 
-    const source = try fi.readToEndAlloc(
+    var file_reader = file.reader(io, &.{});
+    const source = try file_reader.interface.allocRemaining(
         allocator,
-        std.math.maxInt(u32)
+        .limited(1024*1024),
     );
     defer allocator.free(source);
 
@@ -1024,7 +1030,7 @@ pub const Bezier = struct {
         crv: linear_curve.Linear,
     ) !Bezier 
     {
-        var result: std.ArrayList(Segment) = .{};
+        var result: std.ArrayList(Segment) = .empty;
         result.deinit(allocator);
 
         const knots = crv.knots.len;
@@ -1138,7 +1144,7 @@ pub const Bezier = struct {
         allocator:std.mem.Allocator,
     ) !linear_curve.Linear 
     {
-        var linearized_knots: std.ArrayList(control_point.ControlPoint) = .{};
+        var linearized_knots: std.ArrayList(control_point.ControlPoint) = .empty;
 
         const self_split_on_critical_points = (
             try self.split_on_critical_points(
@@ -1186,7 +1192,7 @@ pub const Bezier = struct {
         allocator: std.mem.Allocator,
     ) ![]control_point.ControlPoint 
     {
-        var result: std.ArrayList(control_point.ControlPoint) = .{};
+        var result: std.ArrayList(control_point.ControlPoint) = .empty;
 
         if (self.segments.len == 0) {
             return &[0]control_point.ControlPoint{};
@@ -1391,7 +1397,7 @@ pub const Bezier = struct {
         ordinates:[]const opentime.Ordinate,
     ) !Bezier 
     {
-        var result_segments: std.ArrayList(Segment) = .{};
+        var result_segments: std.ArrayList(Segment) = .empty;
         defer result_segments.deinit(allocator);
         try result_segments.appendSlice(allocator, self.segments);
 
@@ -1450,7 +1456,7 @@ pub const Bezier = struct {
         ordinates:[]const opentime.Ordinate,
     ) !Bezier 
     {
-        var result_segments: std.ArrayList(Segment) = .{};
+        var result_segments: std.ArrayList(Segment) = .empty;
         defer result_segments.deinit(allocator);
 
         try result_segments.appendSlice(allocator, self.segments);
@@ -1646,10 +1652,11 @@ pub const Bezier = struct {
     ) !Bezier 
     {
         var cSeg = hodographs.BezierSegment{
-            .order = 3
+            .order = 3,
+            .p = undefined,
         };
 
-        var split_segments: std.ArrayList(Segment) = .{};
+        var split_segments: std.ArrayList(Segment) = .empty;
         defer split_segments.deinit(allocator);
 
         for (self.segments) 
@@ -1765,15 +1772,17 @@ pub const Bezier = struct {
 /// Parse a .curve.json file from disk and return a Bezier.
 pub fn read_curve_json(
     allocator:std.mem.Allocator,
+    io: std.Io,
     file_path: []const u8,
 ) !Bezier 
 {
-    const fi = try std.fs.cwd().openFile(file_path, .{});
-    defer fi.close();
+    const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
+    defer file.close(io);
 
-    const source = try fi.readToEndAlloc(
+    var file_reader = file.reader(io, &.{});
+    const source = try file_reader.interface.allocRemaining(
         allocator,
-        std.math.maxInt(u32)
+        .limited(std.math.maxInt(usize)),
     );
     defer allocator.free(source);
 
@@ -1874,9 +1883,11 @@ fn read_linear_curve_data(
 test "Curve: read_curve_json" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const curve = try read_curve_json(
         allocator,
+        io,
         "curves/linear.curve.json",
     );
     defer curve.deinit(allocator);
@@ -2105,22 +2116,25 @@ test "Bezier.Segment: eval_at for out of range u"
 }
 
 fn write_text_to_file(
+    io: std.Io,
     json_blob: []const u8,
     to_fpath: []const u8
 ) !void 
 {
-    const file = try std.fs.cwd().createFile(
+    const file = try std.Io.Dir.cwd().createFile(
+        io,
         to_fpath,
         .{ .read = true },
     );
-    defer file.close();
+    defer file.close(io);
 
-    try file.writeAll(json_blob);
+    try file.writeStreamingAll(io, json_blob);
 }
 
 /// serialize a thing with a .debug_json_str to the filepath
 pub fn write_json_file_curve(
     allocator: std.mem.Allocator,
+    io: std.Io,
     curve: anytype,
     to_fpath: []const u8
 ) !void 
@@ -2129,6 +2143,7 @@ pub fn write_json_file_curve(
     defer allocator.free(json_blob);
 
     try write_text_to_file(
+        io,
         json_blob,
         to_fpath,
     );
@@ -2137,6 +2152,7 @@ pub fn write_json_file_curve(
 test "json writer: curve" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const ident = Bezier {
         .segments = &.{
@@ -2148,25 +2164,26 @@ test "json writer: curve"
 
     try write_json_file_curve(
         allocator,
+        io,
         ident,
         fpath,
     );
 
-    const file = try std.fs.cwd().openFile(
-        fpath,
-        .{ .mode = .read_only },
-    );
-    defer file.close();
+    const file = try std.Io.Dir.cwd().openFile(io, fpath, .{});
+    defer file.close(io);
 
-    var buffer: [2048]u8 = undefined;
-    try file.seekTo(0);
-    const bytes_read = try file.readAll(&buffer);
+    var file_reader = file.reader(io, &.{});
+    const source = try file_reader.interface.allocRemaining(
+        allocator,
+        .limited(std.math.maxInt(usize)),
+    );
+    defer allocator.free(source);
 
     const blob = try ident.debug_json_str(allocator);
     defer allocator.free(blob);
 
     try std.testing.expectEqualStrings(
-        buffer[0..bytes_read],
+        source,
         blob,
     );
 }
@@ -2415,6 +2432,7 @@ test "Bezier: split_at_each_input_ordinate linear"
 test "Bezier: split_at_input_ord" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const test_curves = [_]Bezier{
         .{
@@ -2427,10 +2445,12 @@ test "Bezier: split_at_input_ord"
         },
         try read_curve_json(
             allocator,
+            io,
             "curves/upside_down_u.curve.json",
         ), 
         try read_curve_json(
             allocator,
+            io,
             "curves/scurve.curve.json",
         ), 
     };
@@ -2497,6 +2517,7 @@ test "Bezier: split_at_input_ord"
 test "Bezier: trimmed_from_input_ordinate" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const TestData = struct {
         // inputs
@@ -2511,6 +2532,7 @@ test "Bezier: trimmed_from_input_ordinate"
     const test_curves = [_]Bezier{
         try read_curve_json(
             allocator,
+            io,
             "curves/linear_scurve_u.curve.json",
         ), 
         .{
@@ -2626,6 +2648,7 @@ test "Bezier: trimmed_from_input_ordinate"
 test "Bezier: trimmed_in_input_space" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const TestData = struct {
         trim_range: opentime.ContinuousInterval,
@@ -2643,10 +2666,12 @@ test "Bezier: trimmed_in_input_space"
         },
         try read_curve_json(
             allocator,
+            io,
             "curves/upside_down_u.curve.json",
         ), 
         try read_curve_json(
             allocator,
+            io,
             "curves/scurve.curve.json",
         ), 
     };
@@ -2780,9 +2805,11 @@ test "Bezier: trimmed_in_input_space"
 test "Bezier: project_affine" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const test_crv = try read_curve_json(
         allocator,
+        io,
         "curves/upside_down_u.curve.json",
     );
     defer test_crv.deinit(allocator);
@@ -2892,9 +2919,11 @@ pub fn join_bez_aff_unbounded(
 test "join_bez_aff_unbounded" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const test_crv = try read_curve_json(
         allocator,
+        io,
         "curves/upside_down_u.curve.json",
     );
     defer test_crv.deinit(allocator);

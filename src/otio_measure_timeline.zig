@@ -9,13 +9,13 @@ const builtin = @import("builtin");
 /// parse the commandline arguments and setup the state
 fn _parse_args(
     allocator: std.mem.Allocator,
+    args: std.process.Args,
 ) ![]const []const u8 
 {
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+    var arg_iter = args.iterate();
 
     // ignore the app name, always first in args
-    _ = args.skip();
+    _ = arg_iter.skip();
 
     var arg_count: usize = 0;
 
@@ -23,7 +23,7 @@ fn _parse_args(
     defer files_to_measure.deinit(allocator);
 
     // read all the filepaths from the commandline
-    while (args.next()) 
+    while (arg_iter.next()) 
         |nextarg| 
     {
         arg_count += 1;
@@ -64,20 +64,17 @@ pub fn usage(
 }
 
 pub fn main(
+    init: std.process.Init,
 ) !void
 {
     // use the debug allocator in debug builds, otherwise use smp
-    const allocator = (
-        if (builtin.mode == .Debug) alloc: {
-            var da = std.heap.DebugAllocator(.{}){};
-            break :alloc da.allocator();
-        } else std.heap.smp_allocator
-    );
+    const allocator = init.gpa;
+    const io = init.io;
 
-    const input_files = try _parse_args(allocator);
+    const input_files = try _parse_args(allocator, init.minimal.args);
     defer allocator.free(input_files);
 
-    const prog = std.Progress.start(.{});
+    const prog = std.Progress.start(io, .{});
     defer prog.end();
 
     const parent_prog = prog.start(
@@ -106,7 +103,8 @@ pub fn main(
         );
 
         var found = true;
-        std.fs.cwd().access(
+        std.Io.Dir.cwd().access(
+            io,
             filepath,
             .{},
         ) catch |e| switch (e) {
@@ -124,6 +122,7 @@ pub fn main(
         // read the file - skip metadata for faster reads
         var tl_ref = try otio.read_from_file(
             allocator,
+            io,
             filepath,
             .{ .content_filter = .all_except_metadata },
         );

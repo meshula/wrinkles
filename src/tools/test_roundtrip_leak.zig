@@ -5,6 +5,7 @@ const serialization = @import("opentimelineio").serialization;
 
 fn testRoundtrip(
     allocator: std.mem.Allocator,
+    io: std.Io,
     tla_path: []const u8,
     tlb_path: []const u8,
 ) !bool
@@ -12,6 +13,7 @@ fn testRoundtrip(
     // Parse TLA using the serializable API
     const ser_tl = try serialization.serializable.read_from_file(
         allocator,
+        io,
         tla_path,
         .{},
     );
@@ -37,10 +39,11 @@ fn testRoundtrip(
     defer allocator.free(tla_output);
 
     // Parse TLB
-    const tlb_content = try std.fs.cwd().readFileAlloc(
-        allocator,
+    const tlb_content = try std.Io.Dir.cwd().readFileAlloc(
+        io,
         tlb_path,
-        std.math.maxInt(usize),
+        allocator,
+        .limited(std.math.maxInt(usize)),
     );
     defer allocator.free(tlb_content);
 
@@ -71,9 +74,15 @@ fn testRoundtrip(
     return std.mem.eql(u8, tla_output, tlb_output);
 }
 
-pub fn main() !void {
+pub fn main(
+    init: std.process.Init,
+) !void 
+{
+    const io = init.io;
+
     // Use the General Purpose Allocator with safety checks
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
+
     defer {
         const check = gpa.deinit();
         if (check == .leak) {
@@ -103,18 +112,20 @@ pub fn main() !void {
     var passed: usize = 0;
     var failed: usize = 0;
 
-    for (test_pairs) |pair| {
+    for (test_pairs) 
+        |pair| 
+    {
         // Check if files exist
-        std.fs.cwd().access(pair.tla, .{}) catch {
+        std.Io.Dir.cwd().access(io, pair.tla, .{}) catch {
             std.debug.print("  {s}... SKIP (file not found)\n", .{pair.tla});
             continue;
         };
-        std.fs.cwd().access(pair.tlb, .{}) catch {
+        std.Io.Dir.cwd().access(io, pair.tlb, .{}) catch {
             std.debug.print("  {s}... SKIP (tlb not found)\n", .{pair.tla});
             continue;
         };
 
-        const match = testRoundtrip(allocator, pair.tla, pair.tlb) catch |err| {
+        const match = testRoundtrip(allocator, io, pair.tla, pair.tlb) catch |err| {
             std.debug.print("  {s}... ERROR: {}\n", .{ pair.tla, err });
             failed += 1;
             continue;

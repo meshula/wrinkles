@@ -335,7 +335,7 @@ pub fn render_metadata_value(
         .integer => |i| std.debug.print("{s}{s}{d}\n", .{ prefix, indent_str, i }),
         .float => |f| std.debug.print("{s}{s}{d}\n", .{ prefix, indent_str, f }),
         .bytes => |s| std.debug.print("{s}{s}\"{s}\"\n", .{ prefix, indent_str, s }),
-        .tag => |t| std.debug.print("{s}{s}<tag: {s}>\n", .{ prefix, indent_str, t.name }),
+        .@"union" => |t| std.debug.print("{s}{s}<tag: {s}>\n", .{ prefix, indent_str, t.tag }),
         .array => |arr| {
             std.debug.print("{s}{s}[\n", .{ prefix, indent_str });
             for (arr) |item| {
@@ -343,17 +343,18 @@ pub fn render_metadata_value(
             }
             std.debug.print("{s}{s}]\n", .{ prefix, indent_str });
         },
+        .@"enum" => |e| std.debug.print("{s}{s}{s}", .{prefix, indent_str, e}),
         .kv => |map| {
             var iter = map.fields.iterator();
             while (iter.next()) |entry| {
                 std.debug.print("{s}{s}{s}: ", .{ prefix, indent_str, entry.key_ptr.* });
                 // For simple values, print on same line
                 switch (entry.value_ptr.*) {
-                    .null, .bool, .integer, .float, .bytes, .tag => {
+                    .null, .bool, .integer, .float, .bytes, .@"enum" => {
                         render_metadata_value_inline(entry.value_ptr.*);
                         std.debug.print("\n", .{});
                     },
-                    .array, .kv => {
+                    .array, .kv, .@"union" => {
                         std.debug.print("\n", .{});
                         render_metadata_value(allocator, entry.value_ptr.*, prefix, indent + 2);
                     },
@@ -374,7 +375,8 @@ pub fn render_metadata_value_inline(
         .integer => |i| std.debug.print("{d}", .{i}),
         .float => |f| std.debug.print("{d}", .{f}),
         .bytes => |s| std.debug.print("\"{s}\"", .{s}),
-        .tag => |t| std.debug.print("<tag: {s}>", .{t.name}),
+        .@"union" => |t| std.debug.print("<tag: {s}>", .{t.tag}),
+        .@"enum" => |e| std.debug.print("{s}", .{e}),
         .array => std.debug.print("[...]", .{}),
         .kv => std.debug.print("{{...}}", .{}),
     }

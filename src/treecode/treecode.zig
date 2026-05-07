@@ -565,7 +565,7 @@ test "Treecode: format"
     var tc = try Treecode.init(allocator);
     defer tc.deinit(allocator);
 
-    var known = std.ArrayList(u8){};
+    var known : std.ArrayList(u8) = .empty;
     defer known.deinit(allocator);
     try known.append(allocator, one);
 
@@ -897,7 +897,7 @@ test "treecode: append alternating .left and .right"
     var tc = try Treecode.init(allocator);
     defer tc.deinit(allocator);
 
-    var buf_known = std.ArrayList(u8){};
+    var buf_known : std.ArrayList(u8) = .empty;
     defer buf_known.deinit(allocator);
     try buf_known.ensureTotalCapacity(allocator, 1024);
     try buf_known.append(allocator, "1"[0]);
@@ -945,7 +945,7 @@ test "treecode: append variable size"
     var tc = try Treecode.init(allocator);
     defer tc.deinit(allocator);
 
-    var buf_known = std.ArrayList(u8){};
+    var buf_known : std.ArrayList(u8) = .empty;
     defer buf_known.deinit(allocator);
     try buf_known.ensureTotalCapacity(allocator, 1024);
     buf_known.appendAssumeCapacity(one);

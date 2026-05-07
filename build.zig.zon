@@ -24,10 +24,12 @@
             .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXvm_DABqtqIrmChkGcxDGkwSQDYwXxojX868JoMg",
         },
         .ziggy = .{
-            .path = "../../../external_sources/ziggy",
+            .url = "git+https://github.com/ssteinbach/ziggy#f890af04166182e4211082b4e9464d51a707b56a",
+            .hash = "ziggy-0.1.0-kTg8vzVqBgCOom7iiD1pCmeEivU6AXCrNkovN9s7qgy0",
         },
         .flatbuffers = .{
-            .path = "../zig-flatbuffers",
+            .url = "git+https://github.com/ssteinbach/zig-flatbuffers.git#414a0a5147a30853c5095a3106b756b04df334ad",
+            .hash = "flatbuffers-0.2.0-Ntd6Di4tAgBisVQQG7UTel8RhaF-_Dz9stWcKW0yLXSz",
         },
     },
     .paths = .{

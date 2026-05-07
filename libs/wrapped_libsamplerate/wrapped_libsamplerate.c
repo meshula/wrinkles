@@ -4,6 +4,9 @@
 #define ENABLE_SINC_BEST_CONVERTER
 #define ENABLE_SINC_MEDIUM_CONVERTER
 #define ENABLE_SINC_FAST_CONVERTER
+// Force visibility attribute path instead of __private_extern__
+// which translate-c cannot handle on macOS
+#define HAVE_VISIBILITY 1
 #include "samplerate.c"
 #include "src_linear.c"
 #include "src_sinc.c"

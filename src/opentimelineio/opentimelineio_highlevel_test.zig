@@ -309,6 +309,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 test "libsamplerate w/ high level test -- resample only"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     var cl1 = otio.Clip {
         .name = "Spaghetti.mov",
@@ -426,6 +427,7 @@ test "libsamplerate w/ high level test -- resample only"
     // write the input file
     try media_samples.write_file_prefix(
         allocator,
+        io,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
         cl1.media.data_reference.signal.signal_generator,
@@ -448,7 +450,8 @@ test "libsamplerate w/ high level test -- resample only"
     );
 
     try cl_media_samples_for_tr_pres.write_file_prefix(
-        allocator, 
+        allocator,
+        io,
         "/var/tmp/",
         "highlevel_libsamplerate_test_track_presentation.resampled_only.",
         null,
@@ -460,6 +463,7 @@ test "libsamplerate w/ high level test -- resample only"
 test "libsamplerate w/ high level test.retime.interpolating"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     var cl1 = otio.Clip {
         .name = "Clip w/ media ref pointing at a Sine Signal",
@@ -540,6 +544,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
 
     try proj_topo_from_tl_pres.tree.write_dot_graph(
         allocator,
+        io,
         "/var/tmp/track_clip_warp.dot",
         "track_clip_warp",
         .{},
@@ -570,6 +575,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     // write the input file
     try media.write_file_prefix(
         allocator,
+        io,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
         cl1.media.data_reference.signal.signal_generator,
@@ -601,6 +607,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
 
     try result.write_file_prefix(
         allocator, 
+        io,
         "/var/tmp/",
         "highlevel_libsamplerate_test_track_presentation.retimed.",
         null,
@@ -617,6 +624,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
 test "libsamplerate w/ high level test.retime.non_interpolating"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     var cl1 = otio.Clip {
         .name = "Sine Wave",
@@ -716,6 +724,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     // write the input file
     try media.write_file_prefix(
         allocator,
+        io,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
         cl1.media.data_reference.signal.signal_generator,
@@ -748,6 +757,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
     try indices_tr_pres.write_file_prefix(
         allocator, 
+        io,
         "/var/tmp/",
         "highlevel_libsamplerate_test_track_presentation.retimed.",
         null,
@@ -1214,10 +1224,12 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
 test "otio_measure_timeline executable on just_clip.tla"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
-    const result = std.process.Child.run(
+    const result = std.process.run(
+        allocator,
+        io,
         .{
-            .allocator = allocator,
             .argv = &.{
                 "zig-out/bin/otio_measure_timeline",
                 "test_files/just_clip.tla",
@@ -1238,7 +1250,7 @@ test "otio_measure_timeline executable on just_clip.tla"
 
     // Check the process exited successfully
     try std.testing.expectEqual(
-        std.process.Child.Term{ .Exited = 0 },
+        std.process.Child.Term{ .exited = 0 },
         result.term,
     );
 
@@ -1368,10 +1380,12 @@ test "ImageSequenceReference: Test w/ projection"
 test "ImageSequenceReference: read from TLA file and verify frame numbering"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     // Read the test TLA file
     var tl_handle = try otio.read_from_file(
         allocator,
+        io,
         "test_files/simple_image_sequence.tla",
         .{},
     );

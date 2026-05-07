@@ -845,10 +845,10 @@ pub const SerializableDiscretePartitionDomainMap = struct {
 };
 
 /// Metadata value type using ziggy's dynamic system for flexible nested data
-pub const MetadataValue = ziggy.dynamic.Value;
+pub const MetadataValue = ziggy.Dynamic;
 
 /// Metadata map type - maps string keys to dynamic values
-pub const MetadataMap = ziggy.dynamic.Map(MetadataValue);
+pub const MetadataMap = ziggy.Dictionary(MetadataValue);
 
 /// Recursively free all strings and arrays in a MetadataValue.
 /// ziggy's parser allocates strings during parsing, and this function
@@ -873,11 +873,11 @@ fn deinit_metadata_value(
             allocator.free(arr);
         },
         .bytes => |b| allocator.free(b),
-        .tag => |t| {
-            // Tag name is not allocated (it's a slice into source), but bytes might be
-            allocator.free(t.bytes);
+        .@"union" => |u| {
+            deinit_metadata_value(allocator, u.value.*);
+            allocator.destroy(u.value);
         },
-        .integer, .float, .bool, .null => {}, // No allocations
+        .@"enum", .integer, .float, .bool, .null => {},
     }
 }
 
@@ -1017,8 +1017,9 @@ pub const SerializableTimelineNoMetadata = struct {
     pub const schema_name: []const u8 = "Timeline";
 
     /// Tell ziggy parser to skip the metadata_map field entirely
-    pub const ziggy_options = .{
-        .skip_fields = &[_]std.meta.FieldEnum(@This()){ .metadata_map },
+    const Self = @This();
+    pub const ziggy_options = struct {
+        pub const skip_fields: []const std.meta.FieldEnum(Self) = &.{.metadata_map};
     };
 
     schema_version: u32 = versioning.current_version("Timeline"),
@@ -1443,14 +1444,12 @@ pub const MetadataContext = struct {
     {
         // Serialize JSON to string for hashing
         var hash_buffer: [32 * 1024]u8 = undefined;
-        var stream = std.io.fixedBufferStream(
-            &hash_buffer,
-        );
+        var stream: std.Io.Writer = .fixed(&hash_buffer);
         self.serialize_json_for_hash(
             json_val,
-            stream.writer(),
+            &stream,
         );
-        const json_bytes = stream.getWritten();
+        const json_bytes = stream.buffered();
 
         // Compute hash using Blake3 (first 8 bytes = u64)
         var hasher = std.crypto.hash.Blake3.init(.{});
@@ -1504,7 +1503,8 @@ pub fn metadata_value_to_json(
         .integer => |i| .{ .integer = i },
         .float => |f| .{ .float = f },
         .bytes => |s| .{ .string = try allocator.dupe(u8, s) },
-        .tag => |t| .{ .string = try allocator.dupe(u8, t.bytes) },
+        .@"union" => |u| try metadata_value_to_json(allocator, u.value.*),
+        .@"enum" => |e| .{ .string = try allocator.dupe(u8, e) },
         .array => |arr| {
             var json_arr = std.json.Array.initCapacity(
                 allocator,
@@ -1520,7 +1520,7 @@ pub fn metadata_value_to_json(
             return .{ .array = json_arr };
         },
         .kv => |kv| {
-            var json_obj = std.json.ObjectMap.init(allocator);
+            var json_obj: std.json.ObjectMap = .empty;
             var iter = kv.fields.iterator();
             while (iter.next())
                 |entry|
@@ -1530,7 +1530,7 @@ pub fn metadata_value_to_json(
                     allocator,
                     entry.value_ptr.*,
                 );
-                try json_obj.put(key, val);
+                try json_obj.put(allocator, key, val);
             }
             return .{ .object = json_obj };
         },
@@ -1544,7 +1544,7 @@ pub fn metadata_map_to_json(
     mm: MetadataMap,
 ) !std.json.Value
 {
-    var json_obj = std.json.ObjectMap.init(allocator);
+    var json_obj: std.json.ObjectMap = .empty;
     var iter = mm.fields.iterator();
     while (iter.next())
         |entry|
@@ -1554,7 +1554,7 @@ pub fn metadata_map_to_json(
             allocator,
             entry.value_ptr.*,
         );
-        try json_obj.put(key, val);
+        try json_obj.put(allocator, key, val);
     }
     return .{ .object = json_obj };
 }
@@ -2510,7 +2510,7 @@ fn serializable_to_linear_curve(
 fn serialize_timeline(
     timeline: *schema.Timeline,
     allocator: std.mem.Allocator,
-    writer: *std.io.Writer,
+    writer: *std.Io.Writer,
     maybe_target_version: ?u32,
 ) !void
 {
@@ -2544,7 +2544,7 @@ fn serialize_timeline(
                         .{ err, current_ver, target_version }
                     );
 
-                    try ziggy.stringify(
+                    try ziggy.serialize(
                         intermediate_tl,
                         .{
                             .whitespace = .space_4,
@@ -2576,7 +2576,7 @@ fn serialize_timeline(
     }
 
     // Serialize directly - ziggy 0.1.0 CAN parse unions in arrays!
-    try ziggy.stringify(
+    try ziggy.serialize(
         intermediate_tl,
         .{
             .whitespace = .space_4,
@@ -2601,19 +2601,22 @@ pub fn deserialize_timeline(
     content_filter: adapter.ReadOptions.ContentFilter,
 ) !*schema.Timeline
 {
+    var meta: ziggy.Deserializer.Meta = .init;
     var serializable_tl = switch (content_filter) {
-        .all => try ziggy.parseLeaky(
+        .all => try ziggy.deserializeLeaky(
             SerializableTimeline,
             allocator,
             source,
+            &meta,
             .{},
         ),
         .all_except_metadata => s_t: {
             // Use the no-metadata variant that skips parsing metadata_map entirely
-            var serializable_tl_no_md = try ziggy.parseLeaky(
+            var serializable_tl_no_md = try ziggy.deserializeLeaky(
                 SerializableTimelineNoMetadata,
                 allocator,
                 source,
+                &meta,
                 .{},
             );
 
@@ -2804,7 +2807,7 @@ fn otio_json_to_serializable_timeline(
 fn serialize_bezier_curve(
     bezier: curve.Bezier,
     allocator: std.mem.Allocator,
-    writer: *std.io.Writer,
+    writer: *std.Io.Writer,
 ) !void
 {
     // Convert to serializable format
@@ -2814,7 +2817,7 @@ fn serialize_bezier_curve(
     );
 
     // Use ziggy to serialize
-    try ziggy.stringify(ser_bezier, .{
+    try ziggy.serialize(ser_bezier, .{
         .whitespace = .space_4,
         .emit_null_fields = false,
     }, writer);
@@ -2827,10 +2830,12 @@ fn deserialize_bezier_curve(
 ) !curve.Bezier
 {
     // Use tla to deserialize
-    const ser_bezier = try ziggy.parseLeaky(
+    var meta: ziggy.Deserializer.Meta = .init;
+    const ser_bezier = try ziggy.deserializeLeaky(
         SerializableBezierCurve,
         allocator,
         source,
+        &meta,
         .{},
     );
 
@@ -2842,14 +2847,14 @@ fn deserialize_bezier_curve(
 fn serialize_linear_curve(
     linear: curve.Linear,
     allocator: std.mem.Allocator,
-    writer: *std.io.Writer,
+    writer: *std.Io.Writer,
 ) !void
 {
     // Convert to serializable format
     const ser_linear = try linear_curve_to_serializable(allocator, linear);
 
     // Use ziggy to serialize
-    try ziggy.stringify(ser_linear, .{
+    try ziggy.serialize(ser_linear, .{
         .whitespace = .space_4,
         .emit_null_fields = false,
     }, writer);
@@ -2862,10 +2867,12 @@ fn deserialize_linear_curve(
 ) !curve.Linear
 {
     // Use ziggy to deserialize
-    const ser_linear = try ziggy.parseLeaky(
+    var meta: ziggy.Deserializer.Meta = .init;
+    const ser_linear = try ziggy.deserializeLeaky(
         SerializableLinearCurve,
         allocator,
         source,
+        &meta,
         .{},
     );
 
@@ -3380,7 +3387,7 @@ test "timeline serialization: tla round-trip"
     };
 
     // Serialize to tla format
-    var buffer: std.io.Writer.Allocating = .init(allocator);
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
 
     try serialize_timeline(
@@ -3440,27 +3447,33 @@ pub fn read_from_buffer(
     format: FileFormat,
 ) !SerializableTimeline
 {
+    var meta: ziggy.Deserializer.Meta = .init;
     switch (format) {
         .tla => {
             // Ziggy requires null-terminated source
             // Check if already null-terminated
             if (buffer.len > 0 and buffer[buffer.len - 1] == 0) {
-                return try ziggy.parseLeaky(
+                return try ziggy.deserializeLeaky(
                     SerializableTimeline,
                     allocator,
                     buffer[0 .. buffer.len - 1 :0],
+                    &meta,
                     .{},
                 );
             }
             // Need to add null terminator
+            // Note: source_with_null must NOT be freed here because
+            // deserializeLeaky returns data containing slices into this buffer.
+            // The caller is responsible for managing this memory (typically via
+            // an ArenaAllocator).
             const source_with_null = try allocator.alloc(u8, buffer.len + 1);
-            defer allocator.free(source_with_null);
             @memcpy(source_with_null[0..buffer.len], buffer);
             source_with_null[buffer.len] = 0;
-            return try ziggy.parseLeaky(
+            return try ziggy.deserializeLeaky(
                 SerializableTimeline,
                 allocator,
                 source_with_null[0..buffer.len :0],
+                &meta,
                 .{},
             );
         },
@@ -3490,6 +3503,7 @@ pub fn read_from_buffer(
 /// The file format is determined by the file extension.
 pub fn read_from_file(
     allocator: std.mem.Allocator,
+    io: std.Io,
     file_path: []const u8,
 ) !SerializableTimeline
 {
@@ -3506,19 +3520,41 @@ pub fn read_from_file(
     // Handle .tlz separately since it manages its own file reading
     if (format == .tlz)
     {
-        return try bundle.read_from_file(allocator, file_path, .{});
+        return try bundle.read_from_file(allocator, io, file_path, .{});
     }
 
     // For other formats, read the file contents first
-    const file = try std.fs.cwd().openFile(file_path, .{});
-    defer file.close();
+    const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
+    defer file.close(io);
 
-    const source = try file.readToEndAllocOptions(
+    var read_buf: [4096]u8 = undefined;
+    var file_reader = file.reader(io, &read_buf);
+
+    if (format == .tla) {
+        // Read with null sentinel so ziggy can use the buffer directly.
+        // deserializeLeaky stores slices into the source buffer, so this
+        // buffer must outlive the returned SerializableTimeline.
+        // Callers should use an ArenaAllocator to manage this lifetime.
+        const source = try file_reader.interface.allocRemainingAlignedSentinel(
+            allocator,
+            .unlimited,
+            .@"1",
+            0,
+        );
+        var meta: ziggy.Deserializer.Meta = .init;
+        return try ziggy.deserializeLeaky(
+            SerializableTimeline,
+            allocator,
+            source,
+            &meta,
+            .{},
+        );
+    }
+
+    // For non-TLA formats, read normally
+    const source = try file_reader.interface.allocRemaining(
         allocator,
-        std.math.maxInt(u32),
-        null,
-        .@"1",
-        0,
+        .unlimited,
     );
     defer allocator.free(source);
 
@@ -3637,7 +3673,7 @@ fn write_tla_with_metadata_mode(
     switch (metadata_mode) {
         .hash_reference => {
             // Default behavior - output SerializableTimeline directly
-            try ziggy.stringify(
+            try ziggy.serialize(
                 intermediate_tl,
                 .{
                     .whitespace = .space_4,
@@ -3649,7 +3685,7 @@ fn write_tla_with_metadata_mode(
         .no_metadata => {
             // Strip all metadata
             const stripped = try strip_metadata(allocator, intermediate_tl);
-            try ziggy.stringify(
+            try ziggy.serialize(
                 stripped,
                 .{
                     .whitespace = .space_4,
@@ -3664,7 +3700,7 @@ fn write_tla_with_metadata_mode(
                 allocator,
                 intermediate_tl,
             );
-            try ziggy.stringify(
+            try ziggy.serialize(
                 inline_timeline,
                 .{
                     .whitespace = .space_4,
@@ -3690,26 +3726,30 @@ pub fn read_collection_from_buffer(
     format: FileFormat,
 ) !SerializableCollection
 {
+    var meta: ziggy.Deserializer.Meta = .init;
     switch (format) {
         .tlca => {
             // Ziggy requires null-terminated source
             if (buffer.len > 0 and buffer[buffer.len - 1] == 0) {
-                return try ziggy.parseLeaky(
+                return try ziggy.deserializeLeaky(
                     SerializableCollection,
                     allocator,
                     buffer[0 .. buffer.len - 1 :0],
+                    &meta,
                     .{},
                 );
             }
             // Need to add null terminator
+            // Note: source_with_null must NOT be freed here because
+            // deserializeLeaky returns data containing slices into this buffer.
             const source_with_null = try allocator.alloc(u8, buffer.len + 1);
-            defer allocator.free(source_with_null);
             @memcpy(source_with_null[0..buffer.len], buffer);
             source_with_null[buffer.len] = 0;
-            return try ziggy.parseLeaky(
+            return try ziggy.deserializeLeaky(
                 SerializableCollection,
                 allocator,
                 source_with_null[0..buffer.len :0],
+                &meta,
                 .{},
             );
         },
@@ -3728,6 +3768,7 @@ pub fn read_collection_from_buffer(
 /// The file format is determined by the file extension.
 pub fn read_collection_from_file(
     allocator: std.mem.Allocator,
+    io: std.Io,
     file_path: []const u8,
 ) !SerializableCollection
 {
@@ -3742,15 +3783,36 @@ pub fn read_collection_from_file(
     };
 
     // Read the file contents
-    const file = try std.fs.cwd().openFile(file_path, .{});
-    defer file.close();
+    const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
+    defer file.close(io);
 
-    const source = try file.readToEndAllocOptions(
+    var read_buf: [4096]u8 = undefined;
+    var file_reader = file.reader(io, &read_buf);
+
+    if (format == .tlca) {
+        // Read with null sentinel so ziggy can use the buffer directly.
+        // deserializeLeaky stores slices into the source buffer, so this
+        // buffer must outlive the returned SerializableCollection.
+        const source = try file_reader.interface.allocRemainingAlignedSentinel(
+            allocator,
+            .unlimited,
+            .@"1",
+            0,
+        );
+        var meta: ziggy.Deserializer.Meta = .init;
+        return try ziggy.deserializeLeaky(
+            SerializableCollection,
+            allocator,
+            source,
+            &meta,
+            .{},
+        );
+    }
+
+    // For non-TLCA formats, read normally
+    const source = try file_reader.interface.allocRemaining(
         allocator,
-        std.math.maxInt(u32),
-        null,
-        .@"1",
-        0,
+        .unlimited,
     );
     defer allocator.free(source);
 
@@ -3793,6 +3855,7 @@ pub fn write_collection_to_buffer(
 /// The file format is determined by the file extension.
 pub fn write_collection_to_file(
     allocator: std.mem.Allocator,
+    io: std.Io,
     collection: SerializableCollection,
     file_path: []const u8,
     options: adapter.WriteOptions.MetadataMode,
@@ -3809,11 +3872,11 @@ pub fn write_collection_to_file(
     };
 
     // Open file and write
-    const file = try std.fs.cwd().createFile(file_path, .{});
-    defer file.close();
+    const file = try std.Io.Dir.cwd().createFile(io,file_path, .{});
+    defer file.close(io);
 
     var file_writer_buffer: [16 * 1024]u8 = undefined;
-    var file_writer = file.writer(&file_writer_buffer);
+    var file_writer = file.writer(io, &file_writer_buffer);
     const writer = &file_writer.interface;
 
     try write_collection_to_writer(
@@ -3868,7 +3931,7 @@ fn write_tlca_with_metadata_mode(
     switch (metadata_mode) {
         .hash_reference => {
             // Default behavior - output SerializableCollection directly
-            try ziggy.stringify(
+            try ziggy.serialize(
                 collection,
                 .{
                     .whitespace = .space_4,
@@ -3880,7 +3943,7 @@ fn write_tlca_with_metadata_mode(
         .no_metadata => {
             // Strip all metadata from collection
             const stripped = try strip_collection_metadata(allocator, collection);
-            try ziggy.stringify(
+            try ziggy.serialize(
                 stripped,
                 .{
                     .whitespace = .space_4,
@@ -3895,7 +3958,7 @@ fn write_tlca_with_metadata_mode(
                 allocator,
                 collection,
             );
-            try ziggy.stringify(
+            try ziggy.serialize(
                 inline_collection,
                 .{
                     .whitespace = .space_4,
@@ -4252,13 +4315,15 @@ test "collection serialization: tlca round-trip"
     );
     defer allocator.free(buffer);
 
-    // Deserialize back
-    var roundtrip = try read_collection_from_buffer(
-        allocator,
+    // Deserialize back using arena (deserializeLeaky stores slices into source)
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    const roundtrip = try read_collection_from_buffer(
+        arena.allocator(),
         buffer,
         .tlca,
     );
-    defer roundtrip.deinit(allocator);
 
     // Verify
     try std.testing.expectEqualStrings("Test Collection", roundtrip.name);
@@ -4343,9 +4408,10 @@ test "collection serialization: tlca to tlcb cross-format"
     );
     defer allocator.free(tlca_buffer);
 
-    // Read TLCA back
-    var from_tlca = try read_collection_from_buffer(allocator, tlca_buffer, .tlca);
-    defer from_tlca.deinit(allocator);
+    // Read TLCA back using arena (deserializeLeaky stores slices into source)
+    var tlca_arena = std.heap.ArenaAllocator.init(allocator);
+    defer tlca_arena.deinit();
+    const from_tlca = try read_collection_from_buffer(tlca_arena.allocator(), tlca_buffer, .tlca);
 
     // Convert to TLCB
     const tlcb_buffer = try write_collection_to_buffer(

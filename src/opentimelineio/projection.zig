@@ -1110,8 +1110,8 @@ test "Projection: schema.Track 3 bounded clips identity xform"
 test "Single schema.Clip bezier transform" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
-    //
     // xform: s-curve read from sample curve file
     //        curves map from the presentation space to the intrinsic space for clips
     //
@@ -1130,6 +1130,7 @@ test "Single schema.Clip bezier transform"
 
     const base_curve = try curve.read_curve_json(
         allocator,
+        io,
         "curves/scurve.curve.json",
     );
     defer base_curve.deinit(allocator);
@@ -1336,6 +1337,7 @@ test "Single schema.Clip bezier transform"
 test "otio projection: track with single clip"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = test_data.T_INT_1_TO_9;
@@ -1375,6 +1377,7 @@ test "otio projection: track with single clip"
 
     try tr_pres_projection_builder.tree.write_dot_graph(
         allocator,
+        io,
         "/var/tmp/sampling_test.dot",
         "sampling_test",
         .{},
@@ -1513,6 +1516,7 @@ test "otio projection: track with single clip"
 test "otio projection: track with single clip with transform"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = test_data.T_INT_1_TO_9;
@@ -1583,6 +1587,7 @@ test "otio projection: track with single clip with transform"
 
     try tr_pres_projection_builder.tree.write_dot_graph(
         allocator,
+        io,
         "/var/tmp/sampling_test.dot",
         "sampling_test",
         .{},
@@ -1704,6 +1709,7 @@ test "otio projection: track with single clip with transform"
 
             try tl_pres_projection_builder.tree.write_dot_graph(
                 allocator,
+                io,
                 "/var/tmp/discrete_to_continuous_test.dot",
                 "discrete_to_continuous_test",
                 .{},

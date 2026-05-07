@@ -293,6 +293,7 @@ pub fn BinaryTree(
         pub fn write_dot_graph(
             self:@This(),
             allocator: std.mem.Allocator,
+            io: std.Io,
             /// path to the desired resulting png file
             png_filepath: []const u8,
             /// name to put at the top of the graph - may not contain spaces 
@@ -310,14 +311,15 @@ pub fn BinaryTree(
             const arena_allocator = arena.allocator();
 
             // open the file
-            var file = try std.fs.createFileAbsolute(
+            var file = try std.Io.Dir.cwd().createFile(
+                io,
                 png_filepath,
                 .{},
             );
-            defer file.close();
+            defer file.close(io);
 
             var file_writer_buffer: [16*1024]u8 = undefined;
-            var file_writer = file.writer(&file_writer_buffer);
+            var file_writer = file.writer(io, &file_writer_buffer);
             var writer = &file_writer.interface;
 
             // header text for the dot file
@@ -582,6 +584,7 @@ const DummyNode = struct {
 test "BinaryTree: build w/ dummy node type and test path"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     //
     // Builds Tree:
@@ -790,6 +793,7 @@ test "BinaryTree: build w/ dummy node type and test path"
 
     try tree.write_dot_graph(
         allocator,
+        io,
         "/var/tmp/binary_tree_test.dot",
        "Binary_Tree_Test", 
        .{

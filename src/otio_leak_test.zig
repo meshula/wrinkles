@@ -6,9 +6,12 @@ const builtin = @import("builtin");
 const otio = @import("opentimelineio");
 
 pub fn main(
+    init: std.process.Init,
 ) !void 
 {
-    const prog = std.Progress.start(.{});
+    const io = init.io;
+
+    const prog = std.Progress.start(io, .{});
     defer prog.end();
 
     const parent_prog = prog.start(
@@ -17,10 +20,12 @@ pub fn main(
     );
 
     {
-        var outer_debug_allocator: std.heap.DebugAllocator(.{}) = .{};
-        const outer_allocator = outer_debug_allocator.allocator();
+        const outer_allocator = init.gpa;
 
-        const cmd_args = try _parse_args(outer_allocator);
+        const cmd_args = try _parse_args(
+            outer_allocator,
+            init.minimal.args,
+        );
 
         const read_prog = parent_prog.start(
             "Checking files for leaks...", 
@@ -46,7 +51,8 @@ pub fn main(
             var inner_debug_allocator: std.heap.DebugAllocator(.{}) = .{};
             const inner_allocator = inner_debug_allocator.allocator();
 
-            try std.fs.cwd().access(
+            try std.Io.Dir.cwd().access(
+                io,
                 fpath,
                 .{},
             );
@@ -54,11 +60,11 @@ pub fn main(
             // test
             var otio_root = try otio.read_from_file(
                 inner_allocator,
+                io,
                 fpath,
                 .{},
             );
             otio_root.deinit(inner_allocator);
-
 
             const did_leak = inner_debug_allocator.deinit();
 
@@ -96,15 +102,15 @@ pub fn usage(
 
 fn _parse_args(
     allocator: std.mem.Allocator,
+    args: std.process.Args,
 ) !struct {
     target_files: [][]const u8, 
 }
 {
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+    var arg_iter = args.iterate();
 
     // ignore the app name, always first in args
-    _ = args.skip();
+    _ = arg_iter.skip();
 
     var arg_count: usize = 0;
 
@@ -112,7 +118,7 @@ fn _parse_args(
     defer target_files.deinit(allocator);
 
     // read all the filepaths from the commandline
-    while (args.next()) 
+    while (arg_iter.next()) 
         |nextarg| 
     {
         arg_count += 1;

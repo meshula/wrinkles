@@ -28,6 +28,7 @@ const STATE = struct {
 
     var allocator: std.mem.Allocator = undefined;
     var debug_allocator: std.heap.DebugAllocator(.{}) = undefined;
+    var io: std.Io = undefined;
 
     /// path to the otio file
     var target_otio_file: []const u8 = undefined;
@@ -292,7 +293,7 @@ fn struct_editor_ui(
         |field|
     {
         switch (@typeInfo(field.type)) {
-            .@"enum" => |_| {
+            .@"enum" => {
                 _ = zgui.comboFromEnum(
                     field.name, 
                     &@field(thing.*, field.name)
@@ -323,9 +324,8 @@ fn parent_path(
     defer allocator.free(path);
 
     var last_ref: otio.CompositionItemHandle = undefined;
-
-    var buf: std.ArrayList(u8) = .empty;
-    var writer = buf.writer(allocator);
+   
+    var allocating_writer =  std.Io.Writer.Allocating.init(allocator);
 
     for (path)
         |node_index|
@@ -342,12 +342,12 @@ fn parent_path(
         }
 
         last_ref = current_node_ref;
-        try writer.print("{f}/", .{last_ref});
+        try allocating_writer.writer.print("{f}/", .{last_ref});
     }
 
-    try writer.print("{f}", .{ destination });
+    try allocating_writer.writer.print("{f}", .{ destination });
 
-    return try buf.toOwnedSlice(allocator);
+    return try allocating_writer.toOwnedSlice();
 }
 
 fn set_source(
@@ -869,14 +869,6 @@ fn draw_hover_extras(
                 )
             );
 
-            zplot.pushStyleVar1f(
-                .{ .idx = .line_weight, .v = 4.0 },
-            );
-            zplot.pushStyleVar1f(
-                .{ .idx = .marker_weight, .v = 4.0 },
-            );
-            defer zplot.popStyleVar(.{ .count = 2 });
-
             // x-axis -> mouse
             {
                 var xs: [2]f64 = .{ mouse_pos[0], mouse_pos[0] };
@@ -888,6 +880,8 @@ fn draw_hover_extras(
                     .{
                         .xv = &xs,
                         .yv = &ys,
+                        .line_weight = 4.0,
+                        .marker_size = 4.0,
                     },
                 );
             }
@@ -903,6 +897,8 @@ fn draw_hover_extras(
                     .{
                         .xv = &xs,
                         .yv = &ys,
+                        .line_weight = 4.0,
+                        .marker_size = 4.0,
                     },
                 );
             }
@@ -916,6 +912,8 @@ fn draw_hover_extras(
                     .{
                         .xv = &xs,
                         .yv = &ys,
+                        .line_weight = 4.0,
+                        .marker_size = 4.0,
                     },
                 );
             }
@@ -2004,24 +2002,18 @@ fn draw(
                                     .{ input_space_name },
                                 );
 
-                                zplot.pushStyleVar1f(
-                                    .{
-                                        .idx = .fill_alpha,
-                                        .v = 0.4,
-                                    },
-                                );
                                 zplot.plotLine(
                                     plotlabel,
                                     f32, 
                                     .{
                                         .xv = &xs,
                                         .yv = &ys,
+                                        .fill_alpha = 0.4,
                                         .flags = .{ 
                                             .shaded = true, 
                                         },
                                     },
                                 );
-                                zplot.popStyleVar(.{ .count = 1 });
                             }
 
                             inline for (&[_][]const u8{ "picture", "audio" })
@@ -2030,13 +2022,6 @@ fn draw(
                                 if (@field(STATE.discrete_points, field))
                                     |discrete|
                                 {
-                                    zplot.pushStyleVar1f(
-                                        .{
-                                            .idx = .fill_alpha,
-                                            .v = 0.4,
-                                        },
-                                    );
-
                                     const xs = discrete.items(.x);
                                     const ys = discrete.items(.y);
 
@@ -2053,22 +2038,16 @@ fn draw(
                                         .{
                                             .xv = xs,
                                             .yv = ys,
+                                            .fill_alpha = 0.4,
                                             .flags = .{ 
                                                 .shaded = true, 
                                             },
                                         },
                                     );
-                                    zplot.popStyleVar(.{ .count = 1 });
                                 }
                             }
 
                             // plot each child space
-                            zplot.pushStyleVar1f(
-                                .{
-                                    .idx = .fill_alpha,
-                                    .v = 0.2,
-                                },
-                            );
                             zplot.pushStyleVar1f(
                                 .{
                                     .idx = .minor_alpha,
@@ -2089,21 +2068,6 @@ fn draw(
                                     STATE.maybe_hovered_interval != null
                                     and STATE.maybe_hovered_interval == ind
                                 );
-                                if (hovered_interval) 
-                                {
-                                    zplot.pushStyleVar1f(
-                                        .{
-                                            .idx = .line_weight,
-                                            .v = 4,
-                                        }
-                                    );
-                                    zplot.pushStyleVar1f(
-                                        .{
-                                            .idx = .fill_alpha,
-                                            .v = 0.1,
-                                        }
-                                    );
-                                }
 
                                 zplot.plotLine(
                                     label,
@@ -2111,6 +2075,8 @@ fn draw(
                                     .{
                                         .xv = xs,
                                         .yv = ys,
+                                        .line_weight = if (hovered_interval) 4 else 1,
+                                        .fill_alpha = if (hovered_interval) 0.2 else 0.1,
                                         .flags = .{
                                             .shaded = true,
                                         },
@@ -2138,6 +2104,8 @@ fn draw(
                                             .{
                                                 .xv = d_xys[0],
                                                 .yv = d_xys[1],
+                                                .line_weight = if (hovered_interval) 4 else 1,
+                                                .fill_alpha = if (hovered_interval) 0.2 else 0.1,
                                                 .flags = .{
                                                     .shaded = true,
                                                 },
@@ -2152,7 +2120,7 @@ fn draw(
                             }
 
                             // fill alpha, minor alpha
-                            zplot.popStyleVar(.{ .count = 2 });
+                            zplot.popStyleVar(.{ .count = 1 });
 
                             if (STATE.maybe_cut_points)
                                 |cut_points|
@@ -2259,22 +2227,18 @@ fn draw(
                                     "Full Range of {s}",
                                     .{ input_space_name },
                                 );
-                                zplot.pushStyleVar1f(
-                                    .{
-                                        .idx = .fill_alpha,
-                                        .v = 0.4,
-                                    },
-                                );
                                 zplot.plotLine(
                                     plotlabel,
-                                    f32, 
+                                    f32,
                                     .{
                                         .xv = &xs,
                                         .yv = &ys,
-                                        .flags = .{.shaded = true},
+                                        .fill_alpha = 0.4,
+                                        .flags = .{
+                                            .shaded = true
+                                        },
                                     },
                                 );
-                                zplot.popStyleVar(.{ .count = 1 });
                             }
 
                             // plot the transform
@@ -2359,7 +2323,7 @@ fn cleanup (
     if (STATE.maybe_journal)
         |*definitely_journal|
     {
-        definitely_journal.deinit();
+        definitely_journal.deinit(STATE.allocator, STATE.io);
     }
 
     var points = &STATE.points;
@@ -2429,21 +2393,16 @@ pub fn init(
 }
 
 pub fn main(
+    juicy_init: std.process.Init,
 ) !void 
 {
     // configure the allocator
-    STATE.allocator = (
-        if (IS_WASM) std.heap.c_allocator
-        else if (builtin.mode == .Debug) alloc: {
-            STATE.debug_allocator =  std.heap.DebugAllocator(.{}){};
-            break :alloc STATE.debug_allocator.allocator();
-        } 
-        // non-debug non-wasm builds use the high performance smp_allocator
-        else std.heap.smp_allocator
-    );
+    STATE.allocator = juicy_init.gpa;
+    const io = juicy_init.io;
+    STATE.io = io;
 
     const prog = (
-        if (IS_WASM == false) std.Progress.start(.{})
+        if (IS_WASM == false) std.Progress.start(io, .{})
     );
     defer if (IS_WASM == false) prog.end();
 
@@ -2478,11 +2437,12 @@ pub fn main(
         );
         defer if (IS_WASM == false) read_prog.end();
 
-        STATE.target_otio_file = (try _parse_args(STATE.allocator)).input_otio;
+        STATE.target_otio_file = (try _parse_args(STATE.allocator, juicy_init.minimal.args)).input_otio;
         var found = true;
 
         std.debug.print("attempting fetch\n", .{});
-        std.fs.cwd().access(
+        std.Io.Dir.cwd().access(
+            io,
             STATE.target_otio_file,
             .{},
         ) catch |e| switch (e) {
@@ -2501,21 +2461,24 @@ pub fn main(
         // Skip metadata for faster visualization
         STATE.otio_root = try otio.read_from_file(
             STATE.allocator,
+            io,
             STATE.target_otio_file,
             .{ .content_filter = .all_except_metadata },
         );
 
         // read the file contents
         {
-            const file = try std.fs.cwd().openFile(
+            const file = try std.Io.Dir.cwd().openFile(
+                io,
                 STATE.target_otio_file,
                 .{},
             );
-            defer file.close();
+            defer file.close(io);
 
-            STATE.otio_src_json = try file.readToEndAlloc(
+            var file_reader = file.reader(io, &.{});
+            STATE.otio_src_json = try file_reader.interface.allocRemaining(
                 STATE.allocator,
-                1024*1024*1024,
+                .limited(1024*1024*1024),
             );
         }
 
@@ -2574,23 +2537,23 @@ pub fn usage(
 
 fn _parse_args(
     allocator: std.mem.Allocator,
+    args: std.process.Args,
 ) !struct {
     input_otio: []const u8, 
 }
 {
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+    var arg_iter = args.iterate();
 
     var input_otio_fpath:[]const u8 = undefined;
     var output_png_fpath:[]const u8 = undefined;
 
     // ignore the app name, always first in args
-    _ = args.skip();
+    _ = arg_iter.skip();
 
     var arg_count: usize = 0;
 
     // read all the filepaths from the commandline
-    while (args.next()) 
+    while (arg_iter.next()) 
         |nextarg| 
     {
         arg_count += 1;

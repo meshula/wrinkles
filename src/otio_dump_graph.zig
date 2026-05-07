@@ -23,21 +23,21 @@ const State = struct {
 /// parse the commandline arguments and setup the state
 fn _parse_args(
     allocator: std.mem.Allocator,
+    args: std.process.Args,
 ) !State 
 {
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+    var arg_iter = args.iterate();
 
     var input_otio_fpath:[]const u8 = undefined;
     var output_png_fpath:[]const u8 = undefined;
 
     // ignore the app name, always first in args
-    _ = args.skip();
+    _ = arg_iter.skip();
 
     var arg_count: usize = 0;
 
     // read all the filepaths from the commandline
-    while (args.next()) 
+    while (arg_iter.next()) 
         |nextarg| 
     {
         arg_count += 1;
@@ -95,24 +95,21 @@ pub fn usage(
 }
 
 pub fn main(
+    init: std.process.Init,
 ) !void
 {
     // use the debug allocator in debug builds, otherwise use smp
-    const parent_allocator = (
-        if (builtin.mode == .Debug) alloc: {
-            var da = std.heap.DebugAllocator(.{}){};
-            break :alloc da.allocator();
-        } else std.heap.smp_allocator
-    );
+    const parent_allocator = init.gpa;
+    const io = init.io;
 
     var arena = std.heap.ArenaAllocator.init(parent_allocator);
     const allocator = arena.allocator();
     defer arena.deinit();
 
-    const state = try _parse_args(allocator);
+    const state = try _parse_args(allocator, init.minimal.args);
     defer state.deinit(allocator);
 
-    const prog = std.Progress.start(.{});
+    const prog = std.Progress.start(io, .{});
     defer prog.end();
 
     const parent_prog = prog.start(
@@ -126,7 +123,8 @@ pub fn main(
     );
 
     var found = true;
-    std.fs.cwd().access(
+    std.Io.Dir.cwd().access(
+        io,
         state.input_otio,
         .{},
     ) catch |e| switch (e) {
@@ -144,6 +142,7 @@ pub fn main(
     // read the file
     var tl_ref = try otio.read_from_file(
         allocator,
+        io,
         state.input_otio,
         .{},
     );
@@ -175,6 +174,7 @@ pub fn main(
     // render the graph to a PNG
     try tree.write_dot_graph(
         allocator,
+        io,
         state.output_png,
         "OTIO_TemporalHierarchy",
         .{ .render_png = false },

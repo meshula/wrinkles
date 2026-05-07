@@ -49,6 +49,15 @@ fn test_print(comptime fmt: []const u8, args: anytype) void
     }
 }
 
+/// Lap timer for optional performance timing (returns elapsed ms since last call).
+fn lap(last_ts: *u64) f64
+{
+    const now = std.c.mach_absolute_time();
+    const elapsed = now - last_ts.*;
+    last_ts.* = now;
+    return @as(f64, @floatFromInt(elapsed)) / 1_000_000.0;
+}
+
 /// Error type for conversion operations
 pub const ConvertError = error{
     OutOfMemory,
@@ -314,7 +323,7 @@ fn metadata_kv_to_block(
     builder: *flatbuffers.Builder,
     allocator: Allocator,
     kv: MetadataMap,
-) MetadataBlockSerializeError!tlb.MetadataBlock
+) anyerror!tlb.MetadataBlock
 {
     const count = kv.fields.count();
     if (count == 0) {
@@ -361,11 +370,17 @@ fn metadata_kv_to_block(
                 try string_indices_list.append(allocator, @intCast(i));
                 try string_values_list.append(allocator, s);
             },
-            .tag => |t| {
+            .@"enum" => |e| {
                 types[i] = @intFromEnum(tlb.MetadataType.String);
                 scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
                 try string_indices_list.append(allocator, @intCast(i));
-                try string_values_list.append(allocator, t.bytes);
+                try string_values_list.append(allocator, e);
+            },
+            .@"union" => |u| {
+                types[i] = @intFromEnum(tlb.MetadataType.String);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                try string_indices_list.append(allocator, @intCast(i));
+                try string_values_list.append(allocator, u.tag);
             },
             .kv => |nested_kv| {
                 types[i] = @intFromEnum(tlb.MetadataType.KV);
@@ -404,7 +419,7 @@ fn metadata_array_to_block(
     builder: *flatbuffers.Builder,
     allocator: Allocator,
     arr: []const MetadataValue,
-) MetadataBlockSerializeError!tlb.MetadataBlock
+) anyerror!tlb.MetadataBlock
 {
     const count = arr.len;
     if (count == 0) {
@@ -452,11 +467,17 @@ fn metadata_array_to_block(
                 try string_indices_list.append(allocator, @intCast(i));
                 try string_values_list.append(allocator, s);
             },
-            .tag => |t| {
+            .@"enum" => |e| {
                 types[i] = @intFromEnum(tlb.MetadataType.String);
                 scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
                 try string_indices_list.append(allocator, @intCast(i));
-                try string_values_list.append(allocator, t.bytes);
+                try string_values_list.append(allocator, e);
+            },
+            .@"union" => |u| {
+                types[i] = @intFromEnum(tlb.MetadataType.String);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                try string_indices_list.append(allocator, @intCast(i));
+                try string_values_list.append(allocator, u.tag);
             },
             .kv => |nested_kv| {
                 types[i] = @intFromEnum(tlb.MetadataType.KV);
@@ -596,7 +617,7 @@ fn metadata_map_to_fb(
                             );
                             try string_values_list.append(allocator, s);
                         },
-                        .tag => |t| {
+                        .@"enum" => |e| {
                             all_types[flat_idx] = @intFromEnum(tlb.MetadataType.String);
                             all_scalars[flat_idx] = .{
                                 .bool_val = false,
@@ -608,7 +629,21 @@ fn metadata_map_to_fb(
                                 allocator,
                                 @intCast(string_values_list.items.len),
                             );
-                            try string_values_list.append(allocator, t.bytes);
+                            try string_values_list.append(allocator, e);
+                        },
+                        .@"union" => |u| {
+                            all_types[flat_idx] = @intFromEnum(tlb.MetadataType.String);
+                            all_scalars[flat_idx] = .{
+                                .bool_val = false,
+                                .int_val = 0,
+                                .float_val = 0.0,
+                            };
+                            try string_key_indices_list.append(allocator, @intCast(flat_idx));
+                            try string_value_indices_list.append(
+                                allocator,
+                                @intCast(string_values_list.items.len),
+                            );
+                            try string_values_list.append(allocator, u.tag);
                         },
                         .kv => |nested_kv| {
                             all_types[flat_idx] = @intFromEnum(tlb.MetadataType.KV);
@@ -749,7 +784,7 @@ fn metadata_entry_to_fb(
             },
             .string_val = s,
         }),
-        .tag => |t| try builder.writeTable(tlb.MetadataEntry, .{
+        .@"enum" => |e| try builder.writeTable(tlb.MetadataEntry, .{
             .key = key,
             .scalar = .{
                 .value_type = @intFromEnum(tlb.MetadataType.String),
@@ -758,7 +793,18 @@ fn metadata_entry_to_fb(
                 .float_val = 0.0,
                 ._pad = 0,
             },
-            .string_val = t.bytes,
+            .string_val = e,
+        }),
+        .@"union" => |u| try builder.writeTable(tlb.MetadataEntry, .{
+            .key = key,
+            .scalar = .{
+                .value_type = @intFromEnum(tlb.MetadataType.String),
+                .bool_val = false,
+                .int_val = 0,
+                .float_val = 0.0,
+                ._pad = 0,
+            },
+            .string_val = u.tag,
         }),
 
         // Complex types: need MetadataNestedValue table
@@ -1761,7 +1807,7 @@ fn fb_block_to_metadata_array(
                         }
                     }
                 }
-                break :blk .{ .kv = .{} };
+                break :blk .{ .kv = .{ .container_kind = .dict } };
             },
             .Array => blk: {
                 if (array_lookup.get(@intCast(i))) |arr_list_idx| {
@@ -1785,14 +1831,14 @@ fn fb_block_to_metadata_kv(
     block: tlb.MetadataBlock,
 ) MetadataBlockConvertError!MetadataMap
 {
-    const keys_vec = block.keys() orelse return .{};
-    const types_vec = block.types() orelse return .{};
-    const scalars_vec = block.scalars() orelse return .{};
+    const keys_vec = block.keys() orelse return .{ .container_kind = .dict };
+    const types_vec = block.types() orelse return .{ .container_kind = .dict };
+    const scalars_vec = block.scalars() orelse return .{ .container_kind = .dict };
 
     const count = keys_vec.len();
-    if (count == 0) return .{};
+    if (count == 0) return .{ .container_kind = .dict };
 
-    var map: MetadataMap = .{};
+    var map: MetadataMap = .{ .container_kind = .dict };
     try map.fields.ensureTotalCapacity(allocator, count);
 
     // Build lookup tables for strings, nested blocks, and arrays
@@ -1849,7 +1895,7 @@ fn fb_block_to_metadata_kv(
                         }
                     }
                 }
-                break :blk .{ .kv = .{} };
+                break :blk .{ .kv = .{ .container_kind = .dict } };
             },
             .Array => blk: {
                 if (array_lookup.get(@intCast(i))) |arr_list_idx| {
@@ -1875,15 +1921,15 @@ fn fb_to_metadata_map_single_table(
     fb_map: tlb.MetadataMap,
 ) !MetadataMap
 {
-    const hashes_vec = fb_map.hashes() orelse return .{};
-    const offsets_vec = fb_map.block_offsets() orelse return .{};
-    const lengths_vec = fb_map.block_lengths() orelse return .{};
-    const all_keys_vec = fb_map.all_keys() orelse return .{};
-    const all_types_vec = fb_map.all_types() orelse return .{};
-    const all_scalars_vec = fb_map.all_scalars() orelse return .{};
+    const hashes_vec = fb_map.hashes() orelse return .{ .container_kind = .dict };
+    const offsets_vec = fb_map.block_offsets() orelse return .{ .container_kind = .dict };
+    const lengths_vec = fb_map.block_lengths() orelse return .{ .container_kind = .dict };
+    const all_keys_vec = fb_map.all_keys() orelse return .{ .container_kind = .dict };
+    const all_types_vec = fb_map.all_types() orelse return .{ .container_kind = .dict };
+    const all_scalars_vec = fb_map.all_scalars() orelse return .{ .container_kind = .dict };
 
     const hash_count = hashes_vec.len();
-    if (hash_count == 0) return .{};
+    if (hash_count == 0) return .{ .container_kind = .dict };
 
     // Get optional string and nested vectors
     const string_values_vec = fb_map.string_values();
@@ -1931,7 +1977,7 @@ fn fb_to_metadata_map_single_table(
         }
     }
 
-    var map: MetadataMap = .{};
+    var map: MetadataMap = .{ .container_kind = .dict };
     try map.fields.ensureTotalCapacity(allocator, hash_count);
 
     for (0..hash_count)
@@ -1942,7 +1988,7 @@ fn fb_to_metadata_map_single_table(
         const length = lengths_vec.get(hash_idx);
 
         // Build the KV map for this hash
-        var kv: MetadataMap = .{};
+        var kv: MetadataMap = .{ .container_kind = .dict };
         try kv.fields.ensureTotalCapacity(allocator, length);
 
         for (0..length)
@@ -1986,7 +2032,7 @@ fn fb_to_metadata_map_single_table(
                             }
                         }
                     }
-                    break :blk .{ .kv = .{} };
+                    break :blk .{ .kv = .{ .container_kind = .dict } };
                 },
                 .Array => blk: {
                     // Arrays are stored as MetadataBlock in nested_blocks
@@ -2057,7 +2103,7 @@ fn fb_entry_to_metadata_value(
         .KV => blk: {
             if (entry.nested_val()) |nested| {
                 if (nested.entries()) |entries| {
-                    var map: MetadataMap = .{};
+                    var map: MetadataMap = .{ .container_kind = .dict };
                     try map.fields.ensureTotalCapacity(allocator, @intCast(entries.len()));
                     for (0..entries.len()) |i| {
                         const e = entries.get(i);
@@ -2068,7 +2114,7 @@ fn fb_entry_to_metadata_value(
                     break :blk .{ .kv = map };
                 }
             }
-            break :blk .{ .kv = .{} };
+            break :blk .{ .kv = .{ .container_kind = .dict } };
         },
     };
 }
@@ -2079,7 +2125,7 @@ fn fb_to_metadata_map(
     fb_entries: flatbuffers.Vector(tlb.MetadataEntry),
 ) !MetadataMap
 {
-    var map: MetadataMap = .{};
+    var map: MetadataMap = .{ .container_kind = .dict };
     try map.fields.ensureTotalCapacity(allocator, @intCast(fb_entries.len()));
 
     for (0..fb_entries.len()) |i| {
@@ -2940,7 +2986,7 @@ pub fn serialize_from_serializable_timeline(
 ) !void
 {
     const enable_timing = build_options.enable_tlb_timing;
-    var timer = std.time.Timer.start() catch unreachable;
+    var last_ts: u64 = if (enable_timing) std.c.mach_absolute_time() else 0;
 
     // Use arena allocator for all temporary allocations during serialization
     // This dramatically reduces allocation overhead
@@ -2957,7 +3003,7 @@ pub fn serialize_from_serializable_timeline(
     var timeline_builder = try flatbuffers.Builder.init(arena_alloc);
 
     if (enable_timing) {
-        std.debug.print("  [TLB] Builder init: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+        std.debug.print("  [TLB] Builder init: {d:.3}ms\n", .{lap(&last_ts)});
     }
 
     // Convert children - pre-allocate exact capacity
@@ -2972,7 +3018,7 @@ pub fn serialize_from_serializable_timeline(
     } else null;
 
     if (enable_timing) {
-        std.debug.print("  [TLB] Children conversion: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+        std.debug.print("  [TLB] Children conversion: {d:.3}ms\n", .{lap(&last_ts)});
     }
 
     // Convert discrete partitions
@@ -2994,7 +3040,7 @@ pub fn serialize_from_serializable_timeline(
     const timeline_bytes = try timeline_builder.writeAlloc(arena_alloc);
 
     if (enable_timing) {
-        std.debug.print("  [TLB] Timeline build: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+        std.debug.print("  [TLB] Timeline build: {d:.3}ms\n", .{lap(&last_ts)});
     }
 
     // ========================================================================
@@ -3013,7 +3059,7 @@ pub fn serialize_from_serializable_timeline(
     }
 
     if (enable_timing) {
-        std.debug.print("  [TLB] Metadata conversion: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+        std.debug.print("  [TLB] Metadata conversion: {d:.3}ms\n", .{lap(&last_ts)});
     }
 
     // ========================================================================
@@ -3785,9 +3831,9 @@ pub fn deserialize_collection(
 test "header: write and read round-trip"
 {
     var buffer: [TLB_HEADER_SIZE]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buffer);
+    var stream: std.Io.Writer = .fixed(&buffer);
     const test_offset: u64 = 12345;
-    try write_header(stream.writer(), test_offset);
+    try write_header(&stream, test_offset);
     const header = try read_header(&buffer);
     try std.testing.expectEqual(TLB_FORMAT_VERSION, header.version);
     try std.testing.expectEqual(test_offset, header.metadata_offset);
@@ -3833,17 +3879,17 @@ test "flatbufs: direct flatbuffers roundtrip"
     defer allocator.free(fb_bytes);
 
     // Write header + FlatBuffers data to buffer
-    var buffer: std.ArrayList(u8) = .empty;
-    defer buffer.deinit(allocator);
-    try write_header(buffer.writer(allocator), 0);
-    try buffer.appendSlice(allocator, fb_bytes);
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
+    defer buffer.deinit();
+    try write_header(&buffer.writer, 0);
+    try buffer.writer.writeAll(fb_bytes);
 
     // Verify header
-    const header = try read_header(buffer.items);
+    const header = try read_header(buffer.written());
     try std.testing.expectEqual(TLB_FORMAT_VERSION, header.version);
 
     // Decode
-    const fb_data = buffer.items[TLB_HEADER_SIZE..];
+    const fb_data = buffer.written()[TLB_HEADER_SIZE..];
     const aligned_data: []align(8) const u8 = @alignCast(fb_data);
     const fb_timeline = try flatbuffers.decodeRoot(tlb.Timeline, aligned_data);
 
@@ -3891,14 +3937,14 @@ test "tlb: metadata_offset written correctly when metadata present"
     };
 
     // Serialize
-    var buffer: std.ArrayList(u8) = .empty;
-    defer buffer.deinit(allocator);
-    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
+    defer buffer.deinit();
+    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
 
     // Read header and verify metadata_offset is non-zero
-    const header = try read_header(buffer.items);
+    const header = try read_header(buffer.written());
     try std.testing.expect(header.metadata_offset > TLB_HEADER_SIZE);
-    try std.testing.expect(header.metadata_offset < buffer.items.len);
+    try std.testing.expect(header.metadata_offset < buffer.written().len);
 }
 
 test "tlb: metadata_offset is 0 when no metadata"
@@ -3915,12 +3961,12 @@ test "tlb: metadata_offset is 0 when no metadata"
     };
 
     // Serialize
-    var buffer: std.ArrayList(u8) = .empty;
-    defer buffer.deinit(allocator);
-    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
+    defer buffer.deinit();
+    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
 
     // Read header and verify metadata_offset is 0
-    const header = try read_header(buffer.items);
+    const header = try read_header(buffer.written());
     try std.testing.expectEqual(@as(u64, 0), header.metadata_offset);
 }
 
@@ -3949,14 +3995,14 @@ test "tlb: round-trip with metadata preserved"
     };
 
     // Serialize
-    var buffer: std.ArrayList(u8) = .empty;
-    defer buffer.deinit(allocator);
-    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
+    defer buffer.deinit();
+    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
 
     // Deserialize with metadata
     var deserialized = try deserialize_to_serializable_timeline(
         allocator,
-        buffer.items,
+        buffer.written(),
         .all,
     );
     defer deserialized.deinit(allocator);
@@ -3995,14 +4041,14 @@ test "tlb: round-trip without metadata (skip on read)"
     };
 
     // Serialize with metadata
-    var buffer: std.ArrayList(u8) = .empty;
-    defer buffer.deinit(allocator);
-    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
+    defer buffer.deinit();
+    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
 
     // Deserialize WITHOUT metadata
     var deserialized = try deserialize_to_serializable_timeline(
         allocator,
-        buffer.items,
+        buffer.written(),
         .all_except_metadata,
     );
     defer deserialized.deinit(allocator);
@@ -4029,12 +4075,12 @@ test "tlb: empty metadata_map serialization"
     };
 
     // Serialize
-    var buffer: std.ArrayList(u8) = .empty;
-    defer buffer.deinit(allocator);
-    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
+    defer buffer.deinit();
+    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
 
     // Empty metadata map should result in metadata_offset = 0 (treated as no metadata)
-    const header = try read_header(buffer.items);
+    const header = try read_header(buffer.written());
     try std.testing.expectEqual(@as(u64, 0), header.metadata_offset);
 }
 
@@ -4074,12 +4120,12 @@ test "tlb: large metadata handling"
     };
 
     // Serialize
-    var buffer: std.ArrayList(u8) = .empty;
-    defer buffer.deinit(allocator);
-    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
+    defer buffer.deinit();
+    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
 
     // Round-trip verification
-    var result = try deserialize_to_serializable_timeline(allocator, buffer.items, .all);
+    var result = try deserialize_to_serializable_timeline(allocator, buffer.written(), .all);
     defer result.deinit(allocator);
 
     try std.testing.expect(result.metadata_map != null);
@@ -4122,11 +4168,11 @@ test "tlb: complex nested metadata round-trip"
     };
 
     // Serialize and round-trip
-    var buffer: std.ArrayList(u8) = .empty;
-    defer buffer.deinit(allocator);
-    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
+    defer buffer.deinit();
+    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
 
-    var result = try deserialize_to_serializable_timeline(allocator, buffer.items, .all);
+    var result = try deserialize_to_serializable_timeline(allocator, buffer.written(), .all);
     defer result.deinit(allocator);
 
     // Verify nested structure
@@ -4166,20 +4212,20 @@ test "tlb: metadata offset points to correct boundary"
     };
 
     // Serialize
-    var buffer: std.ArrayList(u8) = .empty;
-    defer buffer.deinit(allocator);
-    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
+    defer buffer.deinit();
+    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
 
-    const header = try read_header(buffer.items);
+    const header = try read_header(buffer.written());
 
     // Verify: timeline data ends at metadata_offset, metadata starts there
     // metadata_offset should be > TLB_HEADER_SIZE (16) and < total buffer length
     try std.testing.expect(header.metadata_offset > TLB_HEADER_SIZE);
-    try std.testing.expect(header.metadata_offset < buffer.items.len);
+    try std.testing.expect(header.metadata_offset < buffer.written().len);
 
     // The data at metadata_offset should be valid FlatBuffers metadata
     // We can verify by attempting to decode the timeline portion only
-    const timeline_data = buffer.items[TLB_HEADER_SIZE..header.metadata_offset];
+    const timeline_data = buffer.written()[TLB_HEADER_SIZE..header.metadata_offset];
     const aligned_timeline: []align(8) const u8 = if (@intFromPtr(timeline_data.ptr) % 8 == 0)
         @alignCast(timeline_data)
     else blk: {
@@ -4203,6 +4249,7 @@ test "tlb: metadata offset points to correct boundary"
 /// Helper to run a single roundtrip test given file paths
 fn run_roundtrip_test_from_paths(
     allocator: Allocator,
+    io: std.Io,
     tla_path: []const u8,
     tlb_path: []const u8,
 ) !bool
@@ -4214,6 +4261,7 @@ fn run_roundtrip_test_from_paths(
     defer arena.deinit();
     const timeline_from_tla = try ascii.read_from_file(
         arena.allocator(),
+        io,
         tla_path,
     );
     // No deinit needed - arena handles all TLA allocations
@@ -4228,10 +4276,11 @@ fn run_roundtrip_test_from_paths(
     defer allocator.free(tla_output);
 
     // Read the TLB file and deserialize to SerializableTimeline
-    const tlb_content = std.fs.cwd().readFileAlloc(
-        allocator,
+    const tlb_content = std.Io.Dir.cwd().readFileAlloc(
+        std.testing.io,
         tlb_path,
-        std.math.maxInt(usize),
+        allocator,
+        .unlimited,
     ) catch |err| {
         test_print("Failed to read {s}: {}\n", .{ tlb_path, err });
         return err;
@@ -4261,24 +4310,26 @@ fn run_roundtrip_test_from_paths(
 /// Collect and run all roundtrip tests from a directory
 fn run_roundtrip_tests_from_dir(
     allocator: Allocator,
+    io: std.Io,
     dir_path: []const u8,
     passed: *usize,
     failed: *usize,
 ) !void
 {
-    var dir = std.fs.cwd().openDir(
+    var dir = std.Io.Dir.cwd().openDir(
+        std.testing.io,
         dir_path,
         .{ .iterate = true },
-    ) catch |err| 
+    ) catch |err|
     {
-        if (err == error.FileNotFound) 
+        if (err == error.FileNotFound)
         {
             test_print("  Directory not found: {s}\n", .{dir_path});
             return;
         }
         return err;
     };
-    defer dir.close();
+    defer dir.close(std.testing.io);
 
     // Collect .tla files
     var tla_files: std.ArrayList([]const u8) = .empty;
@@ -4288,8 +4339,8 @@ fn run_roundtrip_tests_from_dir(
     }
 
     var iter = dir.iterate();
-    while (try iter.next()) 
-        |entry| 
+    while (try iter.next(std.testing.io))
+        |entry|
     {
         if (entry.kind != .file) 
         {
@@ -4336,7 +4387,7 @@ fn run_roundtrip_tests_from_dir(
         defer allocator.free(tlb_name);
 
         // Check if corresponding .tlb exists
-        dir.access(tlb_name, .{}) catch continue;
+        dir.access(io, tlb_name, .{}) catch continue;
 
         // Build full paths
         const tla_path = try std.fs.path.join(
@@ -4353,6 +4404,7 @@ fn run_roundtrip_tests_from_dir(
         // Run the test
         const test_passed = run_roundtrip_test_from_paths(
             allocator,
+            io,
             tla_path,
             tlb_path,
         ) catch |err| {
@@ -4373,20 +4425,24 @@ fn run_roundtrip_tests_from_dir(
 
 test "ascii: parse just_clip.tla and deinit (leak test)"
 {
-    const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     // Skip if file doesn't exist
-    std.fs.cwd().access("test_files/just_clip.tla", .{}) catch {
+    std.Io.Dir.cwd().access(std.testing.io, "test_files/just_clip.tla", .{}) catch {
         test_print("Skipping: test_files/just_clip.tla not found\n", .{});
         return;
     };
 
+    // Use arena because ziggy.deserializeLeaky returns data referencing the source buffer
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
     // Read and parse TLA file
-    var timeline = try ascii.read_from_file(
-        allocator,
+    const timeline = try ascii.read_from_file(
+        arena.allocator(),
+        io,
         "test_files/just_clip.tla",
     );
-    defer timeline.deinit(allocator);
 
     // Basic sanity check
     try std.testing.expectEqualStrings("Clip-001", timeline.name);
@@ -4397,16 +4453,17 @@ test "binary: deserialize just_warp.tlb and deinit (leak test)"
     const allocator = std.testing.allocator;
 
     // Skip if file doesn't exist
-    std.fs.cwd().access("test_files/just_warp.tlb", .{}) catch {
+    std.Io.Dir.cwd().access(std.testing.io, "test_files/just_warp.tlb", .{}) catch {
         test_print("Skipping: test_files/just_warp.tlb not found\n", .{});
         return;
     };
 
     // Read TLB file
-    const tlb_content = try std.fs.cwd().readFileAlloc(
-        allocator,
+    const tlb_content = try std.Io.Dir.cwd().readFileAlloc(
+        std.testing.io,
         "test_files/just_warp.tlb",
-        std.math.maxInt(usize),
+        allocator,
+        .unlimited,
     );
     defer allocator.free(tlb_content);
 
@@ -4425,19 +4482,21 @@ test "binary: deserialize just_warp.tlb and deinit (leak test)"
 test "roundtrip: warp with affine transform"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     // Skip if files don't exist
-    std.fs.cwd().access("test_files/just_warp.tla", .{}) catch {
+    std.Io.Dir.cwd().access(std.testing.io, "test_files/just_warp.tla", .{}) catch {
         test_print("Skipping: test_files/just_warp.tla not found\n", .{});
         return;
     };
-    std.fs.cwd().access("test_files/just_warp.tlb", .{}) catch {
+    std.Io.Dir.cwd().access(std.testing.io, "test_files/just_warp.tlb", .{}) catch {
         test_print("Skipping: test_files/just_warp.tlb not found\n", .{});
         return;
     };
 
     const passed = try run_roundtrip_test_from_paths(
         allocator,
+        io,
         "test_files/just_warp.tla",
         "test_files/just_warp.tlb",
     );
@@ -4447,19 +4506,21 @@ test "roundtrip: warp with affine transform"
 test "roundtrip: warp with bezier transform (linearized)"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     // Skip if files don't exist
-    std.fs.cwd().access("test_files/just_warp_bez.tla", .{}) catch {
+    std.Io.Dir.cwd().access(io, "test_files/just_warp_bez.tla", .{}) catch {
         test_print("Skipping: test_files/just_warp_bez.tla not found\n", .{});
         return;
     };
-    std.fs.cwd().access("test_files/just_warp_bez.tlb", .{}) catch {
+    std.Io.Dir.cwd().access(io, "test_files/just_warp_bez.tlb", .{}) catch {
         test_print("Skipping: test_files/just_warp_bez.tlb not found\n", .{});
         return;
     };
 
     const passed = try run_roundtrip_test_from_paths(
         allocator,
+        io,
         "test_files/just_warp_bez.tla",
         "test_files/just_warp_bez.tlb",
     );
@@ -4469,19 +4530,21 @@ test "roundtrip: warp with bezier transform (linearized)"
 test "roundtrip: transition with container children"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     // Skip if files don't exist
-    std.fs.cwd().access("test_files/just_transition.tla", .{}) catch {
+    std.Io.Dir.cwd().access(io, "test_files/just_transition.tla", .{}) catch {
         test_print("Skipping: test_files/just_transition.tla not found\n", .{});
         return;
     };
-    std.fs.cwd().access("test_files/just_transition.tlb", .{}) catch {
+    std.Io.Dir.cwd().access(io, "test_files/just_transition.tlb", .{}) catch {
         test_print("Skipping: test_files/just_transition.tlb not found\n", .{});
         return;
     };
 
     const passed = try run_roundtrip_test_from_paths(
         allocator,
+        io,
         "test_files/just_transition.tla",
         "test_files/just_transition.tlb",
     );
@@ -4491,13 +4554,14 @@ test "roundtrip: transition with container children"
 test "roundtrip: all test_files"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     test_print("\nRunning roundtrip tests from test_files/...\n", .{});
 
     var passed: usize = 0;
     var failed: usize = 0;
 
-    try run_roundtrip_tests_from_dir(allocator, "test_files", &passed, &failed);
+    try run_roundtrip_tests_from_dir(allocator, io, "test_files", &passed, &failed);
 
     test_print("test_files: {d} passed, {d} failed\n", .{ passed, failed });
     try std.testing.expect(failed == 0);
@@ -4506,6 +4570,7 @@ test "roundtrip: all test_files"
 test "roundtrip: all otio_sample_data"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     test_print("\nRunning roundtrip tests from otio_sample_data/...\n", .{});
 
@@ -4514,6 +4579,7 @@ test "roundtrip: all otio_sample_data"
 
     try run_roundtrip_tests_from_dir(
         allocator,
+        io,
         "otio_sample_data",
         &passed,
         &failed,
@@ -4525,6 +4591,9 @@ test "roundtrip: all otio_sample_data"
 
 test "roundtrip: production_test_files (optional)"
 {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
     // Only run if build option is enabled
     if (!build_options.include_production_tests) {
         test_print(
@@ -4534,14 +4603,12 @@ test "roundtrip: production_test_files (optional)"
         return error.SkipZigTest;
     }
 
-    const allocator = std.testing.allocator;
-
     test_print("\nRunning roundtrip tests from production_test_files/...\n", .{});
 
     var passed: usize = 0;
     var failed: usize = 0;
 
-    try run_roundtrip_tests_from_dir(allocator, "production_test_files", &passed, &failed);
+    try run_roundtrip_tests_from_dir(allocator, io, "production_test_files", &passed, &failed);
 
     test_print("production_test_files: {d} passed, {d} failed\n", .{ passed, failed });
     try std.testing.expect(failed == 0);

@@ -1,23 +1,31 @@
 //! Zig wrapper of the hodographs c-library.
 
-const libhodographs = @import("hodographs_c");
-
-pub const Vector2 = libhodographs.Vector2;
-pub const compute_hodograph = libhodographs.compute_hodograph;
-pub const bezier_roots = libhodographs.bezier_roots;
-pub const inflection_points = libhodographs.inflection_points;
-pub const split_bezier = libhodographs.split_bezier;
-pub const evaluate_bezier = libhodographs.evaluate_bezier;
-pub const BezierSegment = libhodographs.BezierSegment;
-
 const std = @import("std");
-
-const hodographs = libhodographs;
-
 const opentime = @import("opentime");
 const curve = @import("curve");
 
-test "hodograph: simple" 
+pub const Vector2 = extern struct {
+    x: f32,
+    y: f32,
+};
+
+pub const BezierSegment = extern struct {
+    order: c_int,
+    p: [4]Vector2,
+};
+
+pub extern fn compute_hodograph(b: *const BezierSegment) BezierSegment;
+pub extern fn bezier_roots(bz: *const BezierSegment) Vector2;
+pub extern fn inflection_points(bz: *const BezierSegment) Vector2;
+pub extern fn split_bezier(
+    bz: *const BezierSegment,
+    t: f32,
+    r1: *BezierSegment,
+    r2: *BezierSegment,
+) bool;
+pub extern fn evaluate_bezier(b: *BezierSegment, u: f32) Vector2;
+
+test "hodograph: simple"
 {
     const allocator = std.testing.allocator;
 
@@ -27,25 +35,25 @@ test "hodograph: simple"
     );
     defer crv.deinit(allocator);
 
-    var cSeg : hodographs.BezierSegment = .{
+    var cSeg: BezierSegment = .{
         .order = 3,
         .p = undefined,
     };
-    
-    for (crv.segments[0].points(), 0..) 
-        |pt, index| 
+
+    for (crv.segments[0].points(), 0..)
+        |pt, index|
     {
         cSeg.p[index].x = pt.time;
         cSeg.p[index].y = pt.value;
     }
 
-    if (cSeg.p[0].y == cSeg.p[3].y) 
+    if (cSeg.p[0].y == cSeg.p[3].y)
     {
         cSeg.p[0].y += 0.0001;
     }
 
-    var hodo = hodographs.compute_hodograph(&cSeg);
-    const roots = hodographs.bezier_roots(&hodo);
+    var hodo = compute_hodograph(&cSeg);
+    const roots = bezier_roots(&hodo);
 
     try std.testing.expectApproxEqAbs(
         0.5,
@@ -67,7 +75,7 @@ test "hodograph: simple"
     );
 }
 
-test "hodograph: uuuuu" 
+test "hodograph: uuuuu"
 {
     const allocator = std.testing.allocator;
 
@@ -80,7 +88,7 @@ test "hodograph: uuuuu"
     var seg_list = std.ArrayList(curve.Segment).init(allocator);
     defer seg_list.deinit();
 
-    const u_count:usize = 5;
+    const u_count: usize = 5;
 
     try seg_list.appendNTimes(crv.segments[0], u_count);
 
@@ -90,19 +98,19 @@ test "hodograph: uuuuu"
     defer allocator.free(split_crv.segments);
 
     try std.testing.expectEqual(
-        u_count*2,
+        u_count * 2,
         split_crv.segments.len,
     );
 }
 
-test "hodograph: multisegment curve" 
+test "hodograph: multisegment curve"
 {
     const allocator = std.testing.allocator;
 
     {
         const crv = try curve.read_curve_json(
             "curves/linear.curve.json",
-            allocator
+            allocator,
         );
         defer crv.deinit(allocator);
 

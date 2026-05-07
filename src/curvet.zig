@@ -284,6 +284,7 @@ const VisState = struct {
 };
 
 pub fn main(
+    init: std.process.Init,
 ) !void 
 {
     const title = (
@@ -292,22 +293,11 @@ pub fn main(
         ++ "]"
     );
 
-    const builtin = @import("builtin");
-
-    ALLOCATOR = alloc: {
-        if (builtin.os.tag == .emscripten) {
-            break :alloc std.heap.c_allocator;
-        } else {
-            var gpa = std.heap.GeneralPurposeAllocator(
-                .{}
-            ){};
-
-            break :alloc gpa.allocator();
-        }
-    };
+    ALLOCATOR = init.gpa;
     const allocator = ALLOCATOR;
+    const io = init.io;
 
-    try _parse_args(allocator, &STATE);
+    try _parse_args(allocator, io, &STATE, init.minimal.args);
 
     std.debug.print("STATE MADE\n", .{});
     std.debug.print("Items: {d}\n", .{STATE.operations.items.len});
@@ -452,13 +442,13 @@ fn plot_point(
     size: f32,
 ) void
 {
-    zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = size });
     _ = zgui.plot.plotScatter(
         full_label,
         f32,
         .{
             .xv = &.{pt.in.as(f32)},
             .yv = &.{pt.out.as(f32)},
+            .marker_size = size,
         }
     );
     zgui.plot.plotText(
@@ -469,7 +459,6 @@ fn plot_point(
             .pix_offset = .{ 0, size * 1.75 },
         }
     );
-    zgui.plot.popStyleVar(.{ .count = 1 });
 }
 
 fn plot_knots(
@@ -503,13 +492,13 @@ fn plot_knots(
             knots_yv[knot_ind] = knot.out.as(f32);
         }
 
-        zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 30 });
         zgui.plot.plotScatter(
             name_,
             f32,
             .{
                 .xv = knots_xv,
                 .yv = knots_yv,
+                .marker_size = 20,
             }
         );
 
@@ -519,11 +508,13 @@ fn plot_knots(
             const label = try std.fmt.bufPrintZ(&buf, "{d}", .{ pt_ind });
             zgui.plot.plotText(
                 label,
-                .{ .x = pt.in.as(f32), .y = pt.out.as(f32), .pix_offset = .{ 0, 45 } }
+                .{
+                    .x = pt.in.as(f32),
+                    .y = pt.out.as(f32),
+                    .pix_offset = .{ 0, 45 },
+                }
             );
         }
-
-        zgui.plot.popStyleVar(.{ .count = 1 });
     }
 }
 
@@ -579,16 +570,15 @@ fn plot_control_points(
             }
         );
 
-        zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 20 });
         zgui.plot.plotScatter(
             name_,
             f32,
             .{
                 .xv = knots_xv,
                 .yv = knots_yv,
+                .marker_size = 20,
             }
         );
-        zgui.plot.popStyleVar(.{ .count = 1 });
     }
 }
 
@@ -1272,7 +1262,7 @@ fn plot_three_point_approx(
         "{s} / approximation using three point method",
         .{ name }
     );
-    var approx_segments: std.ArrayList(curve.Bezier.Segment) = .{};
+    var approx_segments: std.ArrayList(curve.Bezier.Segment) = .empty;
     defer approx_segments.deinit(allocator);
 
     const u_vals:[]const f32 = &.{0, 0.25, 0.5, 0.75, 1};
@@ -1671,7 +1661,7 @@ fn update_with_error(
                 );
             }
 
-            var remove: std.ArrayList(usize) = .{};
+            var remove: std.ArrayList(usize) = .empty;
             defer remove.deinit(ALLOCATOR);
             const op_index:usize = 0;
             for (STATE.operations.items) 
@@ -2025,20 +2015,24 @@ fn update_with_error(
 /// parse the commandline arguments and setup the state
 fn _parse_args(
     allocator: std.mem.Allocator,
+    io: std.Io,
     state: *VisState,
+    args: std.process.Args,
 ) !void
 {
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+    // var args = try std.process.argsWithAllocator(allocator);
+    // defer args.deinit();
+
+    var args_iter = args.iterate();
 
     // ignore the app name, always first in args
-    _ = args.skip();
+    _ = args_iter.skip();
 
     var operations = state.operations;
     operations = .empty;
 
     // read all the filepaths from the commandline
-    while (args.next()) 
+    while (args_iter.next()) 
         |nextarg| 
     {
         const fpath: [:0]const u8 = nextarg;
@@ -2052,6 +2046,7 @@ fn _parse_args(
 
         const crv = curve.read_curve_json(
             allocator,
+            io,
             fpath,
         ) catch |err| 
         {

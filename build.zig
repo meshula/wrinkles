@@ -535,7 +535,6 @@ fn cpp_binary(
         },
     );
     exe_cpp.linkSystemLibrary("c", .{});
-    // exe_cpp.linkSystemLibrary("cpp", .{});
     exe_cpp.defineCMacroRaw("std=c++17");
     exe_cpp.addIncludePath(b.path("src/language_bindings/cpp/include"));
     exe_cpp.addIncludePath(b.path("src/language_bindings/c"));
@@ -1001,49 +1000,28 @@ pub fn build(
             );
 
         const spline_gym = mod: {
-            const spline_gym_translate_c = b.addTranslateC(
+            const spline_gym_mod = b.createModule(
                 .{
-                    .optimize = options.optimize,
+                    .root_source_file = b.path(
+                        "spline-gym/src/hodographs.zig",
+                    ),
                     .target = options.target,
-                    .root_source_file = b.path("spline-gym/src/hodographs.c"),
+                    .optimize = options.optimize,
+                    .link_libc = true,
                 },
             );
-            spline_gym_translate_c.addIncludePath(b.path("spline-gym/src"));
-
-            // @TODO: fix the wasm build
-            // if (options.target.result.cpu.arch.isWasm())
-            // {
-            //     spline_gym.addSystemIncludePath(
-            //         ziis.fetchEmSdkIncludePath(
-            //             options.dep_ziis.?,
-            //             options.optimize,
-            //             options.target,
-            //         )
-            //     );
-            //     spline_gym.linkLibC();
-            // }
+            spline_gym_mod.addCSourceFile(
+                .{
+                    .file = b.path("spline-gym/src/hodographs.c"),
+                    .flags = &.{},
+                },
+            );
+            spline_gym_mod.addIncludePath(b.path("spline-gym/src"));
 
             break :mod b.addLibrary(
                .{
                    .name = "spline_gym",
-                   .root_module = b.createModule(
-                       .{
-                           .root_source_file = b.path(
-                               "spline-gym/src/hodographs.zig",
-                           ),
-                           .target = options.target,
-                           .optimize = options.optimize,
-                           .link_libc = true,
-                           .imports = &.{
-                               .{
-                                   .name = "hodographs_c",
-                                   .module = (
-                                       spline_gym_translate_c.createModule()
-                                   ),
-                               },
-                           },
-                       },
-                   ),
+                   .root_module = spline_gym_mod,
                    .linkage = .static,
                },
            );
@@ -1068,50 +1046,35 @@ pub fn build(
         const libsamplerate = mod: {
             const dep_libsamplerate = b.dependency(
                 "libsamplerate",
-                .{ 
-                    .target = options.target,
-                    .optimize = options.optimize,
-                },
-            );
-
-            const libsamplerate_translate_c = b.addTranslateC(
                 .{
-                    .optimize = options.optimize,
                     .target = options.target,
-                    .root_source_file = b.path("libs/wrapped_libsamplerate/wrapped_libsamplerate.c"),
+                    .optimize = options.optimize,
                 },
             );
-            libsamplerate_translate_c.addIncludePath(dep_libsamplerate.path("include"));
-            libsamplerate_translate_c.addIncludePath(dep_libsamplerate.path("src"));
 
-            // if (options.target.result.cpu.arch.isWasm())
-            // {
-            //     libsamplerate.addSystemIncludePath(
-            //         ziis.fetchEmSdkIncludePath(
-            //             options.dep_ziis.?,
-            //             options.optimize,
-            //             options.target,
-            //         )
-            //     );
-            // }
+            const libsamplerate_mod = b.createModule(
+                .{
+                    .target = options.target,
+                    .optimize = options.optimize,
+                    .root_source_file = b.path(
+                        "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig",
+                    ),
+                    .link_libc = true,
+                },
+            );
+            libsamplerate_mod.addCSourceFile(
+                .{
+                    .file = b.path("libs/wrapped_libsamplerate/wrapped_libsamplerate.c"),
+                    .flags = &.{},
+                },
+            );
+            libsamplerate_mod.addIncludePath(dep_libsamplerate.path("include"));
+            libsamplerate_mod.addIncludePath(dep_libsamplerate.path("src"));
+
             break :mod b.addLibrary(
                 .{
                     .name = "libsamplerate",
-                    .root_module = b.createModule(
-                        .{
-                            .target = options.target,
-                            .optimize = options.optimize,
-                            .root_source_file = b.path(
-                                "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig",
-                            ),
-                            .imports = &.{
-                                .{
-                                    .name = "samplerate_c",
-                                    .module = libsamplerate_translate_c.createModule(),
-                                },
-                            },
-                        },
-                    )
+                    .root_module = libsamplerate_mod,
                 },
             );
         };
@@ -1482,14 +1445,16 @@ pub fn build(
 
         //
         // C++ binding library and examples
+        // @TODO: translate-c does not support C++ translation.
+        // These need to be rewritten to use addCSourceFile instead.
         //
-        if (options.target.result.cpu.arch.isWasm() == false) 
-        {
-            try cpp_bindings_and_examples(
-                b,
-                options,
-                opentimelineio_c_static,
-                test_output,
-            );
-        }
+        // if (options.target.result.cpu.arch.isWasm() == false)
+        // {
+        //     try cpp_bindings_and_examples(
+        //         b,
+        //         options,
+        //         opentimelineio_c_static,
+        //         test_output,
+        //     );
+        // }
     }

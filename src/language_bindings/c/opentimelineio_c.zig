@@ -6,7 +6,7 @@ const topology = @import("topology");
 
 const c = @import("opentimelineio_c");
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+var gpa = std.heap.DebugAllocator(.{}){};
 const ALLOCATOR:std.mem.Allocator = gpa.allocator();
 
 /// constant to represent an error (nullpointer)
@@ -92,8 +92,12 @@ pub export fn otio_read_from_file(
         allocator_c
     ) catch return ERR_REF;
 
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
+
     const result = otio.read_from_file(
         allocator,
+        io,
         filepath,
         .{},
     ) catch |err| {
@@ -129,15 +133,25 @@ pub export fn otio_write_to_file(
     };
 
     // Get the timeline pointer
-    const timeline = ptrCast(otio.Timeline, timeline_c.ref orelse {
-        std.log.err("otio_write_to_file: null timeline reference\n", .{});
-        return -1;
-    });
+    const timeline = ptrCast(
+        otio.Timeline,
+        timeline_c.ref orelse {
+            std.log.err(
+                "otio_write_to_file: null timeline reference\n",
+                .{},
+            );
+            return -1;
+        },
+    );
+
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
 
     // Write to file (format auto-detected from extension)
     const handle = otio.CompositionItemHandle.init(timeline);
     otio.serialization.write_to_file(
         allocator,
+        io,
         handle,
         filepath,
         .{}, // default options
@@ -350,8 +364,12 @@ pub export fn otio_write_map_to_png(
         allocator_c
     ) catch  return ; 
 
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
+
     projection_builder.tree.write_dot_graph(
         allocator,
+        io,
         std.mem.span(filepath_c),
         "OTIO_TemporalHierarchy",
         .{},

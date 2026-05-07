@@ -259,7 +259,7 @@ pub const SerializableRoot = union(enum) {
             .timeline => |t| .{
                 .timeline = try ascii.serializable_to_timeline(allocator, t),
             },
-            .collection => |_| {
+            .collection => {
                 // Collection -> handle conversion not yet implemented
                 return error.CollectionToHandleNotImplemented;
             },
@@ -520,6 +520,7 @@ pub const OTIO_Adapter: SerializableFormat = .{
 /// preserve all fields including metadata_hash and metadata_map.
 pub fn write_serializable_timeline_to_file(
     allocator: std.mem.Allocator,
+    io: std.Io,
     intermediate_tl: ascii.SerializableTimeline,
     file_path: []const u8,
     metadata_mode: WriteOptions.MetadataMode,
@@ -532,6 +533,7 @@ pub fn write_serializable_timeline_to_file(
     {
         return try bundle.write_to_file(
             allocator,
+            io,
             intermediate_tl,
             file_path,
             .{},
@@ -539,11 +541,15 @@ pub fn write_serializable_timeline_to_file(
     }
 
     // For other formats, open file and write
-    const file = try std.fs.cwd().createFile(file_path, .{});
-    defer file.close();
+    const file = try std.Io.Dir.cwd().createFile(
+        io,
+        file_path,
+        .{},
+    );
+    defer file.close(io);
 
     var file_writer_buffer: [16 * 1024]u8 = undefined;
-    var file_writer = file.writer(&file_writer_buffer);
+    var file_writer = file.writer(io, &file_writer_buffer);
     const writer = &file_writer.interface;
 
     try write_serializable_to_writer(
@@ -597,6 +603,7 @@ pub fn write_serializable_to_writer(
 /// The file format is determined by the file extension.
 pub fn write_timeline_to_file(
     allocator: std.mem.Allocator,
+    io: std.Io,
     timeline: *schema.Timeline,
     file_path: []const u8,
     metadata_mode: WriteOptions.MetadataMode,
@@ -610,6 +617,7 @@ pub fn write_timeline_to_file(
 
     try write_serializable_timeline_to_file(
         allocator,
+        io,
         ser_timeline,
         file_path,
         metadata_mode,
@@ -642,6 +650,7 @@ pub fn read_serializable_timeline_from_reader(
 
 pub fn read_serializable_timeline_from_file(
     allocator: std.mem.Allocator,
+    io: std.Io,
     file_path: []const u8,
     metadata_mode: ReadOptions.ContentFilter,
 ) !ascii.SerializableTimeline
@@ -653,22 +662,24 @@ pub fn read_serializable_timeline_from_file(
     // Handle .tlz separately since it manages its own file reading
     if (format == .tlz)
     {
-        return try bundle.read_from_file(allocator, file_path, .{});
+        return try bundle.read_from_file(allocator, io, file_path, .{});
     }
 
     // For other formats, use the ascii.read_from_file which handles
     // file reading and format dispatch correctly
-    return try ascii.read_from_file(allocator, file_path);
+    return try ascii.read_from_file(allocator, io, file_path);
 }
 
 pub fn read_timeline_from_file(
     allocator: std.mem.Allocator,
+    io: std.Io,
     file_path: []const u8,
     metadata_mode: ReadOptions.ContentFilter,
 ) !*schema.timeline
 {
     const ser_timeline = try read_serializable_timeline_from_file(
         allocator,
+        io,
         file_path,
         metadata_mode,
     );
@@ -682,6 +693,7 @@ pub fn read_timeline_from_file(
 /// Read a serializable collection from a file (TLCA, TLCB, or TLCZ format).
 pub fn read_serializable_collection_from_file(
     allocator: std.mem.Allocator,
+    io: std.Io,
     file_path: []const u8,
 ) !ascii.SerializableCollection
 {
@@ -692,17 +704,19 @@ pub fn read_serializable_collection_from_file(
     {
         return try bundle.read_collection_from_file(
             allocator,
+            io,
             file_path,
             .{},
         );
     }
 
-    return try ascii.read_collection_from_file(allocator, file_path);
+    return try ascii.read_collection_from_file(allocator, io, file_path);
 }
 
 /// Write a schema.Collection to a file (TLCA or TLCB format).
 fn write_collection_to_file(
     allocator: std.mem.Allocator,
+    io: std.Io,
     collection: *schema.Collection,
     file_path: []const u8,
     metadata_mode: WriteOptions.MetadataMode,
@@ -718,6 +732,7 @@ fn write_collection_to_file(
     // Write to file
     try ascii.write_collection_to_file(
         allocator,
+        io,
         ser_collection,
         file_path,
         metadata_mode,
@@ -732,6 +747,7 @@ fn write_collection_to_file(
 /// Format is auto-detected from the file extension.
 pub fn read_from_file(
     allocator: std.mem.Allocator,
+    io: std.Io,
     file_path: []const u8,
     options: ReadOptions,
 ) !CompositionItemHandle
@@ -742,11 +758,16 @@ pub fn read_from_file(
     if (desc.is_collection)
     {
         // Collection formats (including .tlcz bundles)
-        var ser_collection = try read_serializable_collection_from_file(
-            allocator,
+        // Use an arena for parsing because ziggy.deserializeLeaky (used for TLCA)
+        // returns data containing slices into the source buffer.
+        var coll_arena = std.heap.ArenaAllocator.init(allocator);
+        defer coll_arena.deinit();
+
+        const ser_collection = try read_serializable_collection_from_file(
+            coll_arena.allocator(),
+            io,
             file_path,
         );
-        defer ser_collection.deinit(allocator);
 
         const collection = try ascii.serializable_to_collection(
             allocator,
@@ -756,12 +777,17 @@ pub fn read_from_file(
     }
 
     // Timeline formats (including .tlz bundles)
-    var ser_timeline = try read_serializable_timeline_from_file(
-        allocator,
+    // Use an arena for parsing because ziggy.deserializeLeaky (used for TLA)
+    // returns data containing slices into the source buffer.
+    var parse_arena = std.heap.ArenaAllocator.init(allocator);
+    defer parse_arena.deinit();
+
+    const ser_timeline = try read_serializable_timeline_from_file(
+        parse_arena.allocator(),
+        io,
         file_path,
         options.content_filter,
     );
-    defer ser_timeline.deinit(allocator);
 
     const timeline = try ascii.serializable_to_timeline(
         allocator,
@@ -774,6 +800,7 @@ pub fn read_from_file(
 /// Format is auto-detected from extension, or use options.format to override.
 pub fn write_to_file(
     allocator: std.mem.Allocator,
+    io: std.Io,
     handle: CompositionItemHandle,
     file_path: []const u8,
     options: WriteOptions,
@@ -821,6 +848,7 @@ pub fn write_to_file(
 
             try bundle.write_collection_to_file(
                 allocator,
+                io,
                 ser_collection,
                 file_path,
                 bundle_write_opts,
@@ -842,6 +870,7 @@ pub fn write_to_file(
 
             try bundle.write_to_file(
                 allocator,
+                io,
                 ser_timeline,
                 file_path,
                 bundle_write_opts,
@@ -860,6 +889,7 @@ pub fn write_to_file(
 
         try write_collection_to_file(
             allocator,
+            io,
             collection,
             file_path,
             options.metadata_mode,
@@ -875,6 +905,7 @@ pub fn write_to_file(
 
     try write_timeline_to_file(
         allocator,
+        io,
         timeline,
         file_path,
         options.metadata_mode,
@@ -1025,6 +1056,7 @@ pub const serializable = struct {
     /// Read to SerializableRoot (preserves metadata hash maps, etc.)
     pub fn read_from_file(
         allocator: std.mem.Allocator,
+        io: std.Io,
         file_path: []const u8,
         options: ReadOptions,
     ) !SerializableRoot
@@ -1037,6 +1069,7 @@ pub const serializable = struct {
             const ser_collection = (
                 try read_serializable_collection_from_file(
                     allocator,
+                    io,
                     file_path,
                 )
             );
@@ -1046,6 +1079,7 @@ pub const serializable = struct {
         const ser_timeline = (
             try read_serializable_timeline_from_file(
                 allocator,
+                io,
                 file_path,
                 options.content_filter,
             )
@@ -1057,6 +1091,7 @@ pub const serializable = struct {
     /// Write from SerializableRoot
     pub fn write_to_file(
         allocator: std.mem.Allocator,
+        io: std.Io,
         root: SerializableRoot,
         file_path: []const u8,
         options: WriteOptions,
@@ -1115,6 +1150,7 @@ pub const serializable = struct {
             .timeline => |t| {
                 try write_serializable_timeline_to_file(
                     allocator,
+                    io,
                     t,
                     file_path,
                     options.metadata_mode,
@@ -1123,6 +1159,7 @@ pub const serializable = struct {
             .collection => |c| {
                 try ascii.write_collection_to_file(
                     allocator,
+                    io,
                     c,
                     file_path,
                     options.metadata_mode,

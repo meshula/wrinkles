@@ -453,7 +453,7 @@ pub fn downgrade_timeline(
 
 /// Global version registry instance (initialized on first use)
 var global_registry: ?*VersionRegistry = null;
-var registry_mutex: std.Thread.Mutex = .{};
+var registry_mutex: std.atomic.Mutex = .unlocked;
 
 /// Get or initialize the global registry
 /// Used by serialization functions for automatic upgrade/downgrade
@@ -461,7 +461,7 @@ pub fn get_global_registry(
     allocator: Allocator,
 ) !*VersionRegistry
 {
-    registry_mutex.lock();
+    while (!registry_mutex.tryLock()) {}
     defer registry_mutex.unlock();
 
     if (global_registry == null)

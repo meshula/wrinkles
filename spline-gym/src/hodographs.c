@@ -2,6 +2,8 @@
 #include <math.h>
 #include <stdbool.h>
 
+static inline float my_fabsf(float x) { return fabsf(x); }
+
 Vector2 vec2_add_vec2(Vector2 lhs, Vector2 rhs) {
     Vector2 result = { lhs.x + rhs.x, lhs.y + rhs.y };
     return result;
@@ -68,8 +70,8 @@ Vector2 bezier_roots(const BezierSegment* const bz) {
         float b = 2 * (p[1].y - p[0].y);
         float c = p[0].y;
         // is it linear?
-        if (fabsf(a) <= 1.e-4) {
-            if (fabsf(b) <= 1.e-4)
+        if (my_fabsf(a) <= 1.e-4) {
+            if (my_fabsf(b) <= 1.e-4)
                 return rv; // no solutions
             float t = -c / b;
             if (t > 0 && t < 1.f)
@@ -173,8 +175,8 @@ Vector2 inflection_points(const BezierSegment* const bz) {
 
     Vector2 roots = { -1.f, -1.f };
 
-    if (fabsf(x) < 1e-6f) {
-        if (fabsf(y) > 1e-6f) {
+    if (my_fabsf(x) < 1e-6f) {
+        if (my_fabsf(y) > 1e-6f) {
             roots.x = -z / y;
         }
         if (roots.x < 0 || roots.x > 1.f)
@@ -185,7 +187,7 @@ Vector2 inflection_points(const BezierSegment* const bz) {
     float sq = sqrtf(det);
     float d2 = 2 * x;
 
-    if (fabsf(d2) > 1e-6f) {
+    if (my_fabsf(d2) > 1e-6f) {
         roots.x = -(y + sq) / d2;
         roots.y = (sq - y) / d2;
         if (roots.x < 0 || roots.x > 1.f)

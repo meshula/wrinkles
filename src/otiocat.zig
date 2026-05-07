@@ -59,10 +59,10 @@ const State = struct {
 /// Parse the commandline arguments and setup the state
 fn parse_args(
     allocator: std.mem.Allocator,
+    args: std.process.Args,
 ) !State
 {
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+    var arg_iter = args.iterate();
 
     var input_path: ?[]const u8 = null;
     var output_path: ?[]const u8 = null;
@@ -71,12 +71,12 @@ fn parse_args(
     var media_policy: serialization.bundle_utils.MediaReferencePolicy = .MissingIfNotFile;
 
     // Ignore the app name, always first in args
-    _ = args.skip();
+    _ = arg_iter.skip();
 
     var positional_count: usize = 0;
 
     // Read all the arguments from the commandline
-    while (args.next())
+    while (arg_iter.next())
         |nextarg|
     {
         const arg: [:0]const u8 = nextarg;
@@ -244,8 +244,11 @@ fn get_extension(
 
 
 pub fn main(
+    init: std.process.Init,
 ) !void
 {
+    const io = init.io;
+
     // Use the debug allocator in debug builds, otherwise use smp
     const parent_allocator = if (builtin.mode == .Debug) alloc: {
         var da = std.heap.DebugAllocator(.{}){};
@@ -256,10 +259,10 @@ pub fn main(
     const allocator = arena.allocator();
     defer arena.deinit();
 
-    const state = try parse_args(allocator);
+    const state = try parse_args(allocator, init.minimal.args);
     defer state.deinit(allocator);
 
-    const prog = std.Progress.start(.{});
+    const prog = std.Progress.start(io, .{});
     defer prog.end();
 
     const parent_prog = prog.start("Converting timeline", 3);
@@ -268,9 +271,10 @@ pub fn main(
     const read_prog = parent_prog.start("Reading input file...", 0);
 
     var found = true;
-    std.fs.cwd().access(
+    std.Io.Dir.cwd().access(
+        io,
         state.input_path,
-        .{}
+        .{},
     ) catch |e| switch (e) {
         error.FileNotFound => found = false,
         else => return e,
@@ -356,6 +360,7 @@ pub fn main(
         // Handle collection formats
         const ser_collection = try serialization.read_serializable_collection_from_file(
             allocator,
+            io,
             state.input_path,
         );
 
@@ -372,6 +377,7 @@ pub fn main(
         {
             try serialization.write_serializable_collection_to_file(
                 allocator,
+                io,
                 ser_collection,
                 path,
                 state.metadata_mode,
@@ -380,9 +386,9 @@ pub fn main(
         else
         {
             // Write to stdout
-            var out_file = std.fs.File.stdout();
+            var out_file = std.Io.File.stdout();
             var file_writer_buffer: [16 * 1024]u8 = undefined;
-            var file_writer = out_file.writer(&file_writer_buffer);
+            var file_writer = out_file.writer(io, &file_writer_buffer);
             const writer = &file_writer.interface;
 
             try serialization.write_serializable_collection_to_writer(
@@ -430,6 +436,7 @@ pub fn main(
             var ser_timeline = (
                 try serialization.read_serializable_timeline_from_file(
                     allocator,
+                    io,
                     state.input_path,
                     input_metadata_mode,
                 )
@@ -448,6 +455,7 @@ pub fn main(
             {
                 try serialization.write_serializable_timeline_to_file(
                     allocator,
+                    io,
                     ser_timeline,
                     path,
                     state.metadata_mode,
@@ -456,9 +464,9 @@ pub fn main(
             else
             {
                 // Write to stdout
-                var out_file = std.fs.File.stdout();
+                var out_file = std.Io.File.stdout();
                 var file_writer_buffer: [16 * 1024]u8 = undefined;
-                var file_writer = out_file.writer(&file_writer_buffer);
+                var file_writer = out_file.writer(io, &file_writer_buffer);
                 const writer = &file_writer.interface;
 
                 try serialization.write_serializable_to_writer(
@@ -479,6 +487,7 @@ pub fn main(
             // OTIO JSON input - must go through schema.Timeline
             var tl_ref = try serialization.read_from_file(
                 allocator,
+                io,
                 state.input_path,
                 .{},
             );
@@ -495,6 +504,7 @@ pub fn main(
             {
                 try serialization.write_to_file(
                     allocator,
+                    io,
                     tl_ref,
                     path,
                     .{ .metadata_mode = state.metadata_mode },
@@ -503,9 +513,9 @@ pub fn main(
             else
             {
                 // Write to stdout
-                var out_file = std.fs.File.stdout();
+                var out_file = std.Io.File.stdout();
                 var file_writer_buffer: [16 * 1024]u8 = undefined;
-                var file_writer = out_file.writer(&file_writer_buffer);
+                var file_writer = out_file.writer(io, &file_writer_buffer);
                 const writer = &file_writer.interface;
 
                 try serialization.write_to_writer(

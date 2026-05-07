@@ -411,9 +411,11 @@ pub fn actual_order(
 test "bezier_math: actual_order: linear" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const crv = try bezier_curve.read_curve_json(
         allocator,
+        io,
         "curves/linear.curve.json",
     );
     defer std.testing.allocator.free(crv.segments);
@@ -442,8 +444,12 @@ test "bezier_math: actual_order: linear"
 
 test "bezier_math: actual_order: quadratic" 
 {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
     const crv = try bezier_curve.read_curve_json(
-        std.testing.allocator,
+        allocator,
+        io,
         "curves/upside_down_u.curve.json",
     );
     defer std.testing.allocator.free(crv.segments);
@@ -474,8 +480,11 @@ test "bezier_math: actual_order: quadratic"
 
 test "bezier_math: actual_order: cubic" 
 {
+    const io = std.testing.io;
+
     const crv = try bezier_curve.read_curve_json(
         std.testing.allocator,
+        io,
         "curves/scurve_extreme.curve.json",
     );
     defer std.testing.allocator.free(crv.segments);
@@ -1428,8 +1437,11 @@ pub fn rescaled_curve(
 
 test "bezier_math: BezierMath: rescaled parameter" 
 {
+    const io = std.testing.io;
+
     const crv = try bezier_curve.read_curve_json(
         std.testing.allocator,
+        io,
         "curves/scurve.curve.json",
     );
     defer std.testing.allocator.free(crv.segments);
@@ -1461,6 +1473,7 @@ test "bezier_math: BezierMath: rescaled parameter"
     try opentime.expectOrdinateEqual(10, end_extents[1].out);
 }
 
+// TODO: remove this test
 // test "inverted: invert bezier" 
 // {
 //     var identity_seg = [_]bezier_curve.Bezier.Segment{

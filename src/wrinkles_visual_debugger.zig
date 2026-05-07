@@ -253,10 +253,10 @@ pub fn plot_mapping(
         input_bounds[1] = plot_limits.x[1];
     }
 
-    var inputs: std.ArrayList(f64) = .{};
+    var inputs: std.ArrayList(f64) = .empty;
     try inputs.ensureTotalCapacity(allocator, PLOT_STEPS);
     defer inputs.deinit(allocator);
-    var outputs: std.ArrayList(f64) = .{};
+    var outputs: std.ArrayList(f64) = .empty;
     try outputs.ensureTotalCapacity(allocator, PLOT_STEPS);
     defer outputs.deinit(allocator);
     var len : usize = 0;

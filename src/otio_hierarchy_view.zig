@@ -16,13 +16,13 @@ const ParsedArgs = struct {
 /// parse the commandline arguments and setup the state
 fn _parse_args(
     allocator: std.mem.Allocator,
+    args: std.process.Args,
 ) !ParsedArgs
 {
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+    var arg_iter = args.iterate();
 
     // ignore the app name, always first in args
-    _ = args.skip();
+    _ = arg_iter.skip();
 
     var files_to_view: std.ArrayList([]const u8) = .empty;
     defer files_to_view.deinit(allocator);
@@ -31,7 +31,7 @@ fn _parse_args(
     var show_metadata = false;
 
     // read all the filepaths from the commandline
-    while (args.next())
+    while (arg_iter.next())
         |nextarg|
     {
         const fpath: [:0]const u8 = nextarg;
@@ -102,11 +102,13 @@ pub fn usage(
 /// Supports: .otio, .tla, .tlb, .tlz
 fn read_to_serializable_timeline(
     allocator: std.mem.Allocator,
+    io: std.Io,
     filepath: []const u8,
 ) !otio.serialization.SerializableTimeline
 {
     return try otio.serialization.read_serializable_timeline_from_file(
         allocator,
+        io,
         filepath,
         .all,
     );
@@ -116,11 +118,13 @@ fn read_to_serializable_timeline(
 /// Supports: .tlca, .tlcb
 fn read_to_serializable_collection(
     allocator: std.mem.Allocator,
+    io: std.Io,
     filepath: []const u8,
 ) !otio.serialization.SerializableCollection
 {
     return try otio.serialization.read_serializable_collection_from_file(
         allocator,
+        io,
         filepath,
     );
 }
@@ -147,19 +151,19 @@ fn is_collection_file(
     return std.mem.eql(u8, ext, ".tlca") or std.mem.eql(u8, ext, ".tlcb");
 }
 
-pub fn main() !void {
+pub fn main(
+    init: std.process.Init,
+) !void 
+{
     // use the debug allocator in debug builds, otherwise use smp
-    const allocator = (
-        if (builtin.mode == .Debug) alloc: {
-            var da = std.heap.DebugAllocator(.{}){};
-            break :alloc da.allocator();
-        } else std.heap.smp_allocator
-    );
+    const allocator = init.gpa;
+    const io = init.io;
 
-    const parsed_args = try _parse_args(allocator);
+    const parsed_args = try _parse_args(allocator, init.minimal.args);
     defer allocator.free(parsed_args.files);
 
-    if (parsed_args.files.len == 0) {
+    if (parsed_args.files.len == 0) 
+    {
         usage("Error: No input files specified.");
     }
 
@@ -171,7 +175,7 @@ pub fn main() !void {
     for (parsed_args.files) |filepath| {
         // Check file exists
         var found = true;
-        std.fs.cwd().access(filepath, .{}) catch |e| switch (e) {
+        std.Io.Dir.cwd().access(io, filepath, .{}) catch |e| switch (e) {
             error.FileNotFound => found = false,
             else => return e,
         };
@@ -194,7 +198,7 @@ pub fn main() !void {
             std.debug.print("\n", .{});
 
             // Read and render collection
-            const ser_collection = read_to_serializable_collection(allocator, filepath) catch |err| {
+            const ser_collection = read_to_serializable_collection(allocator, io, filepath) catch |err| {
                 std.log.err(
                     "Failed to read collection file '{s}': {s}",
                     .{ filepath, @errorName(err) }
@@ -213,7 +217,7 @@ pub fn main() !void {
 
             if (parsed_args.show_metadata) {
                 // Read as SerializableTimeline to access metadata
-                const ser_timeline = read_to_serializable_timeline(allocator, filepath) catch |err| {
+                const ser_timeline = read_to_serializable_timeline(allocator, io, filepath) catch |err| {
                     std.log.err(
                         "Failed to read file '{s}': {s}",
                         .{ filepath, @errorName(err) }
@@ -226,6 +230,7 @@ pub fn main() !void {
                 // Read the file without metadata for faster reads
                 var tl_ref = otio.read_from_file(
                     allocator,
+                    io,
                     filepath,
                     .{ .content_filter = .all_except_metadata },
                 ) catch |err| {
