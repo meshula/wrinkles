@@ -526,23 +526,28 @@ fn cpp_binary(
     run_desc: []const u8,
 ) *std.Build.Step.Compile
 {
-    const exe_cpp = b.addTranslateC(
+    const exe_cpp = b.createModule(
         .{
             .optimize = options.optimize,
             .target = options.target,
             .link_libc = true,
-            .root_source_file = b.path(cpp_file_path),
+            .link_libcpp = true,
         },
     );
-    exe_cpp.linkSystemLibrary("c", .{});
-    exe_cpp.defineCMacroRaw("std=c++17");
+    exe_cpp.addCSourceFile(
+        .{
+            .file = b.path(cpp_file_path),
+            .language = .cpp,
+            .flags = &.{"--std=c++17"},
+        }
+    );
     exe_cpp.addIncludePath(b.path("src/language_bindings/cpp/include"));
     exe_cpp.addIncludePath(b.path("src/language_bindings/c"));
 
     const exe = b.addExecutable(
         .{
             .name = name,
-            .root_module = exe_cpp.createModule(),
+            .root_module = exe_cpp,
         },
     );
 
@@ -579,45 +584,38 @@ fn cpp_bindings_and_examples(
     test_output: bool,
 ) !void
 {
-    const opentimelineio_cpp_translate_c = b.addTranslateC(
-        .{
-            .target = options.target,
-            .optimize = options.optimize,
-            .root_source_file = b.path(
-                "src/language_bindings/cpp/src/opentimelineio.cpp"
-            ),
-            .link_libc = true,
-        },
-    );
-    
-    opentimelineio_cpp_translate_c.addIncludePath(b.path("src/language_bindings/cpp/include"));
-    opentimelineio_cpp_translate_c.addIncludePath(b.path("src/language_bindings/c"));
-
-    const otio_cpp_mod = opentimelineio_cpp_translate_c.createModule();
-    otio_cpp_mod.link_libcpp = true;
-
     // C++ binding library
     const opentimelineio_cpp = b.addLibrary(
         .{
             .name = "opentimelineio_cpp",
             .linkage = .static,
-            // .root_module = opentimelineio_cpp_translate_c.createModule(),
-            .root_module = opentimelineio_cpp_translate_c.createModule(),
-
+            .root_module = b.createModule(
+                .{
+                    .target = options.target,
+                    .optimize = options.optimize,
+                    .link_libcpp = true,
+                },
+            ),
         },
     );
 
-    // opentimelineio_cpp.addCSourceFile(
-    //     .{
-    //         .file = b.path(
-    //             "src/language_bindings/cpp/src/opentimelineio.cpp"
-    //         ),
-    //         .flags = &.{"-std=c++17"},
-    //     },
-    // );
+    opentimelineio_cpp.root_module.addCSourceFile(
+        .{
+            .file = b.path(
+                "src/language_bindings/cpp/src/opentimelineio.cpp"
+            ),
+            .flags = &.{"-std=c++17"},
+            .language = .cpp,
+        },
+    );
+    opentimelineio_cpp.root_module.addIncludePath(
+        b.path("src/language_bindings/cpp/include"),
+    );
+    opentimelineio_cpp.root_module.addIncludePath(
+        b.path("src/language_bindings/c"),
+    );
 
     opentimelineio_cpp.root_module.linkLibrary(opentimelineio_c_static);
-    opentimelineio_cpp.root_module.link_libcpp = true;
 
     b.installArtifact(opentimelineio_cpp);
 
@@ -1444,17 +1442,15 @@ pub fn build(
             );
 
         //
-        // C++ binding library and examples
-        // @TODO: translate-c does not support C++ translation.
-        // These need to be rewritten to use addCSourceFile instead.
+        // C++ binding library and examples (not relevant for wasm builds)
         //
-        // if (options.target.result.cpu.arch.isWasm() == false)
-        // {
-        //     try cpp_bindings_and_examples(
-        //         b,
-        //         options,
-        //         opentimelineio_c_static,
-        //         test_output,
-        //     );
-        // }
+        if (options.target.result.cpu.arch.isWasm() == false)
+        {
+            try cpp_bindings_and_examples(
+                b,
+                options,
+                opentimelineio_c_static,
+                test_output,
+            );
+        }
     }
