@@ -1,8 +1,10 @@
+settings.local.json
 .DS_Store
 .vscode/
 .zig-cache/
 zig-cache/
 zig-out/
+*.bak
 *.out
 *.o
 imgui.ini
