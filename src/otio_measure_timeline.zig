@@ -22,6 +22,8 @@ fn _parse_args(
     var files_to_measure: std.ArrayList([]const u8) = .empty;
     defer files_to_measure.deinit(allocator);
 
+    var discrete_fps: ?u8 = null;
+
     // read all the filepaths from the commandline
     while (arg_iter.next()) 
         |nextarg| 
@@ -30,9 +32,33 @@ fn _parse_args(
         const fpath: [:0]const u8 = nextarg;
 
         if (
+            string.eql_latin_s8(fpath, "--discrete-fps")
+            or (string.eql_latin_s8(fpath, "-d"))
+        ) 
+        {
+            if (arg_iter.next())
+                |fps|
+            {
+                discrete_fps = (
+                    std.fmt.parseInt(u8, fps, 10) 
+                    catch c: {
+                        usage("Error: --discrete-fps -d expected a u8.");
+                        break :c null;
+                    }
+                );
+                continue;
+            }
+            else
+            {
+                usage("Error: --discrete-fps -d requires a number argument");
+            }
+        }
+
+        if (
             string.eql_latin_s8(fpath, "--help")
             or (string.eql_latin_s8(fpath, "-h"))
-        ) {
+        ) 
+        {
             usage("");
         }
         
@@ -49,12 +75,13 @@ pub fn usage(
 {
     std.debug.print(
         \\
-        \\Render a graph of the temporal spaces in an OpenTimelineIO file.
+        \\From the output timeline, measure the temporal footprint of all of the elements in the timeline.  Optionally add a discretization.
         \\
         \\usage:
-        \\  otio_measure_graph path/to/somefile.otio path/to/output.png
+        \\  otio_measure_graph path/to/somefile.otio path/to/output.png [arguments]
         \\
         \\arguments:
+        \\  -d --discrete-fps add an output space discretization to an fps
         \\  -h --help: print this message and exit
         \\
         \\{s}
