@@ -2437,7 +2437,12 @@ pub fn main(
         );
         defer if (IS_WASM == false) read_prog.end();
 
-        STATE.target_otio_file = (try _parse_args(STATE.allocator, juicy_init.minimal.args)).input_otio;
+        STATE.target_otio_file = (
+            try _parse_args(
+                STATE.allocator,
+                juicy_init.minimal.args
+            )
+        ).input_otio;
         var found = true;
 
         std.debug.print("attempting fetch\n", .{});
