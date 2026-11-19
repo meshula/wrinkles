@@ -4618,82 +4618,66 @@ test "roundtrip: production_test_files (optional)"
 // Bridge functions to Adapter API
 ///////////////////////////////////////////////////////////////////////////////
 
-/// Bridge function for reading binary collection (TLCB) format from a reader.
-/// Conforms to adapter.fn_read_collection_from_reader signature.
-pub fn read_binary_collection_from_reader(
-    allocator: std.mem.Allocator,
-    reader: *std.Io.Reader,
-    metadata_mode: format_m.ReadOptions.ContentFilter,
-) anyerror!serializable.SerializableCollection
-{
-    _ = metadata_mode; // Binary format doesn't support metadata filtering
+// ----------------------------------------------------------------------------
+// Codec interface (see adapter.zig)
+// ----------------------------------------------------------------------------
 
-    const buffer = try reader.allocRemaining(
-        allocator,
-        .unlimited,
-    );
-    defer allocator.free(buffer);
+/// TLB: timeline root in FlatBuffers.
+pub const TimelineCodec = struct {
+    pub fn read(
+        allocator: Allocator,
+        reader: *std.Io.Reader,
+        options: format_m.ReadOptions,
+    ) !serializable.SerializableTimeline
+    {
+        const buffer = try reader.allocRemaining(allocator, .unlimited);
+        defer allocator.free(buffer);
 
-    return try deserialize_collection(
-        allocator,
-        buffer,
-    );
-}
+        return try deserialize_to_serializable_timeline(
+            allocator,
+            buffer,
+            options.content_filter,
+        );
+    }
 
-/// Bridge function for writing binary collection (TLCB) format to a writer.
-/// Conforms to adapter.fn_write_collection_to_writer signature.
-pub fn write_binary_collection_to_writer(
-    allocator: std.mem.Allocator,
-    collection: serializable.SerializableCollection,
-    writer: *std.Io.Writer,
-    metadata_mode: format_m.WriteOptions.MetadataMode,
-) anyerror!void
-{
-    _ = metadata_mode; // Binary format always includes all metadata
+    pub fn write(
+        allocator: Allocator,
+        data: serializable.SerializableTimeline,
+        writer: *std.Io.Writer,
+        options: format_m.WriteOptions,
+    ) !void
+    {
+        // TLB always stores metadata by hash reference.
+        _ = options;
+        try serialize_from_serializable_timeline(data, allocator, writer);
+    }
+};
 
-    return serialize_collection(
-        collection,
-        allocator,
-        writer,
-    );
-}
+/// TLCB: collection root in FlatBuffers.
+pub const CollectionCodec = struct {
+    pub fn read(
+        allocator: Allocator,
+        reader: *std.Io.Reader,
+        options: format_m.ReadOptions,
+    ) !serializable.SerializableCollection
+    {
+        // all_except_metadata is applied by the adapter after decoding.
+        _ = options;
+        const buffer = try reader.allocRemaining(allocator, .unlimited);
+        defer allocator.free(buffer);
 
-/// Bridge function for writing binary (TLB) format to a writer.
-/// Conforms to adapter.fn_write_timeline_to_writer signature.
-pub fn write_binary_serializable_to_writer(
-    allocator: std.mem.Allocator,
-    intermediate_tl: serializable.SerializableTimeline,
-    writer: *std.Io.Writer,
-    metadata_mode: format_m.WriteOptions.MetadataMode,
-) anyerror!void
-{
-    _ = metadata_mode; // Binary format always includes all metadata
+        return try deserialize_collection(allocator, buffer);
+    }
 
-    return serialize_from_serializable_timeline(
-        intermediate_tl,
-        allocator,
-        writer,
-    );
-}
-
-/// Bridge function for reading binary (TLB) format from a reader.
-/// Conforms to adapter.fn_read_timeline_from_reader signature.
-pub fn read_binary_timeline_from_reader(
-    allocator: std.mem.Allocator,
-    reader: *std.Io.Reader,
-    metadata_mode: format_m.ReadOptions.ContentFilter,
-) anyerror!serializable.SerializableTimeline
-{
-    const buffer = try reader.allocRemaining(
-        allocator,
-        .unlimited,
-    );
-    defer allocator.free(buffer);
-
-    return try deserialize_to_serializable_timeline(
-        allocator,
-        buffer,
-        metadata_mode,
-    );
-}
-
+    pub fn write(
+        allocator: Allocator,
+        data: serializable.SerializableCollection,
+        writer: *std.Io.Writer,
+        options: format_m.WriteOptions,
+    ) !void
+    {
+        // TLCB always stores metadata by hash reference.
+        _ = options;
+        try serialize_collection(data, allocator, writer);
+    }
+};

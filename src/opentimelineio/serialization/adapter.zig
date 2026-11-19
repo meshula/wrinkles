@@ -77,16 +77,24 @@ const versioning = @import("versioning.zig");
 const test_output = @import("test_output");
 
 // ============================================================================
-// Public Types
+// Format descriptors
 // ============================================================================
 
-/// Describes the capabilities and properties of a file format.
-/// Used as comptime struct fields to enable efficient format dispatch.
+pub const FileFormat = format_m.FileFormat;
+pub const ReadOptions = format_m.ReadOptions;
+pub const WriteOptions = format_m.WriteOptions;
+
+// Alias for backward compatibility with existing code
+pub const CompositionItemHandle = references.CompositionItemHandle;
+
+/// Static properties of a file format.  Read/write support comes from the
+/// format's codec (see `codec_for`); `comptime` checks below keep these
+/// flags consistent with what the codecs actually declare.
 pub const FormatDescriptor = struct {
     /// Human-readable description of the format
     description: []const u8,
 
-    /// True if this format represents a collection (multiple items)
+    /// True if this format stores a collection root
     is_collection: bool,
 
     /// True if this format is a bundle (ZIP archive with media)
@@ -95,14 +103,9 @@ pub const FormatDescriptor = struct {
     /// True if this format only supports reading (not writing)
     is_read_only: bool,
 
-    /// The base format for bundles (e.g., .tlz uses .tla internally)
+    /// The format of the content inside a bundle (e.g., .tlz uses .tla)
     bundle_content_format: ?FileFormat,
-
-    /// The format adapter providing read/write functions
-    adapter: SerializableFormat,
 };
-
-pub const FileFormat = format_m.FileFormat;
 
 /// Comptime format descriptors for each format
 const descriptors = struct {
@@ -115,7 +118,6 @@ const descriptors = struct {
         .is_bundle = false,
         .is_read_only = false,
         .bundle_content_format = null,
-        .adapter = TLA_Adapter,
     };
 
     pub const tlb: FormatDescriptor = .{
@@ -127,7 +129,6 @@ const descriptors = struct {
         .is_bundle = false,
         .is_read_only = false,
         .bundle_content_format = null,
-        .adapter = TLB_Adapter,
     };
 
     pub const tlz: FormatDescriptor = .{
@@ -139,7 +140,6 @@ const descriptors = struct {
         .is_bundle = true,
         .is_read_only = false,
         .bundle_content_format = .tla,
-        .adapter = TLA_Adapter,
     };
 
     pub const tlca: FormatDescriptor = .{
@@ -148,7 +148,6 @@ const descriptors = struct {
         .is_bundle = false,
         .is_read_only = false,
         .bundle_content_format = null,
-        .adapter = TLA_Adapter,
     };
 
     pub const tlcb: FormatDescriptor = .{
@@ -157,7 +156,6 @@ const descriptors = struct {
         .is_bundle = false,
         .is_read_only = false,
         .bundle_content_format = null,
-        .adapter = TLB_Adapter,
     };
 
     pub const tlcz: FormatDescriptor = .{
@@ -169,7 +167,6 @@ const descriptors = struct {
         .is_bundle = true,
         .is_read_only = false,
         .bundle_content_format = .tlca,
-        .adapter = TLA_Adapter,
     };
 
     pub const otio: FormatDescriptor = .{
@@ -178,7 +175,6 @@ const descriptors = struct {
         .is_bundle = false,
         .is_read_only = true,
         .bundle_content_format = null,
-        .adapter = OTIO_Adapter,
     };
 };
 
@@ -192,8 +188,11 @@ pub fn descriptor(
     };
 }
 
-/// Union of serializable root types (timeline or collection). Used by the
-/// serializable submodule for preserving intermediate representations.
+// ============================================================================
+// Serializable root
+// ============================================================================
+
+/// Union of serializable root types (timeline or collection).
 pub const SerializableRoot = union(enum) {
     timeline: serializable_types.SerializableTimeline,
     collection: serializable_types.SerializableCollection,
@@ -224,6 +223,30 @@ pub const SerializableRoot = union(enum) {
         return self == .collection;
     }
 
+    /// Convert a schema handle (timeline or collection) to a serializable
+    /// root.  Allocates memory; caller owns the result.
+    pub fn from_schema_handle(
+        allocator: std.mem.Allocator,
+        handle: CompositionItemHandle,
+    ) !SerializableRoot
+    {
+        return switch (handle) {
+            .timeline => |t| .{
+                .timeline = try serializable_types.SerializableTimeline.from(
+                    allocator,
+                    t,
+                ),
+            },
+            .collection => |c| .{
+                .collection = try serializable_types.collection_to_serializable(
+                    allocator,
+                    c,
+                ),
+            },
+            else => error.ExpectedTimelineOrCollection,
+        };
+    }
+
     /// Convert to CompositionItemHandle (schema type).
     /// Allocates memory; caller owns the result.
     pub fn to_schema_handle(
@@ -233,7 +256,10 @@ pub const SerializableRoot = union(enum) {
     {
         return switch (self) {
             .timeline => |t| .{
-                .timeline = try serializable_types.serializable_to_timeline(allocator, t),
+                .timeline = try serializable_types.serializable_to_timeline(
+                    allocator,
+                    t,
+                ),
             },
             .collection => |c| .{
                 .collection = try serializable_types.serializable_to_collection(
@@ -243,193 +269,389 @@ pub const SerializableRoot = union(enum) {
             },
         };
     }
+
+    /// Apply the read-side content filter and bring the root up to the
+    /// current schema version.  Every read path calls this.
+    fn finalize(
+        self: *@This(),
+        allocator: std.mem.Allocator,
+        options: ReadOptions,
+    ) !void
+    {
+        switch (self.*) {
+            .timeline => |*t| {
+                if (options.content_filter == .all_except_metadata)
+                {
+                    t.drop_metadata(allocator);
+                }
+                try serializable_types.finalize_timeline(allocator, t);
+            },
+            .collection => |*c| {
+                if (options.content_filter == .all_except_metadata)
+                {
+                    c.drop_metadata(allocator);
+                }
+                try serializable_types.finalize_collection(allocator, c);
+            },
+        }
+    }
 };
 
-pub const ReadOptions = format_m.ReadOptions;
-pub const WriteOptions = format_m.WriteOptions;
+// ============================================================================
+// Codec dispatch
+// ============================================================================
+//
+// Each codec module (ascii.zig, binary.zig, legacy_json.zig) exposes an
+// optional `TimelineCodec` and/or `CollectionCodec` namespace, each with an
+// optional `read` and `write`:
+//
+//     pub fn read(allocator, *std.Io.Reader, ReadOptions) !SerializableT
+//     pub fn write(allocator, SerializableT, *std.Io.Writer, WriteOptions) !void
+//
+// A format is read-only if its codec has no `write`; it has no collection
+// root if there is no `CollectionCodec`.  Bundles (.tlz/.tlcz) have no codec:
+// they are containers handled by the file-level functions.
 
-// Alias for backward compatibility with existing code
-pub const CompositionItemHandle = references.CompositionItemHandle;
+/// The codec module for a non-bundle format, or null for bundles.
+fn codec_for(
+    comptime format: FileFormat,
+) ?type
+{
+    return switch (format) {
+        .tla, .tlca => ascii,
+        .tlb, .tlcb => binary,
+        .otio => legacy_json,
+        .tlz, .tlcz => null,
+    };
+}
 
-// Interface function prototypes
-///////////////////////////////////////////////////////////////////////////////
+/// The codec namespace for the root type stored by `format`, or null if the
+/// format is a bundle or its codec does not support that root type.
+fn codec_namespace(
+    comptime format: FileFormat,
+) ?type
+{
+    const Codec = codec_for(format) orelse return null;
+    const name = if (descriptor(format).is_collection) "CollectionCodec" else "TimelineCodec";
+    return if (@hasDecl(Codec, name)) @field(Codec, name) else null;
+}
 
-// Timeline Root
+fn has_read(
+    comptime format: FileFormat,
+) bool
+{
+    const ns = codec_namespace(format) orelse return false;
+    return @hasDecl(ns, "read");
+}
 
-const fn_write_timeline_to_writer = fn (
-    allocator: std.mem.Allocator,
-    ser_timeline: serializable_types.SerializableTimeline,
-    writer: *std.Io.Writer,
-    metadata_mode: WriteOptions.MetadataMode,
-) anyerror!void;
+fn has_write(
+    comptime format: FileFormat,
+) bool
+{
+    const ns = codec_namespace(format) orelse return false;
+    return @hasDecl(ns, "write");
+}
 
-const fn_read_timeline_from_reader = fn (
+/// Check that a codec function has the expected parameter types and returns
+/// an error union of `Payload`.
+fn validate_codec_fn(
+    comptime label: []const u8,
+    comptime func: anytype,
+    comptime params: []const type,
+    comptime Payload: type,
+) void
+{
+    const info = @typeInfo(@TypeOf(func)).@"fn";
+    if (info.param_types.len != params.len)
+    {
+        @compileError(label ++ ": wrong number of parameters");
+    }
+    for (info.param_types, params, 0..)
+        |param_type, expected, i|
+    {
+        if (param_type != expected)
+        {
+            @compileError(std.fmt.comptimePrint(
+                "{s}: parameter {d} must be {s}",
+                .{ label, i, @typeName(expected) },
+            ));
+        }
+    }
+    const ret = @typeInfo(info.return_type.?);
+    if (ret != .error_union or ret.error_union.payload != Payload)
+    {
+        @compileError(label ++ ": must return !" ++ @typeName(Payload));
+    }
+}
+
+comptime {
+    for (std.enums.values(FileFormat))
+        |fmt|
+    {
+        const desc = descriptor(fmt);
+        const tag = @tagName(fmt);
+
+        if (desc.is_bundle)
+        {
+            if (codec_for(fmt) != null)
+            {
+                @compileError(tag ++ ": bundles must not have a codec");
+            }
+            continue;
+        }
+
+        const ns = codec_namespace(fmt) orelse @compileError(
+            tag ++ ": codec has no namespace for its root type"
+        );
+        const Data = if (desc.is_collection)
+            serializable_types.SerializableCollection
+        else
+            serializable_types.SerializableTimeline;
+
+        if (!@hasDecl(ns, "read"))
+        {
+            @compileError(tag ++ ": codec must support reading");
+        }
+        validate_codec_fn(
+            tag ++ ".read",
+            ns.read,
+            &.{ std.mem.Allocator, *std.Io.Reader, ReadOptions },
+            Data,
+        );
+
+        if (@hasDecl(ns, "write"))
+        {
+            validate_codec_fn(
+                tag ++ ".write",
+                ns.write,
+                &.{ std.mem.Allocator, Data, *std.Io.Writer, WriteOptions },
+                void,
+            );
+        }
+
+        if (desc.is_read_only == @hasDecl(ns, "write"))
+        {
+            @compileError(
+                tag ++ ": is_read_only disagrees with the codec's `write`"
+            );
+        }
+    }
+}
+
+/// Read a serializable root in `format` from `reader`.  The result owns all
+/// of its memory and is at the current schema version.
+pub fn read_root(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
-    metadata_mode: ReadOptions.ContentFilter,
-) anyerror!serializable_types.SerializableTimeline;
+    format: FileFormat,
+    options: ReadOptions,
+) !SerializableRoot
+{
+    switch (format) {
+        inline else => |fmt| {
+            if (comptime descriptor(fmt).is_bundle)
+            {
+                return error.BundleRequiresFileAccess;
+            }
+            else
+            {
+                const ns = comptime codec_namespace(fmt).?;
+                var root: SerializableRoot = if (comptime descriptor(fmt).is_collection)
+                    .{ .collection = try ns.read(allocator, reader, options) }
+                else
+                    .{ .timeline = try ns.read(allocator, reader, options) };
+                errdefer root.deinit(allocator);
 
-// Collection
+                try root.finalize(allocator, options);
+                return root;
+            }
+        },
+    }
+}
 
-const fn_write_collection_to_writer = fn (
+/// Write a serializable root to `writer` in `format`.
+pub fn write_root(
     allocator: std.mem.Allocator,
-    collection: serializable_types.SerializableCollection,
+    root: SerializableRoot,
     writer: *std.Io.Writer,
-    metadata_mode: WriteOptions.MetadataMode,
-) anyerror!void;
+    format: FileFormat,
+    options: WriteOptions,
+) !void
+{
+    switch (format) {
+        inline else => |fmt| {
+            const desc = comptime descriptor(fmt);
+            if (comptime desc.is_bundle)
+            {
+                return error.BundleRequiresFileAccess;
+            }
+            else if (comptime !has_write(fmt))
+            {
+                return error.FormatIsReadOnly;
+            }
+            else
+            {
+                const ns = comptime codec_namespace(fmt).?;
+                if (comptime desc.is_collection)
+                {
+                    switch (root) {
+                        .collection => |c| try ns.write(allocator, c, writer, options),
+                        .timeline => return error.NotATimelineFormat,
+                    }
+                }
+                else
+                {
+                    switch (root) {
+                        .timeline => |t| try ns.write(allocator, t, writer, options),
+                        .collection => return error.NotACollectionFormat,
+                    }
+                }
+            }
+        },
+    }
+}
 
-const fn_read_collection_from_reader = fn (
+fn bundle_write_options(
+    options: WriteOptions,
+) bundle.WriteOptions
+{
+    const bundle_opts = (
+        options.bundle_options orelse WriteOptions.BundleOptions{}
+    );
+    return .{
+        .bundle_format = switch (bundle_opts.content_format) {
+            .tla => .tla,
+            .tlb => .tlb,
+        },
+        .media_policy = switch (bundle_opts.media_policy) {
+            .ErrorIfNotFile => .ErrorIfNotFile,
+            .MissingIfNotFile => .MissingIfNotFile,
+            .AllMissing => .AllMissing,
+        },
+        .media_base_dir = bundle_opts.media_base_dir,
+    };
+}
+
+/// Read a serializable root from the file at `file_path` in `format`.
+pub fn read_root_from_file(
     allocator: std.mem.Allocator,
-    reader: *std.Io.Reader,
-    metadata_mode: ReadOptions.ContentFilter,
-) anyerror!serializable_types.SerializableCollection;
+    io: std.Io,
+    file_path: []const u8,
+    format: FileFormat,
+    options: ReadOptions,
+) !SerializableRoot
+{
+    const desc = descriptor(format);
 
-// ----------------------------------------------------------------------------
-// Format Definitions
-// ----------------------------------------------------------------------------
-
-/// Bundles up interface functions to a given file format
-const SerializableFormat = struct {
-    description: []const u8,
-
-    // Timeline functions
-    _write_timeline_to_writer: ?*const fn_write_timeline_to_writer = null,
-    _read_timeline_from_reader: ?*const fn_read_timeline_from_reader = null,
-
-    // Collection functions
-    _write_collection_to_writer: ?*const fn_write_collection_to_writer = null,
-    _read_collection_from_reader: ?*const fn_read_collection_from_reader = null,
-
-    pub fn write_timeline_to_writer(
-        self: *const SerializableFormat,
-        allocator: std.mem.Allocator,
-        ser_timeline: serializable_types.SerializableTimeline,
-        writer: *std.Io.Writer,
-        metadata_mode: WriteOptions.MetadataMode,
-    ) anyerror ! void
+    if (desc.is_bundle)
     {
-        if (self._write_timeline_to_writer)
-            |fn_writer|
-        {
-            return fn_writer(
-                allocator,
-                ser_timeline,
-                writer,
-                metadata_mode,
-            );
-        }
+        // TODO(serialization stage 4): bundles should read their content
+        // through read_root and honor ReadOptions.extract_to_directory.
+        var root: SerializableRoot = if (desc.is_collection)
+            .{
+                .collection = try bundle.read_collection_from_file(
+                    allocator,
+                    io,
+                    file_path,
+                    .{},
+                ),
+            }
+        else
+            .{
+                .timeline = try bundle.read_from_file(
+                    allocator,
+                    io,
+                    file_path,
+                    .{},
+                ),
+            };
+        errdefer root.deinit(allocator);
 
-        return error.UnsupportedByFormat;
+        try root.finalize(allocator, options);
+        return root;
     }
 
-    pub fn read_timeline_from_reader(
-        self: *const SerializableFormat,
-        allocator: std.mem.Allocator,
-        reader: *std.Io.Reader,
-        metadata_mode: ReadOptions.ContentFilter,
-    ) anyerror ! serializable_types.SerializableTimeline
-    {
-        if (self._read_timeline_from_reader)
-            |fn_reader|
-        {
-            return fn_reader(
-                allocator,
-                reader,
-                metadata_mode,
-            );
-        }
+    const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
+    defer file.close(io);
 
-        return error.UnsupportedByFormat;
+    var read_buffer: [16 * 1024]u8 = undefined;
+    var file_reader = file.reader(io, &read_buffer);
+
+    return try read_root(
+        allocator,
+        &file_reader.interface,
+        format,
+        options,
+    );
+}
+
+/// Write a serializable root to the file at `file_path` in `format`.
+/// Unsupported formats are rejected before the file is created.
+pub fn write_root_to_file(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    root: SerializableRoot,
+    file_path: []const u8,
+    format: FileFormat,
+    options: WriteOptions,
+) !void
+{
+    const desc = descriptor(format);
+
+    if (desc.is_read_only)
+    {
+        return error.FormatIsReadOnly;
+    }
+    if (desc.is_collection and root != .collection)
+    {
+        return error.NotATimelineFormat;
+    }
+    if (!desc.is_collection and root != .timeline)
+    {
+        return error.NotACollectionFormat;
     }
 
-    pub fn write_collection_to_writer(
-        self: *const SerializableFormat,
-        allocator: std.mem.Allocator,
-        ser_collection: serializable_types.SerializableCollection,
-        writer: *std.Io.Writer,
-        metadata_mode: WriteOptions.MetadataMode,
-    ) anyerror ! void
+    if (desc.is_bundle)
     {
-        if (self._write_collection_to_writer)
-            |fn_writer|
-        {
-            return fn_writer(
+        // TODO(serialization stage 4): bundles should encode their content
+        // through write_root.
+        const bundle_opts = bundle_write_options(options);
+        switch (root) {
+            .timeline => |t| try bundle.write_to_file(
                 allocator,
-                ser_collection,
-                writer,
-                metadata_mode,
-            );
+                io,
+                t,
+                file_path,
+                bundle_opts,
+            ),
+            .collection => |c| try bundle.write_collection_to_file(
+                allocator,
+                io,
+                c,
+                file_path,
+                bundle_opts,
+            ),
         }
-
-        return error.UnsupportedByFormat;
+        return;
     }
 
-    pub fn read_collection_from_reader(
-        self: *const SerializableFormat,
-        allocator: std.mem.Allocator,
-        reader: *std.Io.Reader,
-        metadata_mode: ReadOptions.ContentFilter,
-    ) anyerror ! serializable_types.SerializableCollection
-    {
-        if (self._read_collection_from_reader)
-            |fn_reader|
-        {
-            return fn_reader(
-                allocator,
-                reader,
-                metadata_mode,
-            );
-        }
+    const file = try std.Io.Dir.cwd().createFile(io, file_path, .{});
+    defer file.close(io);
 
-        return error.UnsupportedByFormat;
-    }
-};
+    var write_buffer: [16 * 1024]u8 = undefined;
+    var file_writer = file.writer(io, &write_buffer);
+    const writer = &file_writer.interface;
 
-/// Format adapter for Timeline ASCII (.tla) format.
-/// Human-readable ziggy syntax for timeline serialization.
-pub const TLA_Adapter: SerializableFormat = .{
-    .description = "Native ascii format with a timeline root",
+    try write_root(allocator, root, writer, format, options);
+    try writer.flush();
+}
 
-    ._write_timeline_to_writer = ascii.write_ascii_serializable_to_writer,
-    ._read_timeline_from_reader = ascii.read_timeline_from_reader,
+// ============================================================================
+// Serializable-level helpers (TODO(serialization stage 5): fold into the
+// `serializable` namespace and remove)
+// ============================================================================
 
-    ._write_collection_to_writer = ascii.write_ascii_collection_to_writer,
-    ._read_collection_from_reader = ascii.read_ascii_collection_from_reader,
-};
-
-/// Format adapter for Timeline Binary (.tlb) format.
-/// FlatBuffers-based binary format for efficient timeline serialization.
-pub const TLB_Adapter: SerializableFormat = .{
-    .description = "Native binary format (FlatBuffers) with a timeline root",
-
-    ._write_timeline_to_writer = binary.write_binary_serializable_to_writer,
-    ._read_timeline_from_reader = binary.read_binary_timeline_from_reader,
-
-    ._write_collection_to_writer = binary.write_binary_collection_to_writer,
-    ._read_collection_from_reader = binary.read_binary_collection_from_reader,
-};
-
-/// Format adapter for Legacy OpenTimelineIO v1 JSON (.otio) format.
-/// Read-only adapter for importing OTIO v1 files.
-pub const OTIO_Adapter: SerializableFormat = .{
-    .description = "Legacy OpenTimelineIO v1 JSON format (read-only)",
-
-    ._write_timeline_to_writer = null, // OTIO is read-only
-    ._read_timeline_from_reader = legacy_json.read_otio_timeline_from_reader,
-
-    ._write_collection_to_writer = null, // OTIO is read-only
-    ._read_collection_from_reader = null, // OTIO doesn't have collections
-};
-
-// Write Timeline
-///////////////////////////////////////////////////////////////////////////////
-
-/// Write a SerializableTimeline to any supported file format.
-/// Supports: .tla, .tlb (FlatBuffers), .tlz (bundle), based on the file
-/// extension.
-///
-/// Use this function when you have a SerializableTimeline and want to
-/// preserve all fields including metadata_hash and metadata_map.
+/// Write a SerializableTimeline to a file; format from the extension.
 pub fn write_serializable_timeline_to_file(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -438,163 +660,84 @@ pub fn write_serializable_timeline_to_file(
     metadata_mode: WriteOptions.MetadataMode,
 ) !void
 {
-    const format = try FileFormat.from_path(file_path);
-    const desc = descriptor(format);
-
-    // Validate before touching the filesystem so unsupported formats don't
-    // leave an empty file behind.
-    if (desc.is_read_only)
-    {
-        return error.FormatIsReadOnly;
-    }
-    if (desc.is_collection)
-    {
-        return error.NotATimelineFormat;
-    }
-
-    // Handle .tlz separately since it manages its own file writing
-    if (format == .tlz)
-    {
-        return try bundle.write_to_file(
-            allocator,
-            io,
-            intermediate_tl,
-            file_path,
-            .{},
-        );
-    }
-
-    // For other formats, open file and write
-    const file = try std.Io.Dir.cwd().createFile(
-        io,
-        file_path,
-        .{},
-    );
-    defer file.close(io);
-
-    var file_writer_buffer: [16 * 1024]u8 = undefined;
-    var file_writer = file.writer(io, &file_writer_buffer);
-    const writer = &file_writer.interface;
-
-    try write_serializable_to_writer(
+    try write_root_to_file(
         allocator,
-        intermediate_tl,
-        format,
-        metadata_mode,
-        writer,
+        io,
+        .{ .timeline = intermediate_tl },
+        file_path,
+        try FileFormat.from_path(file_path),
+        .{
+            .metadata_mode = metadata_mode,
+            // Preserves this function's previous bundle default.
+            // TODO(serialization stage 4): settle on one default policy.
+            .bundle_options = .{ .media_policy = .ErrorIfNotFile },
+        },
     );
-
-    try writer.flush();
 }
 
 /// Write a SerializableTimeline to a writer in the specified format.
-///
-/// Use this function when you have a SerializableTimeline and want to
-/// preserve all fields including metadata_hash and metadata_map.
 pub fn write_serializable_to_writer(
     allocator: std.mem.Allocator,
     intermediate_tl: serializable_types.SerializableTimeline,
     format: FileFormat,
-    options: WriteOptions.MetadataMode,
+    metadata_mode: WriteOptions.MetadataMode,
     writer: *std.Io.Writer,
 ) !void
 {
-    const desc = descriptor(format);
-
-    if (desc.is_read_only) 
-    {
-        return error.FormatIsReadOnly;
-    }
-
-    if (desc.adapter._write_timeline_to_writer)
-        |write_fn|
-    {
-        return write_fn(
-            allocator,
-            intermediate_tl,
-            writer,
-            options,
-        );
-    }
-    else
-    {
-        return error.AdapterDoesNotSupportSerializationToWriter;
-    }
-}
-
-/// Write a Timeline to any supported file format.
-/// Supports: .tla (ascii), .tlb (binary), .tlz (bundle)
-/// The file format is determined by the file extension.
-pub fn write_timeline_to_file(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    timeline: *schema.Timeline,
-    file_path: []const u8,
-    metadata_mode: WriteOptions.MetadataMode,
-) !void
-{
-    var ser_timeline = try serializable_types.SerializableTimeline.from(
+    try write_root(
         allocator,
-        timeline,
-    );
-    defer ser_timeline.deinit(allocator);
-
-    try write_serializable_timeline_to_file(
-        allocator,
-        io,
-        ser_timeline,
-        file_path,
-        metadata_mode,
+        .{ .timeline = intermediate_tl },
+        writer,
+        format,
+        .{ .metadata_mode = metadata_mode },
     );
 }
 
-// Read Timeline
-///////////////////////////////////////////////////////////////////////////////
-
+/// Read a SerializableTimeline from a reader in the specified format.
 pub fn read_serializable_timeline_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
     format: FileFormat,
-    metadata_mode: ReadOptions.ContentFilter,
+    content_filter: ReadOptions.ContentFilter,
 ) !serializable_types.SerializableTimeline
 {
-    const desc = descriptor(format);
-
-    if (desc.is_collection) 
+    if (descriptor(format).is_collection)
     {
         return error.NotATimelineFormat;
     }
-
-    return try desc.adapter.read_timeline_from_reader(
+    const root = try read_root(
         allocator,
         reader,
-        metadata_mode,
+        format,
+        .{ .content_filter = content_filter },
     );
+    return root.timeline;
 }
 
+/// Read a SerializableTimeline from a file; format from the extension.
 pub fn read_serializable_timeline_from_file(
     allocator: std.mem.Allocator,
     io: std.Io,
     file_path: []const u8,
-    metadata_mode: ReadOptions.ContentFilter,
+    content_filter: ReadOptions.ContentFilter,
 ) !serializable_types.SerializableTimeline
 {
-    _ = metadata_mode;
-
     const format = try FileFormat.from_path(file_path);
-
-    // Handle .tlz separately since it manages its own file reading
-    if (format == .tlz)
+    if (descriptor(format).is_collection)
     {
-        return try bundle.read_from_file(allocator, io, file_path, .{});
+        return error.NotATimelineFormat;
     }
-
-    // For other formats, use the ascii.read_from_file which handles
-    // file reading and format dispatch correctly
-    return try ascii.read_from_file(allocator, io, file_path);
+    const root = try read_root_from_file(
+        allocator,
+        io,
+        file_path,
+        format,
+        .{ .content_filter = content_filter },
+    );
+    return root.timeline;
 }
 
-/// Read a serializable collection from a file (TLCA, TLCB, or TLCZ format).
+/// Read a SerializableCollection from a file; format from the extension.
 pub fn read_serializable_collection_from_file(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -602,44 +745,54 @@ pub fn read_serializable_collection_from_file(
 ) !serializable_types.SerializableCollection
 {
     const format = try FileFormat.from_path(file_path);
-
-    // Handle .tlcz separately since it manages its own file reading
-    if (format == .tlcz)
+    if (!descriptor(format).is_collection)
     {
-        return try bundle.read_collection_from_file(
-            allocator,
-            io,
-            file_path,
-            .{},
-        );
+        return error.NotACollectionFormat;
     }
-
-    return try ascii.read_collection_from_file(allocator, io, file_path);
+    const root = try read_root_from_file(
+        allocator,
+        io,
+        file_path,
+        format,
+        .{},
+    );
+    return root.collection;
 }
 
-/// Write a schema.Collection to a file (TLCA or TLCB format).
-fn write_collection_to_file(
+/// Write a SerializableCollection to a file; format from the extension.
+pub fn write_serializable_collection_to_file(
     allocator: std.mem.Allocator,
     io: std.Io,
-    collection: *schema.Collection,
+    collection: serializable_types.SerializableCollection,
     file_path: []const u8,
     metadata_mode: WriteOptions.MetadataMode,
 ) !void
 {
-    // Convert schema.Collection to SerializableCollection
-    var ser_collection = try serializable_types.collection_to_serializable(
-        allocator,
-        collection,
-    );
-    defer ser_collection.deinit(allocator);
-
-    // Write to file
-    try ascii.write_collection_to_file(
+    try write_root_to_file(
         allocator,
         io,
-        ser_collection,
+        .{ .collection = collection },
         file_path,
-        metadata_mode,
+        try FileFormat.from_path(file_path),
+        .{ .metadata_mode = metadata_mode },
+    );
+}
+
+/// Write a SerializableCollection to a writer in the specified format.
+pub fn write_serializable_collection_to_writer(
+    allocator: std.mem.Allocator,
+    collection: serializable_types.SerializableCollection,
+    format: FileFormat,
+    metadata_mode: WriteOptions.MetadataMode,
+    writer: *std.Io.Writer,
+) !void
+{
+    try write_root(
+        allocator,
+        .{ .collection = collection },
+        writer,
+        format,
+        .{ .metadata_mode = metadata_mode },
     );
 }
 
@@ -656,48 +809,16 @@ pub fn read_from_file(
     options: ReadOptions,
 ) !CompositionItemHandle
 {
-    const format = try FileFormat.from_path(file_path);
-    const desc = descriptor(format);
-
-    if (desc.is_collection)
-    {
-        // Collection formats (including .tlcz bundles)
-        // Use an arena for parsing because ziggy.deserializeLeaky (used for TLCA)
-        // returns data containing slices into the source buffer.
-        var coll_arena = std.heap.ArenaAllocator.init(allocator);
-        defer coll_arena.deinit();
-
-        const ser_collection = try read_serializable_collection_from_file(
-            coll_arena.allocator(),
-            io,
-            file_path,
-        );
-
-        const collection = try serializable_types.serializable_to_collection(
-            allocator,
-            ser_collection,
-        );
-        return .{ .collection = collection };
-    }
-
-    // Timeline formats (including .tlz bundles)
-    // Use an arena for parsing because ziggy.deserializeLeaky (used for TLA)
-    // returns data containing slices into the source buffer.
-    var parse_arena = std.heap.ArenaAllocator.init(allocator);
-    defer parse_arena.deinit();
-
-    const ser_timeline = try read_serializable_timeline_from_file(
-        parse_arena.allocator(),
+    var root = try read_root_from_file(
+        allocator,
         io,
         file_path,
-        options.content_filter,
+        try FileFormat.from_path(file_path),
+        options,
     );
+    defer root.deinit(allocator);
 
-    const timeline = try serializable_types.serializable_to_timeline(
-        allocator,
-        ser_timeline,
-    );
-    return .{ .timeline = timeline };
+    return try root.to_schema_handle(allocator);
 }
 
 /// Write timeline or collection to file.
@@ -711,109 +832,11 @@ pub fn write_to_file(
 ) !void
 {
     const format = options.format orelse try FileFormat.from_path(file_path);
-    const desc = descriptor(format);
 
-    if (desc.is_read_only) 
-    {
-        return error.FormatIsReadOnly;
-    }
+    var root = try SerializableRoot.from_schema_handle(allocator, handle);
+    defer root.deinit(allocator);
 
-    if (desc.is_bundle)
-    {
-        const bundle_opts = (
-            options.bundle_options orelse WriteOptions.BundleOptions{}
-        );
-        const bundle_write_opts = bundle.WriteOptions{
-            .bundle_format = switch (bundle_opts.content_format) {
-                .tla => .tla,
-                .tlb => .tlb,
-            },
-            .media_policy = switch (bundle_opts.media_policy) {
-                .ErrorIfNotFile => .ErrorIfNotFile,
-                .MissingIfNotFile => .MissingIfNotFile,
-                .AllMissing => .AllMissing,
-            },
-            .media_base_dir = bundle_opts.media_base_dir,
-        };
-
-        if (desc.is_collection)
-        {
-            // .tlcz bundle
-            const collection = switch (handle) {
-                .collection => |c| c,
-                else => return error.ExpectedCollection,
-            };
-
-            var ser_collection = try serializable_types.collection_to_serializable(
-                allocator,
-                collection,
-            );
-            defer ser_collection.deinit(allocator);
-
-            try bundle.write_collection_to_file(
-                allocator,
-                io,
-                ser_collection,
-                file_path,
-                bundle_write_opts,
-            );
-        }
-        else
-        {
-            // .tlz bundle
-            const timeline = switch (handle) {
-                .timeline => |t| t,
-                else => return error.ExpectedTimeline,
-            };
-
-            var ser_timeline = try serializable_types.SerializableTimeline.from(
-                allocator,
-                timeline,
-            );
-            defer ser_timeline.deinit(allocator);
-
-            try bundle.write_to_file(
-                allocator,
-                io,
-                ser_timeline,
-                file_path,
-                bundle_write_opts,
-            );
-        }
-        return;
-    }
-
-    if (desc.is_collection)
-    {
-        // Collection formats
-        const collection = switch (handle) {
-            .collection => |c| c,
-            else => return error.ExpectedCollection,
-        };
-
-        try write_collection_to_file(
-            allocator,
-            io,
-            collection,
-            file_path,
-            options.metadata_mode,
-        );
-        return;
-    }
-
-    // Timeline formats
-    const timeline = switch (handle) {
-        .timeline => |t| t,
-        else => return error.ExpectedTimeline,
-    };
-
-    try write_timeline_to_file(
-        allocator,
-        io,
-        timeline,
-        file_path,
-        options.metadata_mode,
-    );
+    try write_root_to_file(allocator, io, root, file_path, format, options);
 }
 
 /// Read from a reader with explicit format.
@@ -824,52 +847,10 @@ pub fn read_from_reader(
     options: ReadOptions,
 ) !CompositionItemHandle
 {
-    const desc = descriptor(format);
+    var root = try read_root(allocator, reader, format, options);
+    defer root.deinit(allocator);
 
-    if (desc.is_bundle) 
-    {
-        return error.BundleRequiresFileAccess;
-    }
-
-    // Parse into an arena: the TLA/TLCA paths use ziggy.deserializeLeaky,
-    // whose result holds slices into the source buffer and cannot be freed
-    // with deinit().  serializable_to_* deep-copies into `allocator`.
-    var parse_arena = std.heap.ArenaAllocator.init(allocator);
-    defer parse_arena.deinit();
-    const parse_allocator = parse_arena.allocator();
-
-    if (desc.is_collection) 
-    {
-        const buffer = try reader.allocRemaining(
-            parse_allocator,
-            .unlimited,
-        );
-
-        const ser_collection = try ascii.read_collection_from_buffer(
-            parse_allocator,
-            buffer,
-            format,
-        );
-
-        const collection = try serializable_types.serializable_to_collection(
-            allocator,
-            ser_collection,
-        );
-        return .{ .collection = collection };
-    }
-
-    const ser_timeline = try read_serializable_timeline_from_reader(
-        parse_allocator,
-        reader,
-        format,
-        options.content_filter,
-    );
-
-    const timeline = try serializable_types.serializable_to_timeline(
-        allocator,
-        ser_timeline,
-    );
-    return .{ .timeline = timeline };
+    return try root.to_schema_handle(allocator);
 }
 
 /// Write to a writer with explicit format.
@@ -881,73 +862,10 @@ pub fn write_to_writer(
     options: WriteOptions,
 ) !void
 {
-    const desc = descriptor(format);
+    var root = try SerializableRoot.from_schema_handle(allocator, handle);
+    defer root.deinit(allocator);
 
-    if (desc.is_read_only) 
-    {
-        return error.FormatIsReadOnly;
-    }
-
-    if (desc.is_bundle) 
-    {
-        return error.BundleRequiresFileAccess;
-    }
-
-    if (desc.is_collection) 
-    {
-        // Write collection to writer
-        const collection = switch (handle) {
-            .collection => |c| c,
-            else => return error.ExpectedCollection,
-        };
-
-        var ser_collection = (
-            try serializable_types.collection_to_serializable(
-                allocator,
-                collection,
-            )
-        );
-        defer ser_collection.deinit(allocator);
-
-        // Dispatch to the appropriate collection writer based on format
-        switch (format) {
-            .tlca => try ascii.write_collection_to_writer(
-                allocator,
-                ser_collection,
-                .tlca,
-                options.metadata_mode,
-                writer,
-            ),
-            .tlcb => try ascii.write_collection_to_writer(
-                allocator,
-                ser_collection,
-                .tlcb,
-                options.metadata_mode,
-                writer,
-            ),
-            else => return error.NotACollectionFormat,
-        }
-        return;
-    }
-
-    const timeline = switch (handle) {
-        .timeline => |t| t,
-        else => return error.ExpectedTimeline,
-    };
-
-    var ser_timeline = try serializable_types.SerializableTimeline.from(
-        allocator,
-        timeline,
-    );
-    defer ser_timeline.deinit(allocator);
-
-    try write_serializable_to_writer(
-        allocator,
-        ser_timeline,
-        format,
-        options.metadata_mode,
-        writer,
-    );
+    try write_root(allocator, root, writer, format, options);
 }
 
 /// Serializable submodule - for working with SerializableRoot directly
@@ -964,31 +882,13 @@ pub const serializable = struct {
         options: ReadOptions,
     ) !SerializableRoot
     {
-        const format = try FileFormat.from_path(file_path);
-        const desc = descriptor(format);
-
-        if (desc.is_collection)
-        {
-            const ser_collection = (
-                try read_serializable_collection_from_file(
-                    allocator,
-                    io,
-                    file_path,
-                )
-            );
-            return .{ .collection = ser_collection };
-        }
-
-        const ser_timeline = (
-            try read_serializable_timeline_from_file(
-                allocator,
-                io,
-                file_path,
-                options.content_filter,
-            )
+        return try read_root_from_file(
+            allocator,
+            io,
+            file_path,
+            try FileFormat.from_path(file_path),
+            options,
         );
-
-        return .{ .timeline = ser_timeline };
     }
 
     /// Write from SerializableRoot
@@ -1003,74 +903,7 @@ pub const serializable = struct {
         const format = (
             options.format orelse try FileFormat.from_path(file_path)
         );
-        const desc = descriptor(format);
-
-        if (desc.is_read_only) 
-        {
-            return error.FormatIsReadOnly;
-        }
-
-        if (desc.is_bundle)
-        {
-            const bundle_opts = (
-                options.bundle_options orelse WriteOptions.BundleOptions{}
-            );
-            const bundle_write_opts = bundle.WriteOptions{
-                .bundle_format = switch (bundle_opts.content_format) {
-                    .tla => .tla,
-                    .tlb => .tlb,
-                },
-                .media_policy = switch (bundle_opts.media_policy) {
-                    .ErrorIfNotFile => .ErrorIfNotFile,
-                    .MissingIfNotFile => .MissingIfNotFile,
-                    .AllMissing => .AllMissing,
-                },
-                .media_base_dir = bundle_opts.media_base_dir,
-            };
-
-            switch (root) {
-                .timeline => |t| {
-                    try bundle.write_to_file(
-                        allocator,
-                        io,
-                        t,
-                        file_path,
-                        bundle_write_opts,
-                    );
-                },
-                .collection => |c| {
-                    try bundle.write_collection_to_file(
-                        allocator,
-                        io,
-                        c,
-                        file_path,
-                        bundle_write_opts,
-                    );
-                },
-            }
-            return;
-        }
-
-        switch (root) {
-            .timeline => |t| {
-                try write_serializable_timeline_to_file(
-                    allocator,
-                    io,
-                    t,
-                    file_path,
-                    options.metadata_mode,
-                );
-            },
-            .collection => |c| {
-                try ascii.write_collection_to_file(
-                    allocator,
-                    io,
-                    c,
-                    file_path,
-                    options.metadata_mode,
-                );
-            },
-        }
+        try write_root_to_file(allocator, io, root, file_path, format, options);
     }
 };
 
@@ -1085,10 +918,8 @@ pub const serializable = struct {
 const TEST_TIMELINE_PATH = "otio_sample_data/simple_cut.tla";
 const TEST_TIMELINE_METADATA_PATH = "test_files/simple_cut_with_metadata.tla";
 const TEST_COLLECTION_PATH = "test_files/sample_collection.tlca";
+const TEST_COLLECTION_METADATA_PATH = "test_files/collection_with_metadata.tlca";
 
-/// Tests guarded by this flag exercise known bugs that later refactor stages
-/// fix.  Flip to true locally to watch them fail.
-const RUN_KNOWN_FAILURES = false;
 
 /// Build a path inside a testing TmpDir, relative to the cwd.
 fn tmp_path(
@@ -1312,10 +1143,6 @@ test "adapter: read results own their memory (schema API)"
 
 test "adapter: read results own their memory (serializable API)"
 {
-    // TODO(serialization stage 3): TLA/TLCA reads use deserializeLeaky
-    // without copy_strings, so deinit() frees slices into the source buffer.
-    if (!RUN_KNOWN_FAILURES) return error.SkipZigTest;
-
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
@@ -1390,6 +1217,84 @@ test "adapter: serializable.write_to_file every writable format"
     }
 }
 
+/// Encode `root` as text (.tla or .tlca) for comparisons.
+fn root_as_text(
+    allocator: std.mem.Allocator,
+    root: SerializableRoot,
+) ![]u8
+{
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    errdefer out.deinit();
+    try write_root(
+        allocator,
+        root,
+        &out.writer,
+        if (root == .collection) .tlca else .tla,
+        .{},
+    );
+    return try out.toOwnedSlice();
+}
+
+test "adapter: read results own their metadata strings"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    // { file with metadata, format to feed through read_root }
+    inline for (.{
+        .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tla },
+        .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tlb },
+        .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlca },
+        .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlcb },
+    })
+        |case|
+    {
+        const path = case[0];
+        const format = case[1];
+        errdefer std.debug.print(
+            "failed for: {s} as .{t}\n",
+            .{ path, format },
+        );
+
+        // Source bytes in `format`.
+        var loaded = try serializable.read_from_file(allocator, io, path, .{});
+        defer loaded.deinit(allocator);
+        try std.testing.expect(switch (loaded) {
+            .timeline => |t| t.metadata_map != null,
+            .collection => |c| c.metadata_map != null,
+        });
+
+        var encoded: std.Io.Writer.Allocating = .init(allocator);
+        defer encoded.deinit();
+        try write_root(allocator, loaded, &encoded.writer, format, .{});
+
+        // Reference: read and re-encode while the source is still alive.
+        var ref_reader: std.Io.Reader = .fixed(encoded.written());
+        var reference = try read_root(allocator, &ref_reader, format, .{});
+        defer reference.deinit(allocator);
+        const expected = try root_as_text(allocator, reference);
+        defer allocator.free(expected);
+
+        // Read from a private copy, then destroy the copy before encoding.
+        const source = try allocator.dupe(u8, encoded.written());
+        var source_freed = false;
+        defer if (!source_freed) allocator.free(source);
+
+        var reader: std.Io.Reader = .fixed(source);
+        var result = try read_root(allocator, &reader, format, .{});
+        defer result.deinit(allocator);
+
+        @memset(source, 0xAA);
+        allocator.free(source);
+        source_freed = true;
+
+        const actual = try root_as_text(allocator, result);
+        defer allocator.free(actual);
+
+        try std.testing.expectEqualStrings(expected, actual);
+    }
+}
+
 test "adapter: writing a read-only format errors without creating a file"
 {
     const allocator = std.testing.allocator;
@@ -1422,10 +1327,6 @@ test "adapter: writing a read-only format errors without creating a file"
 
 test "adapter: content_filter all_except_metadata drops metadata"
 {
-    // TODO(serialization stage 3): content_filter is ignored by
-    // read_serializable_timeline_from_file and the reader bridges.
-    if (!RUN_KNOWN_FAILURES) return error.SkipZigTest;
-
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -1450,10 +1351,6 @@ test "adapter: content_filter all_except_metadata drops metadata"
 
 test "adapter: older schema versions are upgraded on read"
 {
-    // TODO(serialization stage 2/3): only ascii.deserialize_timeline runs
-    // the versioning upgrade; the adapter read paths do not.
-    if (!RUN_KNOWN_FAILURES) return error.SkipZigTest;
-
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -1507,5 +1404,21 @@ test "adapter: FileFormat.from_path"
     try std.testing.expectError(
         error.UnsupportedFileFormat,
         FileFormat.from_path("file.txt"),
+    );
+
+    // Extensions are case-insensitive.
+    try std.testing.expectEqual(
+        FileFormat.tlb,
+        try FileFormat.from_path("SHOT_010.TLB"),
+    );
+
+    // A dot in a directory name is not an extension.
+    try std.testing.expectError(
+        error.NoFileExtension,
+        FileFormat.from_path("renders.v2/timeline"),
+    );
+    try std.testing.expectError(
+        error.NoFileExtension,
+        FileFormat.from_path("trailing_dot."),
     );
 }

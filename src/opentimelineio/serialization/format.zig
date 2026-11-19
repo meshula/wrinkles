@@ -23,22 +23,29 @@ pub const FileFormat = enum {
     /// Legacy OpenTimelineIO v1 JSON format (read-only)
     otio,
 
-    /// Detect file format from path extension.
+    /// Detect file format from path extension (case-insensitive).
     /// Returns error.NoFileExtension if path has no extension.
     /// Returns error.UnsupportedFileFormat if extension is not recognized.
     pub fn from_path(
         file_path: []const u8,
     ) !FileFormat
     {
-        const ext_start = std.mem.lastIndexOfScalar(
-            u8,
-            file_path,
-            '.',
-        ) orelse return error.NoFileExtension;
+        // Includes the leading '.'; empty if the basename has none.
+        const dotted = std.fs.path.extension(file_path);
+        if (dotted.len <= 1)
+        {
+            return error.NoFileExtension;
+        }
+        const extension = dotted[1..];
 
-        const extension = file_path[ext_start + 1 ..];
+        var lower_buf: [8]u8 = undefined;
+        if (extension.len > lower_buf.len)
+        {
+            return error.UnsupportedFileFormat;
+        }
+        const lower = std.ascii.lowerString(&lower_buf, extension);
 
-        return std.meta.stringToEnum(FileFormat, extension) orelse
+        return std.meta.stringToEnum(FileFormat, lower) orelse
             return error.UnsupportedFileFormat;
     }
 };

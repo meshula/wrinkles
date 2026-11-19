@@ -1359,39 +1359,164 @@ test "read_from_file with all_except_metadata on OTIO JSON file"
     }
 }
 
-/// Bridge function for reading OTIO JSON format from a reader.
-/// Note: OTIO format is read-only; writing is not supported.
-/// Used by the unified SerializableFormat interface for format-agnostic I/O.
-pub fn read_otio_timeline_from_reader(
+// ----------------------------------------------------------------------------
+// Codec interface (see adapter.zig)
+// ----------------------------------------------------------------------------
+
+/// Schema version of data converted from OTIO JSON.
+const OTIO_JSON_VERSION: u32 = 0;
+
+fn wrap_in_timeline(
     allocator: std.mem.Allocator,
-    reader: *std.Io.Reader,
-    metadata_mode: format_m.ReadOptions.ContentFilter,
-) anyerror!serializable.SerializableTimeline
+    composable: serializable.SerializableComposable,
+    timeline_name: []const u8,
+    meta_map: *serializable.MetadataMap,
+) !serializable.SerializableTimeline
 {
-    if (metadata_mode != .all)
-    {
-        return error.LegacyOtioReaderAlwaysIncludesMetadata;
-    }
-
-    // Read the full buffer rather than streaming via parseFromTokenSourceLeaky
-    // with a std.json.Reader. read_otio_object does random-access traversal of
-    // the std.json.Value DOM (.get("tracks"), .get("children"), etc.), so the
-    // entire tree must be in memory regardless. Streaming would also force
-    // .alloc_always for every string, whereas parseFromSliceLeaky (called by
-    // read_from_string) can reference strings directly from the input slice.
-    const buffer = try reader.allocRemaining(
-        allocator,
-        .unlimited,
-    );
-    defer allocator.free(buffer);
-
-    const item = try read_from_string(
-        allocator,
-        buffer,
-        metadata_mode,
+    const track_children = try allocator.alloc(
+        serializable.SerializableComposable,
+        1,
     );
 
-    // Convert the timeline to SerializableTimeline
-    const timeline = item.timeline;
-    return try serializable.SerializableTimeline.from(allocator, timeline);
+    track_children[0] = composable;
+
+    const ser_track = serializable.SerializableTrack{
+        .name = try allocator.dupe(u8, "Wrapper Track for "),
+        .children = track_children,
+    };
+
+    const timeline_children = try allocator.alloc(serializable.SerializableComposable, 1);
+    timeline_children[0] = .{ .track = ser_track };
+
+    return serializable.SerializableTimeline{
+        .name = try allocator.dupe(u8, timeline_name),
+        .children = timeline_children,
+        .presentation_space_discrete_partitions = .{},
+        .metadata_map = (
+            if (meta_map.fields.count() > 0) meta_map.*
+            else null
+        ),
+    };
 }
+
+/// Convert OTIO JSON to serializable.SerializableTimeline, preserving metadata.
+///
+/// This function converts OTIO JSON to serializable.SerializableTimeline without going through
+/// the runtime Schema, which would lose metadata. Use this for file conversion
+/// tools that need to preserve metadata (e.g., otiocat).
+///
+/// Non-Timeline root objects (Clip, Track, Warp, etc.) are automatically
+/// wrapped in a synthetic Timeline/Track structure for a complete schema.
+fn otio_json_to_serializable_timeline(
+    allocator: std.mem.Allocator,
+    json_source: []const u8,
+) !serializable.SerializableTimeline 
+{
+    // Parse OTIO JSON to runtime Schema (clips contain metadata)
+    var composition_handle = try read_from_string(
+        allocator,
+        json_source,
+        .all,
+    );
+    defer composition_handle.deinit(allocator);
+
+    // Create metadata map and context for accumulating clip metadata
+    var metadata_map: serializable.MetadataMap = .empty;
+    var meta_ctx = serializable.MetadataContext{
+        .allocator = allocator,
+        .metadata_map = &metadata_map,
+    };
+
+    // Convert to serializable.SerializableTimeline based on root object type
+    var intermediate_tl: serializable.SerializableTimeline = switch (composition_handle) {
+        .timeline => |tl| try serializable.SerializableTimeline.from(
+            allocator,
+            tl,
+        ),
+
+        .clip => |clip_ptr| try wrap_in_timeline(
+            allocator,
+            .{ .clip = try serializable.SerializableClip.from(allocator, clip_ptr.*, &meta_ctx) },
+            clip_ptr.name,
+            &metadata_map,
+        ),
+
+        .gap => |gap_ptr| try wrap_in_timeline(
+            allocator,
+            .{ .gap = try serializable.SerializableGap.from(allocator, gap_ptr.*) },
+            gap_ptr.name,
+            &metadata_map,
+        ),
+
+        .track => |track_ptr| blk: {
+            // Track goes directly into timeline children (no wrapper track)
+            const ser_track = try serializable.SerializableTrack.from(allocator, track_ptr.*, &meta_ctx);
+            const timeline_children = try allocator.alloc(serializable.SerializableComposable, 1);
+            timeline_children[0] = .{ .track = ser_track };
+
+            break :blk serializable.SerializableTimeline{
+                .name = try allocator.dupe(u8, track_ptr.name),
+                .children = timeline_children,
+                .presentation_space_discrete_partitions = .{},
+                .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+            };
+        },
+
+        .stack => |stack_ptr| blk: {
+            // Stack children become timeline children directly
+            const ser_stack = try serializable.SerializableStack.from(allocator, stack_ptr.*, &meta_ctx);
+
+            break :blk serializable.SerializableTimeline{
+                .name = try allocator.dupe(u8, stack_ptr.name),
+                .children = ser_stack.children,
+                .presentation_space_discrete_partitions = .{},
+                .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+            };
+        },
+
+        .warp => |warp_ptr| try wrap_in_timeline(
+            allocator,
+            .{ .warp = try serializable.SerializableWarp.from(allocator, warp_ptr.*, &meta_ctx) },
+            warp_ptr.name,
+            &metadata_map,
+        ),
+
+        .transition => |trans_ptr| try wrap_in_timeline(
+            allocator,
+            .{ .transition = try serializable.SerializableTransition.from(allocator, trans_ptr.*, &meta_ctx) },
+            trans_ptr.name,
+            &metadata_map,
+        ),
+
+        // Collections cannot be converted to timeline - use serialize_collection instead
+        .collection => return error.UseSerializeCollectionInstead,
+    };
+
+    // OTIO JSON is schema version 0; readers upgrade it via
+    // serializable.finalize_timeline.
+    intermediate_tl.schema_version = OTIO_JSON_VERSION;
+
+    return intermediate_tl;
+}
+
+/// OTIO: legacy OpenTimelineIO v1 JSON.  Read-only; timeline roots only
+/// (other root objects are wrapped in a timeline).
+pub const TimelineCodec = struct {
+    pub fn read(
+        allocator: std.mem.Allocator,
+        reader: *std.Io.Reader,
+        options: format_m.ReadOptions,
+    ) !serializable.SerializableTimeline
+    {
+        // all_except_metadata is applied by the adapter after conversion.
+        if (options.content_filter == .only_metadata)
+        {
+            return error.OnlyMetadataNotSupportedForDeserialization;
+        }
+
+        const source = try reader.allocRemaining(allocator, .unlimited);
+        defer allocator.free(source);
+
+        return try otio_json_to_serializable_timeline(allocator, source);
+    }
+};

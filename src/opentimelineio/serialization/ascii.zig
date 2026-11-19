@@ -99,8 +99,6 @@ fn write_timeline_to_writer(
     );
 }
 
-/// Marker for OTIO JSON source (version 0)
-const OTIO_JSON_VERSION: u32 = 0;
 
 /// Serializable variant of Clip with inline metadata (for --inline-metadata output)
 pub const SerializableClipInlineMetadata = struct {
@@ -462,140 +460,6 @@ pub fn deserialize_timeline(
         allocator,
         serializable_tl,
     );
-}
-
-fn wrap_in_timeline(
-    allocator: std.mem.Allocator,
-    composable: SerializableComposable,
-    timeline_name: []const u8,
-    meta_map: *MetadataMap,
-) !SerializableTimeline
-{
-    const track_children = try allocator.alloc(
-        SerializableComposable,
-        1,
-    );
-
-    track_children[0] = composable;
-
-    const ser_track = SerializableTrack{
-        .name = try allocator.dupe(u8, "Wrapper Track for "),
-        .children = track_children,
-    };
-
-    const timeline_children = try allocator.alloc(SerializableComposable, 1);
-    timeline_children[0] = .{ .track = ser_track };
-
-    return SerializableTimeline{
-        .name = try allocator.dupe(u8, timeline_name),
-        .children = timeline_children,
-        .presentation_space_discrete_partitions = .{},
-        .metadata_map = (
-            if (meta_map.fields.count() > 0) meta_map.*
-            else null
-        ),
-    };
-}
-
-/// Convert OTIO JSON to SerializableTimeline, preserving metadata.
-///
-/// This function converts OTIO JSON to SerializableTimeline without going through
-/// the runtime Schema, which would lose metadata. Use this for file conversion
-/// tio
-/// tools that need to preserve metadata (e.g., otiocat).
-///
-/// Non-Timeline root objects (Clip, Track, Warp, etc.) are automatically
-/// wrapped in a synthetic Timeline/Track structure for a complete schema.
-fn otio_json_to_serializable_timeline(
-    allocator: std.mem.Allocator,
-    json_source: []const u8,
-) !SerializableTimeline 
-{
-    // Parse OTIO JSON to runtime Schema (clips contain metadata)
-    var composition_handle = try legacy_json.read_from_string(
-        allocator,
-        json_source,
-        .all,
-    );
-    defer composition_handle.deinit(allocator);
-
-    // Create metadata map and context for accumulating clip metadata
-    var metadata_map: MetadataMap = .empty;
-    var meta_ctx = MetadataContext{
-        .allocator = allocator,
-        .metadata_map = &metadata_map,
-    };
-
-    // Convert to SerializableTimeline based on root object type
-    var intermediate_tl: SerializableTimeline = switch (composition_handle) {
-        .timeline => |tl| try SerializableTimeline.from(
-            allocator,
-            tl,
-        ),
-
-        .clip => |clip_ptr| try wrap_in_timeline(
-            allocator,
-            .{ .clip = try SerializableClip.from(allocator, clip_ptr.*, &meta_ctx) },
-            clip_ptr.name,
-            &metadata_map,
-        ),
-
-        .gap => |gap_ptr| try wrap_in_timeline(
-            allocator,
-            .{ .gap = try SerializableGap.from(allocator, gap_ptr.*) },
-            gap_ptr.name,
-            &metadata_map,
-        ),
-
-        .track => |track_ptr| blk: {
-            // Track goes directly into timeline children (no wrapper track)
-            const ser_track = try SerializableTrack.from(allocator, track_ptr.*, &meta_ctx);
-            const timeline_children = try allocator.alloc(SerializableComposable, 1);
-            timeline_children[0] = .{ .track = ser_track };
-
-            break :blk SerializableTimeline{
-                .name = try allocator.dupe(u8, track_ptr.name),
-                .children = timeline_children,
-                .presentation_space_discrete_partitions = .{},
-                .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
-            };
-        },
-
-        .stack => |stack_ptr| blk: {
-            // Stack children become timeline children directly
-            const ser_stack = try SerializableStack.from(allocator, stack_ptr.*, &meta_ctx);
-
-            break :blk SerializableTimeline{
-                .name = try allocator.dupe(u8, stack_ptr.name),
-                .children = ser_stack.children,
-                .presentation_space_discrete_partitions = .{},
-                .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
-            };
-        },
-
-        .warp => |warp_ptr| try wrap_in_timeline(
-            allocator,
-            .{ .warp = try SerializableWarp.from(allocator, warp_ptr.*, &meta_ctx) },
-            warp_ptr.name,
-            &metadata_map,
-        ),
-
-        .transition => |trans_ptr| try wrap_in_timeline(
-            allocator,
-            .{ .transition = try SerializableTransition.from(allocator, trans_ptr.*, &meta_ctx) },
-            trans_ptr.name,
-            &metadata_map,
-        ),
-
-        // Collections cannot be converted to timeline - use serialize_collection instead
-        .collection => return error.UseSerializeCollectionInstead,
-    };
-
-    // Mark as version 0 (OTIO JSON source) then upgrade
-    intermediate_tl.schema_version = OTIO_JSON_VERSION;
-    try serializable.finalize_timeline(allocator, &intermediate_tl);
-
-    return intermediate_tl;
 }
 
 // @TODO: collapse these serialize functions that recursively call components
@@ -1704,7 +1568,14 @@ pub fn read_from_buffer(
             );
         },
         .otio => {
-            return try otio_json_to_serializable_timeline(allocator, buffer);
+            var otio_reader: std.Io.Reader = .fixed(buffer);
+            var tl = try legacy_json.TimelineCodec.read(
+                allocator,
+                &otio_reader,
+                .{},
+            );
+            try serializable.finalize_timeline(allocator, &tl);
+            return tl;
         },
         .tlz => {
             // TLZ is a ZIP archive that requires file system access
@@ -2651,82 +2522,181 @@ test "collection serialization: tlca to tlcb cross-format"
     try std.testing.expectEqualStrings("Embedded Timeline", from_tlcb.children[0].timeline.name);
 }
 
-/// Bridge function for adapter interface - reads TLA format from reader.
-/// Used by the unified SerializableFormat interface for format-agnostic I/O.
-pub fn read_timeline_from_reader(
+// ----------------------------------------------------------------------------
+// Codec interface (see adapter.zig)
+// ----------------------------------------------------------------------------
+
+/// Parse a ziggy document of type `T` from `reader`.  Strings are copied, so
+/// the result owns all of its memory and is freed with its `deinit`.
+///
+/// On error (including OutOfMemory) the partially parsed result is leaked,
+/// as with any `ziggy.deserializeLeaky` failure.
+fn parse_ziggy(
+    comptime T: type,
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
-    metadata_mode: format_m.ReadOptions.ContentFilter,
-) anyerror!SerializableTimeline
+) !T
 {
-    _ = metadata_mode;
-
-    const buffer = try reader.allocRemaining(
+    const source = try reader.allocRemainingAlignedSentinel(
         allocator,
         .unlimited,
+        .@"1",
+        0,
     );
-    defer allocator.free(buffer);
+    defer allocator.free(source);
 
-    return try read_from_buffer(
+    var meta: ziggy.Deserializer.Meta = .init;
+    var result = try ziggy.deserializeLeaky(
+        T,
         allocator,
-        buffer,
-        .tla,
+        source,
+        &meta,
+        .{ .copy_strings = .always },
     );
+
+    // Must run before `source` is freed.
+    try own_metadata_strings(allocator, &result);
+    return result;
 }
 
-/// Bridge function for adapter interface - writes TLA format to writer.
-/// Used by the unified SerializableFormat interface for format-agnostic I/O.
-pub fn write_ascii_serializable_to_writer(
+/// ziggy's dynamic values keep dictionary keys, union tags and enum names as
+/// slices into the parse source, even with `.copy_strings = .always`.
+/// Replace them with owned copies throughout every metadata map in `data`.
+fn own_metadata_strings(
     allocator: std.mem.Allocator,
-    intermediate_tl: SerializableTimeline,
-    writer: *std.Io.Writer,
-    metadata_mode: format_m.WriteOptions.MetadataMode,
-) anyerror!void
+    data: anytype,
+) !void
 {
-    return write_serializable_to_writer(
-        allocator,
-        intermediate_tl,
-        .tla,
-        metadata_mode,
-        writer,
-    );
+    const T = @TypeOf(data.*);
+    if (@hasField(T, "metadata_map")
+        and @FieldType(T, "metadata_map") == ?MetadataMap)
+    {
+        if (data.metadata_map)
+            |*mm|
+        {
+            try own_metadata_map_strings(allocator, mm);
+        }
+    }
+    if (T == SerializableCollection)
+    {
+        for (data.children)
+            |*child|
+        {
+            switch (child.*) {
+                .timeline => |*tl| try own_metadata_strings(allocator, tl),
+                else => {},
+            }
+        }
+    }
 }
 
-/// Bridge function for reading ASCII collection (TLAC) format from a reader.
-pub fn read_ascii_collection_from_reader(
+fn own_metadata_map_strings(
     allocator: std.mem.Allocator,
-    reader: *std.Io.Reader,
-    metadata_mode: format_m.ReadOptions.ContentFilter,
-) anyerror!SerializableCollection
+    mm: *MetadataMap,
+) error{OutOfMemory}!void
 {
-    _ = metadata_mode;
-
-    const buffer = try reader.allocRemaining(
-        allocator,
-        .unlimited,
-    );
-    defer allocator.free(buffer);
-
-    return try read_collection_from_buffer(
-        allocator,
-        buffer,
-        .tlca,
-    );
+    // Replacing a key with an equal copy keeps the hash map valid.
+    for (mm.fields.keys())
+        |*key|
+    {
+        key.* = try allocator.dupe(u8, key.*);
+    }
+    for (mm.fields.values())
+        |*value|
+    {
+        try own_metadata_value_strings(allocator, value);
+    }
 }
 
-/// Bridge function for writing ASCII collection (TLAC) format to a writer.
-pub fn write_ascii_collection_to_writer(
+fn own_metadata_value_strings(
     allocator: std.mem.Allocator,
-    collection: SerializableCollection,
-    writer: *std.Io.Writer,
-    metadata_mode: format_m.WriteOptions.MetadataMode,
-) anyerror!void
+    value: *MetadataValue,
+) error{OutOfMemory}!void
 {
-    return write_collection_to_writer(
-        allocator,
-        collection,
-        .tlca,
-        metadata_mode,
-        writer,
-    );
+    switch (value.*) {
+        .kv => |*kv| try own_metadata_map_strings(allocator, kv),
+        .array => |arr| {
+            for (@constCast(arr))
+                |*item|
+            {
+                try own_metadata_value_strings(allocator, item);
+            }
+        },
+        .@"union" => |*u| {
+            u.tag = try allocator.dupe(u8, u.tag);
+            try own_metadata_value_strings(allocator, u.value);
+        },
+        .@"enum" => |*e| e.* = try allocator.dupe(u8, e.*),
+        .bytes, .integer, .float, .bool, .null => {},
+    }
 }
+
+/// TLA: timeline root in ziggy text.
+pub const TimelineCodec = struct {
+    pub fn read(
+        allocator: std.mem.Allocator,
+        reader: *std.Io.Reader,
+        options: format_m.ReadOptions,
+    ) !SerializableTimeline
+    {
+        return switch (options.content_filter) {
+            .all => try parse_ziggy(SerializableTimeline, allocator, reader),
+            // Skips the metadata_map tokens without building values.
+            .all_except_metadata => (
+                try parse_ziggy(
+                    SerializableTimelineNoMetadata,
+                    allocator,
+                    reader,
+                )
+            ).to_serializable_timeline(),
+            .only_metadata => error.OnlyMetadataNotSupportedForDeserialization,
+        };
+    }
+
+    pub fn write(
+        allocator: std.mem.Allocator,
+        data: SerializableTimeline,
+        writer: *std.Io.Writer,
+        options: format_m.WriteOptions,
+    ) !void
+    {
+        try write_tla_with_metadata_mode(
+            allocator,
+            data,
+            options.metadata_mode,
+            writer,
+        );
+    }
+};
+
+/// TLCA: collection root in ziggy text.
+pub const CollectionCodec = struct {
+    pub fn read(
+        allocator: std.mem.Allocator,
+        reader: *std.Io.Reader,
+        options: format_m.ReadOptions,
+    ) !SerializableCollection
+    {
+        if (options.content_filter == .only_metadata)
+        {
+            return error.OnlyMetadataNotSupportedForDeserialization;
+        }
+        // all_except_metadata is applied by the adapter after parsing.
+        return try parse_ziggy(SerializableCollection, allocator, reader);
+    }
+
+    pub fn write(
+        allocator: std.mem.Allocator,
+        data: SerializableCollection,
+        writer: *std.Io.Writer,
+        options: format_m.WriteOptions,
+    ) !void
+    {
+        try write_tlca_with_metadata_mode(
+            allocator,
+            data,
+            options.metadata_mode,
+            writer,
+        );
+    }
+};

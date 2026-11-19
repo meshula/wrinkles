@@ -83,12 +83,12 @@ pub const write_serializable_to_writer = adapter.write_serializable_to_writer;
 
 /// Write a serializable collection to file.
 pub const write_serializable_collection_to_file = (
-    ascii.write_collection_to_file
+    adapter.write_serializable_collection_to_file
 );
 
 /// Write a serializable collection to a writer in the specified format.
 pub const write_serializable_collection_to_writer = (
-    ascii.write_collection_to_writer
+    adapter.write_serializable_collection_to_writer
 );
 
 // ============================================================================

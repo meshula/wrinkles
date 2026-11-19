@@ -837,10 +837,12 @@ fn deinit_metadata_value(
         },
         .bytes => |b| allocator.free(b),
         .@"union" => |u| {
+            allocator.free(u.tag);
             deinit_metadata_value(allocator, u.value.*);
             allocator.destroy(u.value);
         },
-        .@"enum", .integer, .float, .bool, .null => {},
+        .@"enum" => |e| allocator.free(e),
+        .integer, .float, .bool, .null => {},
     }
 }
 
@@ -950,6 +952,20 @@ pub const SerializableTimeline = struct {
         };
     }
 
+    /// Free and remove the root metadata map, if any.
+    pub fn drop_metadata(
+        self: *@This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        if (self.metadata_map)
+            |*mm|
+        {
+            deinit_metadata_map(allocator, mm);
+        }
+        self.metadata_map = null;
+    }
+
     pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -1018,6 +1034,20 @@ pub const SerializableCollection = struct {
     description: []const u8 = "",
     children: []SerializableCollectionItem,
     metadata_map: ?MetadataMap = null,
+
+    /// Free and remove the root metadata map, if any.
+    pub fn drop_metadata(
+        self: *@This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        if (self.metadata_map)
+            |*mm|
+        {
+            deinit_metadata_map(allocator, mm);
+        }
+        self.metadata_map = null;
+    }
 
     pub fn deinit(
         self: *@This(),
