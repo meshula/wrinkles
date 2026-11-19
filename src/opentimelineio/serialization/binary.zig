@@ -4627,9 +4627,9 @@ pub fn read_binary_collection_from_reader(
 {
     _ = metadata_mode; // Binary format doesn't support metadata filtering
 
-    const buffer = try reader.readAlloc(
+    const buffer = try reader.allocRemaining(
         allocator,
-        std.math.maxInt(u32),
+        .unlimited,
     );
     defer allocator.free(buffer);
 
@@ -4683,9 +4683,9 @@ pub fn read_binary_timeline_from_reader(
     metadata_mode: adapter.ReadOptions.ContentFilter,
 ) anyerror!ascii.SerializableTimeline
 {
-    const buffer = try reader.readAlloc(
+    const buffer = try reader.allocRemaining(
         allocator,
-        std.math.maxInt(u32),
+        .unlimited,
     );
     defer allocator.free(buffer);
 

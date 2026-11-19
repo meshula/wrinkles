@@ -242,7 +242,7 @@ pub fn read_from_file(
                 allocator,
                 data_z,
                 &meta,
-                .{},
+                .{ .copy_strings = .always },
             );
         },
         .tlb => {
@@ -657,7 +657,7 @@ pub fn read_collection_from_file(
                 allocator,
                 data_z,
                 &meta,
-                .{},
+                .{ .copy_strings = .always },
             );
         },
         .tlb => {
@@ -870,15 +870,28 @@ fn collectMediaFromCollection(
                     maybe_base_dir,
                 );
             },
-            inline else => |*composable| {
-                // For non-timeline items, treat as composable
+            inline else => |item, tag| {
+                // Non-timeline items have the same variants and payloads as
+                // SerializableComposable, so wrap the item as a composable,
+                // walk it, and write back any rewritten media references.
+                const tag_name = @tagName(tag);
+                var composable = @unionInit(
+                    serialization.SerializableComposable,
+                    tag_name,
+                    item,
+                );
                 try collectMediaFromComposable(
                     allocator,
                     io,
-                    @ptrCast(composable),
+                    &composable,
                     media_files,
                     policy,
                     maybe_base_dir,
+                );
+                child.* = @unionInit(
+                    serialization.SerializableCollectionItem,
+                    tag_name,
+                    @field(composable, tag_name),
                 );
             },
         }

@@ -647,10 +647,9 @@ pub const SerializableComposable = union(enum) {
         allocator: std.mem.Allocator,
         handle: schema.references.CompositionItemHandle,
         maybe_meta_ctx: ?*MetadataContext,
-    ) error{OutOfMemory, DiscretePartitionRequired}!*SerializableComposable
+    ) error{OutOfMemory, DiscretePartitionRequired}!SerializableComposable
     {
-        const result_ptr = try allocator.create(SerializableComposable);
-        result_ptr.* = switch (handle) {
+        return switch (handle) {
             .clip => |clip_ptr| .{ .clip = try SerializableClip.from(allocator, clip_ptr.*, maybe_meta_ctx) },
             .gap => |gap_ptr| .{ .gap = try SerializableGap.from(allocator, gap_ptr.*) },
             .track => |track_ptr| .{ .track = try SerializableTrack.from(allocator, track_ptr.*, maybe_meta_ctx) },
@@ -659,7 +658,6 @@ pub const SerializableComposable = union(enum) {
             .transition => |trans_ptr| .{ .transition = try SerializableTransition.from(allocator, trans_ptr.*, maybe_meta_ctx) },
             .timeline, .collection => unreachable, // Timeline/Collection are not composable children
         };
-        return result_ptr;
     }
 
     pub fn deinit(
@@ -685,9 +683,17 @@ pub const SerializableWarp = struct {
         maybe_meta_ctx: ?*MetadataContext,
     ) !SerializableWarp
     {
+        const child = try allocator.create(SerializableComposable);
+        errdefer allocator.destroy(child);
+        child.* = try SerializableComposable.from(
+            allocator,
+            warp.child,
+            maybe_meta_ctx,
+        );
+
         return .{
             .name = try allocator.dupe(u8, warp.name),
-            .child = try SerializableComposable.from(allocator, warp.child, maybe_meta_ctx),
+            .child = child,
             .transform = try SerializableTopology.from(allocator, warp.transform),
         };
     }
@@ -724,13 +730,11 @@ pub const SerializableStack = struct {
         for (stack.children, 0..)
             |child, i|
         {
-            ser_children[i] = (
-                try SerializableComposable.from(
-                    allocator,
-                    child,
-                    maybe_meta_ctx
-                )
-            ).*;
+            ser_children[i] = try SerializableComposable.from(
+                allocator,
+                child,
+                maybe_meta_ctx,
+            );
         }
         return .{
             .name = try allocator.dupe(u8, stack.name),
@@ -775,7 +779,11 @@ pub const SerializableTrack = struct {
         for (track.children, 0..)
             |child, i|
         {
-            ser_children[i] = (try SerializableComposable.from(allocator, child, maybe_meta_ctx)).*;
+            ser_children[i] = try SerializableComposable.from(
+                allocator,
+                child,
+                maybe_meta_ctx,
+            );
         }
         return .{
             .name = try allocator.dupe(u8, track.name),
@@ -938,7 +946,11 @@ pub const SerializableTimeline = struct {
         for (timeline.tracks.children, 0..)
             |child, i|
         {
-            ser_children[i] = (try SerializableComposable.from(allocator, child, &meta_ctx)).*;
+            ser_children[i] = try SerializableComposable.from(
+                allocator,
+                child,
+                &meta_ctx,
+            );
         }
 
         // Merge timeline-level metadata_map (std.json.Value) into the
@@ -2660,8 +2672,6 @@ pub fn deserialize_timeline(
             allocator,
             source,
             &meta,
-            // the result is freed with deinit(), so strings must be owned
-            // copies rather than slices into `source`
             .{ .copy_strings = .always },
         ),
         .all_except_metadata => s_t: {
@@ -5127,10 +5137,11 @@ pub fn read_timeline_from_reader(
 {
     _ = metadata_mode;
 
-    const buffer = try reader.readAlloc(
+    const buffer = try reader.allocRemaining(
         allocator,
-        std.math.maxInt(u32),
+        .unlimited,
     );
+    defer allocator.free(buffer);
 
     return try read_from_buffer(
         allocator,
@@ -5166,9 +5177,9 @@ pub fn read_ascii_collection_from_reader(
 {
     _ = metadata_mode;
 
-    const buffer = try reader.readAlloc(
+    const buffer = try reader.allocRemaining(
         allocator,
-        std.math.maxInt(u32),
+        .unlimited,
     );
     defer allocator.free(buffer);
 

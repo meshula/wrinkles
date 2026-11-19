@@ -1373,9 +1373,9 @@ pub fn read_otio_timeline_from_reader(
     // entire tree must be in memory regardless. Streaming would also force
     // .alloc_always for every string, whereas parseFromSliceLeaky (called by
     // read_from_string) can reference strings directly from the input slice.
-    const buffer = try reader.readAlloc(
+    const buffer = try reader.allocRemaining(
         allocator,
-        std.math.maxInt(u32),
+        .unlimited,
     );
     defer allocator.free(buffer);
 

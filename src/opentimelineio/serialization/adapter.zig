@@ -30,6 +30,20 @@
 //! Returns `SerializableRoot` for cases where you need to preserve/manipulate
 //! the serializable representation (e.g., metadata hash maps).
 //!
+//! ## Memory Ownership
+//!
+//! Every value returned by a read function owns all of its memory, including
+//! strings.  Nothing in the result points into the source file, the reader's
+//! buffer, or any buffer used internally while parsing, so the source can be
+//! discarded as soon as the read returns.
+//!
+//! Free a result with its `deinit(allocator)`, passing the same allocator that
+//! was given to the read.  Callers never need to supply an arena.
+//!
+//! Format implementations must uphold this (e.g. by parsing ziggy with
+//! `.copy_strings = .always`); the "read results own their memory" tests
+//! below enforce it.
+//!
 //! ## Examples
 //!
 //! ```zig
@@ -57,6 +71,7 @@ const binary = @import("binary.zig");
 const bundle = @import("bundle.zig");
 const legacy_json = @import("legacy_json.zig");
 const references = @import("../references.zig");
+const versioning = @import("versioning.zig");
 
 // ============================================================================
 // Public Types
@@ -259,9 +274,11 @@ pub const SerializableRoot = union(enum) {
             .timeline => |t| .{
                 .timeline = try ascii.serializable_to_timeline(allocator, t),
             },
-            .collection => {
-                // Collection -> handle conversion not yet implemented
-                return error.CollectionToHandleNotImplemented;
+            .collection => |c| .{
+                .collection = try ascii.serializable_to_collection(
+                    allocator,
+                    c,
+                ),
             },
         };
     }
@@ -527,6 +544,18 @@ pub fn write_serializable_timeline_to_file(
 ) !void
 {
     const format = try FileFormat.from_path(file_path);
+    const desc = format.descriptor();
+
+    // Validate before touching the filesystem so unsupported formats don't
+    // leave an empty file behind.
+    if (desc.is_read_only)
+    {
+        return error.FormatIsReadOnly;
+    }
+    if (desc.is_collection)
+    {
+        return error.NotATimelineFormat;
+    }
 
     // Handle .tlz separately since it manages its own file writing
     if (format == .tlz)
@@ -668,26 +697,6 @@ pub fn read_serializable_timeline_from_file(
     // For other formats, use the ascii.read_from_file which handles
     // file reading and format dispatch correctly
     return try ascii.read_from_file(allocator, io, file_path);
-}
-
-pub fn read_timeline_from_file(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    file_path: []const u8,
-    metadata_mode: ReadOptions.ContentFilter,
-) !*schema.timeline
-{
-    const ser_timeline = try read_serializable_timeline_from_file(
-        allocator,
-        io,
-        file_path,
-        metadata_mode,
-    );
-
-    return try ascii.serializable_to_timeline(
-        allocator,
-        ser_timeline,
-    );
 }
 
 /// Read a serializable collection from a file (TLCA, TLCB, or TLCZ format).
@@ -927,23 +936,25 @@ pub fn read_from_reader(
         return error.BundleRequiresFileAccess;
     }
 
+    // Parse into an arena: the TLA/TLCA paths use ziggy.deserializeLeaky,
+    // whose result holds slices into the source buffer and cannot be freed
+    // with deinit().  serializable_to_* deep-copies into `allocator`.
+    var parse_arena = std.heap.ArenaAllocator.init(allocator);
+    defer parse_arena.deinit();
+    const parse_allocator = parse_arena.allocator();
+
     if (desc.is_collection) 
     {
-        // Read collection from reader
-        const buffer = try reader.readAlloc(
-            allocator,
-            std.math.maxInt(u32),
+        const buffer = try reader.allocRemaining(
+            parse_allocator,
+            .unlimited,
         );
-        defer allocator.free(buffer);
 
-        var ser_collection = (
-            try ascii.read_collection_from_buffer(
-                allocator,
-                buffer,
-                format,
-            )
+        const ser_collection = try ascii.read_collection_from_buffer(
+            parse_allocator,
+            buffer,
+            format,
         );
-        defer ser_collection.deinit(allocator);
 
         const collection = try ascii.serializable_to_collection(
             allocator,
@@ -952,15 +963,12 @@ pub fn read_from_reader(
         return .{ .collection = collection };
     }
 
-    var ser_timeline = (
-        try read_serializable_timeline_from_reader(
-            allocator,
-            reader,
-            format,
-            options.content_filter,
-        )
+    const ser_timeline = try read_serializable_timeline_from_reader(
+        parse_allocator,
+        reader,
+        format,
+        options.content_filter,
     );
-    defer ser_timeline.deinit(allocator);
 
     const timeline = try ascii.serializable_to_timeline(
         allocator,
@@ -1129,6 +1137,7 @@ pub const serializable = struct {
                 .timeline => |t| {
                     try bundle.write_to_file(
                         allocator,
+                        io,
                         t,
                         file_path,
                         bundle_write_opts,
@@ -1137,6 +1146,7 @@ pub const serializable = struct {
                 .collection => |c| {
                     try bundle.write_collection_to_file(
                         allocator,
+                        io,
                         c,
                         file_path,
                         bundle_write_opts,
@@ -1168,3 +1178,442 @@ pub const serializable = struct {
         }
     }
 };
+
+// ============================================================================
+// Tests
+// ============================================================================
+//
+// These tests pin the behaviour of the public API across every format.  They
+// deliberately reference each public entry point so that Zig's lazy analysis
+// cannot hide compile errors in unreferenced code paths.
+
+const TEST_TIMELINE_PATH = "otio_sample_data/simple_cut.tla";
+const TEST_TIMELINE_METADATA_PATH = "test_files/simple_cut_with_metadata.tla";
+const TEST_COLLECTION_PATH = "test_files/sample_collection.tlca";
+
+/// Tests guarded by this flag exercise known bugs that later refactor stages
+/// fix.  Flip to true locally to watch them fail.
+const RUN_KNOWN_FAILURES = false;
+
+/// Build a path inside a testing TmpDir, relative to the cwd.
+fn tmp_path(
+    allocator: std.mem.Allocator,
+    tmp: std.testing.TmpDir,
+    file_name: []const u8,
+) ![]u8
+{
+    return std.fs.path.join(
+        allocator,
+        &.{
+            std.testing.TmpDir.parent_dir_path,
+            &tmp.sub_path,
+            file_name,
+        },
+    );
+}
+
+/// Write `handle` to memory in `format`, read it back, and check the root
+/// name survived.
+fn expect_schema_stream_roundtrip(
+    allocator: std.mem.Allocator,
+    handle: CompositionItemHandle,
+    format: FileFormat,
+) !void
+{
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
+    defer buffer.deinit();
+
+    try write_to_writer(
+        allocator,
+        handle,
+        &buffer.writer,
+        format,
+        .{},
+    );
+
+    var reader: std.Io.Reader = .fixed(buffer.written());
+    var result = try read_from_reader(
+        allocator,
+        &reader,
+        format,
+        .{},
+    );
+    defer result.deinit(allocator);
+
+    try std.testing.expectEqualStrings(
+        handle.name() orelse "",
+        result.name() orelse "",
+    );
+}
+
+test "adapter: schema timeline stream roundtrip (tla, tlb)"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var handle = try read_from_file(
+        allocator,
+        io,
+        TEST_TIMELINE_PATH,
+        .{},
+    );
+    defer handle.deinit(allocator);
+
+    try expect_schema_stream_roundtrip(allocator, handle, .tla);
+    try expect_schema_stream_roundtrip(allocator, handle, .tlb);
+}
+
+test "adapter: schema collection stream roundtrip (tlca, tlcb)"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var handle = try read_from_file(
+        allocator,
+        io,
+        TEST_COLLECTION_PATH,
+        .{},
+    );
+    defer handle.deinit(allocator);
+
+    try expect_schema_stream_roundtrip(allocator, handle, .tlca);
+    try expect_schema_stream_roundtrip(allocator, handle, .tlcb);
+}
+
+test "adapter: schema read_from_file + write_to_file every writable format"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    var handle = try read_from_file(
+        allocator,
+        io,
+        TEST_TIMELINE_PATH,
+        .{},
+    );
+    defer handle.deinit(allocator);
+
+    inline for (.{ "out.tla", "out.tlb", "out.tlz" })
+        |file_name|
+    {
+        errdefer std.debug.print("failed for: {s}\n", .{file_name});
+
+        const path = try tmp_path(allocator, tmp, file_name);
+        defer allocator.free(path);
+
+        try write_to_file(allocator, io, handle, path, .{});
+
+        var result = try read_from_file(allocator, io, path, .{});
+        defer result.deinit(allocator);
+
+        try std.testing.expectEqualStrings(
+            handle.name() orelse "",
+            result.name() orelse "",
+        );
+    }
+}
+
+test "adapter: schema read_from_file + write_to_file collection formats"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    var handle = try read_from_file(
+        allocator,
+        io,
+        TEST_COLLECTION_PATH,
+        .{},
+    );
+    defer handle.deinit(allocator);
+
+    inline for (.{ "out.tlca", "out.tlcb", "out.tlcz" })
+        |file_name|
+    {
+        errdefer std.debug.print("failed for: {s}\n", .{file_name});
+
+        const path = try tmp_path(allocator, tmp, file_name);
+        defer allocator.free(path);
+
+        try write_to_file(allocator, io, handle, path, .{});
+
+        var result = try read_from_file(allocator, io, path, .{});
+        defer result.deinit(allocator);
+
+        try std.testing.expectEqualStrings(
+            handle.name() orelse "",
+            result.name() orelse "",
+        );
+    }
+}
+
+test "adapter: read results own their memory (schema API)"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    // { file to load, format to feed through read_from_reader }
+    inline for (.{
+        .{ "otio_sample_data/simple_cut.tla", FileFormat.tla },
+        .{ "otio_sample_data/simple_cut.tlb", FileFormat.tlb },
+        .{ "otio_sample_data/simple_cut.otio", FileFormat.otio },
+        .{ TEST_COLLECTION_PATH, FileFormat.tlca },
+        .{ TEST_COLLECTION_PATH, FileFormat.tlcb },
+    })
+        |case|
+    {
+        const path = case[0];
+        const format = case[1];
+        errdefer std.debug.print(
+            "failed for: {s} as .{t}\n",
+            .{ path, format },
+        );
+
+        var expected = try read_from_file(allocator, io, path, .{});
+        defer expected.deinit(allocator);
+
+        // Source bytes in `format`: the file itself if it already is that
+        // format, otherwise the expected value re-encoded.
+        const source = if (try FileFormat.from_path(path) == format)
+            try std.Io.Dir.cwd().readFileAlloc(
+                io,
+                path,
+                allocator,
+                .unlimited,
+            )
+        else src: {
+            var encoded: std.Io.Writer.Allocating = .init(allocator);
+            errdefer encoded.deinit();
+            try write_to_writer(
+                allocator,
+                expected,
+                &encoded.writer,
+                format,
+                .{},
+            );
+            break :src try encoded.toOwnedSlice();
+        };
+        var source_freed = false;
+        defer if (!source_freed) allocator.free(source);
+
+        var reader: std.Io.Reader = .fixed(source);
+        var result = try read_from_reader(allocator, &reader, format, .{});
+        defer result.deinit(allocator);
+
+        // Scribble over and free the source; nothing in the result may
+        // point into it.
+        @memset(source, 0xAA);
+        allocator.free(source);
+        source_freed = true;
+
+        try std.testing.expectEqualStrings(
+            expected.name() orelse "",
+            result.name() orelse "",
+        );
+    }
+}
+
+test "adapter: read results own their memory (serializable API)"
+{
+    // TODO(serialization stage 3): TLA/TLCA reads use deserializeLeaky
+    // without copy_strings, so deinit() frees slices into the source buffer.
+    if (!RUN_KNOWN_FAILURES) return error.SkipZigTest;
+
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    inline for (.{
+        "otio_sample_data/simple_cut.tla",
+        "otio_sample_data/simple_cut.tlb",
+        "otio_sample_data/simple_cut.otio",
+        TEST_COLLECTION_PATH,
+    })
+        |path|
+    {
+        var root = try serializable.read_from_file(
+            allocator,
+            io,
+            path,
+            .{},
+        );
+        root.deinit(allocator);
+    }
+}
+
+test "adapter: serializable.write_to_file every writable format"
+{
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const io = std.testing.io;
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const timeline_root = try serializable.read_from_file(
+        allocator,
+        io,
+        TEST_TIMELINE_PATH,
+        .{},
+    );
+    const collection_root = try serializable.read_from_file(
+        allocator,
+        io,
+        TEST_COLLECTION_PATH,
+        .{},
+    );
+
+    inline for (.{
+        .{ timeline_root, "out.tla" },
+        .{ timeline_root, "out.tlb" },
+        .{ timeline_root, "out.tlz" },
+        .{ collection_root, "out.tlca" },
+        .{ collection_root, "out.tlcb" },
+        .{ collection_root, "out.tlcz" },
+    })
+        |case|
+    {
+        const root = case[0];
+        const file_name = case[1];
+        errdefer std.debug.print("failed for: {s}\n", .{file_name});
+
+        const path = try tmp_path(allocator, tmp, file_name);
+        try serializable.write_to_file(allocator, io, root, path, .{});
+
+        const result = try serializable.read_from_file(
+            allocator,
+            io,
+            path,
+            .{},
+        );
+        try std.testing.expectEqual(
+            std.meta.activeTag(root),
+            std.meta.activeTag(result),
+        );
+    }
+}
+
+test "adapter: writing a read-only format errors without creating a file"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    var handle = try read_from_file(
+        allocator,
+        io,
+        TEST_TIMELINE_PATH,
+        .{},
+    );
+    defer handle.deinit(allocator);
+
+    const path = try tmp_path(allocator, tmp, "out.otio");
+    defer allocator.free(path);
+
+    try std.testing.expectError(
+        error.FormatIsReadOnly,
+        write_to_file(allocator, io, handle, path, .{}),
+    );
+
+    try std.testing.expectError(
+        error.FileNotFound,
+        tmp.dir.access(io, "out.otio", .{}),
+    );
+}
+
+test "adapter: content_filter all_except_metadata drops metadata"
+{
+    // TODO(serialization stage 3): content_filter is ignored by
+    // read_serializable_timeline_from_file and the reader bridges.
+    if (!RUN_KNOWN_FAILURES) return error.SkipZigTest;
+
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const io = std.testing.io;
+
+    const with_md = try serializable.read_from_file(
+        allocator,
+        io,
+        TEST_TIMELINE_METADATA_PATH,
+        .{},
+    );
+    try std.testing.expect(with_md.timeline.metadata_map != null);
+
+    const without_md = try serializable.read_from_file(
+        allocator,
+        io,
+        TEST_TIMELINE_METADATA_PATH,
+        .{ .content_filter = .all_except_metadata },
+    );
+    try std.testing.expect(without_md.timeline.metadata_map == null);
+}
+
+test "adapter: older schema versions are upgraded on read"
+{
+    // TODO(serialization stage 2/3): only ascii.deserialize_timeline runs
+    // the versioning upgrade; the adapter read paths do not.
+    if (!RUN_KNOWN_FAILURES) return error.SkipZigTest;
+
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const io = std.testing.io;
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    // Rewrite a known-good file as schema_version 0.
+    const source = try std.Io.Dir.cwd().readFileAlloc(
+        io,
+        TEST_TIMELINE_PATH,
+        allocator,
+        .unlimited,
+    );
+    const v1_header = ".schema_version = 1,";
+    try std.testing.expect(std.mem.startsWith(u8, source, v1_header));
+    const v0_source = try std.mem.concat(
+        allocator,
+        u8,
+        &.{ ".schema_version = 0,", source[v1_header.len..] },
+    );
+
+    try tmp.dir.writeFile(
+        io,
+        .{ .sub_path = "v0.tla", .data = v0_source },
+    );
+    const path = try tmp_path(allocator, tmp, "v0.tla");
+
+    const root = try serializable.read_from_file(allocator, io, path, .{});
+    try std.testing.expectEqual(
+        versioning.current_version("Timeline"),
+        root.timeline.schema_version,
+    );
+}
+
+test "adapter: FileFormat.from_path"
+{
+    try std.testing.expectEqual(
+        FileFormat.tla,
+        try FileFormat.from_path("a/b/c.tla"),
+    );
+    try std.testing.expectEqual(
+        FileFormat.tlcz,
+        try FileFormat.from_path("c.tlcz"),
+    );
+    try std.testing.expectError(
+        error.NoFileExtension,
+        FileFormat.from_path("no_extension"),
+    );
+    try std.testing.expectError(
+        error.UnsupportedFileFormat,
+        FileFormat.from_path("file.txt"),
+    );
+}
