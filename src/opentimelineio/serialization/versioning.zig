@@ -686,53 +686,85 @@ test "versioning: comptime checks reject malformed tables"
 {
     comptime {
         // Missing the 1 -> 2 step.
-        const Gap = TransformTable(FakeVersioned, .upgrade, &.{
-            .{ .from = 0, .to = 1, .change = .none },
-            .{ .from = 2, .to = 3, .change = .none },
-        });
+        const Gap = TransformTable(
+            FakeVersioned,
+            .upgrade,
+            &.{
+                .{ .from = 0, .to = 1, .change = .none },
+                .{ .from = 2, .to = 3, .change = .none },
+            },
+        );
         std.debug.assert(upgrade_table_problem(Gap, 0, 3) != null);
 
         // Duplicate step.
-        const Dup = TransformTable(FakeVersioned, .upgrade, &.{
-            .{ .from = 0, .to = 1, .change = .none },
-            .{ .from = 0, .to = 1, .change = .none },
-        });
+        const Dup = TransformTable(
+            FakeVersioned,
+            .upgrade,
+            &.{
+                .{ .from = 0, .to = 1, .change = .none },
+                .{ .from = 0, .to = 1, .change = .none },
+            },
+        );
         std.debug.assert(upgrade_table_problem(Dup, 0, 1) != null);
 
         // Skips a version in one step.
-        const Skip = TransformTable(FakeVersioned, .upgrade, &.{
-            .{ .from = 0, .to = 2, .change = .none },
-        });
+        const Skip = TransformTable(
+            FakeVersioned,
+            .upgrade,
+            &.{
+                .{ .from = 0, .to = 2, .change = .none },
+            },
+        );
         std.debug.assert(upgrade_table_problem(Skip, 0, 2) != null);
 
         // Goes past the current version.
-        const Past = TransformTable(FakeVersioned, .upgrade, &.{
-            .{ .from = 0, .to = 1, .change = .none },
-        });
+        const Past = TransformTable(
+            FakeVersioned,
+            .upgrade,
+            &.{
+                .{ .from = 0, .to = 1, .change = .none },
+            },
+        );
         std.debug.assert(upgrade_table_problem(Past, 0, 0) != null);
 
         // Starts before the oldest readable version.
-        const TooOld = TransformTable(FakeVersioned, .upgrade, &.{
-            .{ .from = 0, .to = 1, .change = .none },
-            .{ .from = 1, .to = 2, .change = .none },
-        });
+        const TooOld = TransformTable(
+            FakeVersioned,
+            .upgrade,
+            &.{
+                .{ .from = 0, .to = 1, .change = .none },
+                .{ .from = 1, .to = 2, .change = .none },
+            },
+        );
         std.debug.assert(upgrade_table_problem(TooOld, 1, 2) != null);
 
         // Downgrade tables: wrong direction step, duplicate, past current.
-        const Backwards = TransformTable(FakeVersioned, .downgrade, &.{
-            .{ .from = 1, .to = 2, .change = .none },
-        });
+        const Backwards = TransformTable(
+            FakeVersioned,
+            .downgrade,
+            &.{
+                .{ .from = 1, .to = 2, .change = .none },
+            },
+        );
         std.debug.assert(downgrade_table_problem(Backwards, 2) != null);
 
-        const DownDup = TransformTable(FakeVersioned, .downgrade, &.{
-            .{ .from = 2, .to = 1, .change = .none },
-            .{ .from = 2, .to = 1, .change = .none },
-        });
+        const DownDup = TransformTable(
+            FakeVersioned,
+            .downgrade,
+            &.{
+                .{ .from = 2, .to = 1, .change = .none },
+                .{ .from = 2, .to = 1, .change = .none },
+            },
+        );
         std.debug.assert(downgrade_table_problem(DownDup, 2) != null);
 
-        const DownPast = TransformTable(FakeVersioned, .downgrade, &.{
-            .{ .from = 3, .to = 2, .change = .none },
-        });
+        const DownPast = TransformTable(
+            FakeVersioned,
+            .downgrade,
+            &.{
+                .{ .from = 3, .to = 2, .change = .none },
+            },
+        );
         std.debug.assert(downgrade_table_problem(DownPast, 2) != null);
 
         // Tables used in the wrong direction.
@@ -746,10 +778,14 @@ test "versioning: data older than the oldest readable version is rejected"
     const allocator = std.testing.allocator;
 
     // Reads v2..v4 only.
-    const FromTwo = TransformTable(FakeVersioned, .upgrade, &.{
-        .{ .from = 2, .to = 3, .change = .none },
-        .{ .from = 3, .to = 4, .change = .{ .transform = fake_transforms.up_3_4 } },
-    });
+    const FromTwo = TransformTable(
+        FakeVersioned,
+        .upgrade,
+        &.{
+            .{ .from = 2, .to = 3, .change = .none },
+            .{ .from = 3, .to = 4, .change = .{ .transform = fake_transforms.up_3_4 } },
+        },
+    );
     comptime std.debug.assert(upgrade_table_problem(FromTwo, 2, 4) == null);
 
     var too_old: FakeVersioned = .{ .schema_version = 1 };

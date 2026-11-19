@@ -106,14 +106,21 @@ fn read_to_serializable_timeline(
     allocator: std.mem.Allocator,
     io: std.Io,
     filepath: []const u8,
-) !otio.serialization.SerializableTimeline
+) !otio.serialization.serializable.Timeline
 {
-    return try otio.serialization.read_serializable_timeline_from_file(
+    var root = try otio.serialization.serializable.read_from_file(
         allocator,
         io,
         filepath,
-        .all,
+        .{},
     );
+    switch (root) {
+        .timeline => |tl| return tl,
+        .collection => {
+            root.deinit(allocator);
+            return error.NotATimelineFormat;
+        },
+    }
 }
 
 /// Read a collection file to SerializableCollection
@@ -122,13 +129,21 @@ fn read_to_serializable_collection(
     allocator: std.mem.Allocator,
     io: std.Io,
     filepath: []const u8,
-) !otio.serialization.SerializableCollection
+) !otio.serialization.serializable.Collection
 {
-    return try otio.serialization.read_serializable_collection_from_file(
+    var root = try otio.serialization.serializable.read_from_file(
         allocator,
         io,
         filepath,
+        .{},
     );
+    switch (root) {
+        .collection => |coll| return coll,
+        .timeline => {
+            root.deinit(allocator);
+            return error.NotACollectionFormat;
+        },
+    }
 }
 
 /// Get file extension from path

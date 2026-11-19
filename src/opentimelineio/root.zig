@@ -52,4 +52,5 @@ test {
     _ = projection;
     _ = domain;
     _ = serialization;
+    _ = @import("json_metadata.zig");
 }

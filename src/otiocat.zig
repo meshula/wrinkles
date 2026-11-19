@@ -228,21 +228,6 @@ pub fn usage(
     std.process.exit(1);
 }
 
-/// Get file extension from path
-fn get_extension(
-    path: []const u8,
-) ?[]const u8
-{
-    const ext_start = std.mem.lastIndexOfScalar(
-        u8,
-        path,
-        '.',
-    ) orelse return null;
-
-    return path[ext_start..];
-}
-
-
 pub fn main(
     init: std.process.Init,
 ) !void
@@ -289,57 +274,33 @@ pub fn main(
         std.process.exit(1);
     }
 
-    // Check input format to determine if this is a collection or timeline
-    const input_ext = get_extension(state.input_path) orelse {
-        std.log.err("Input file must have an extension", .{});
-        std.process.exit(1);
-    };
-
-    const input_format = std.meta.stringToEnum(
-        serialization.FileFormat,
-        input_ext[1..],  // Skip the leading dot
-    ) orelse {
+    const input_format = serialization.FileFormat.from_path(
+        state.input_path,
+    ) catch |err| {
         std.log.err(
-            "Unsupported input format: {s}",
-            .{input_ext}
+            "Unsupported input file {s}: {t}",
+            .{ state.input_path, err },
         );
         std.process.exit(1);
     };
+    const is_collection = serialization.descriptor(input_format).is_collection;
 
-    const is_collection = serialization.adapter.descriptor(input_format).is_collection;
-
-    // Check output extension (default to .tla/.tlca for stdout based on input
-    // type)
-    const default_output_ext = if (is_collection) ".tlca" else ".tla";
-    const output_ext = (
-        if (state.output_path) |path|
-            get_extension(path) orelse {
+    // Writing to stdout defaults to the text format for the input's root type
+    const output_format: serialization.FileFormat = (
+        if (state.output_path)
+            |path|
+            serialization.FileFormat.from_path(path) catch |err| {
                 std.log.err(
-                    "Output file must have an extension",
-                    .{},
+                    "Unsupported output file {s}: {t}",
+                    .{ path, err },
                 );
                 std.process.exit(1);
             }
-        else default_output_ext
+        else if (is_collection) .tlca else .tla
     );
+    const output_desc = serialization.descriptor(output_format);
 
-    const output_format = std.meta.stringToEnum(
-        serialization.FileFormat,
-        output_ext[1..],  // Skip the leading dot
-    ) orelse {
-        std.log.err(
-            "Unsupported output format: {s}",
-            .{output_ext}
-        );
-        std.process.exit(1);
-    };
-
-    // Validate format compatibility
-    const output_is_collection = (
-        serialization.adapter.descriptor(output_format).is_collection
-    );
-
-    if (is_collection != output_is_collection) {
+    if (is_collection != output_desc.is_collection) {
         std.log.err(
             "Cannot convert between timeline and collection formats. " ++
             "Use timeline formats (.tla, .tlb, .tlz) or collection formats (.tlca, .tlcb, .tlcz).",
@@ -348,11 +309,14 @@ pub fn main(
         std.process.exit(1);
     }
 
+    if (output_desc.is_read_only)
+    {
+        std.log.err("Cannot write .{t} files", .{ output_format });
+        std.process.exit(1);
+    }
+
     // Bundle output requires an output file (can't write to stdout)
-    if (
-        serialization.adapter.descriptor(output_format).is_bundle
-        and state.output_path == null
-    )
+    if (output_desc.is_bundle and state.output_path == null)
     {
         std.log.err("Bundle output requires an output file path", .{});
         std.process.exit(1);
@@ -369,175 +333,58 @@ pub fn main(
         },
     };
 
-    if (is_collection) 
+    // Every input format reads to the same serializable representation,
+    // which preserves metadata hash maps through the conversion.
+    var root = try serialization.serializable.read_from_file(
+        allocator,
+        io,
+        state.input_path,
+        .{
+            .content_filter = (
+                if (state.metadata_mode == .no_metadata) .all_except_metadata
+                else .all
+            ),
+        },
+    );
+    defer root.deinit(allocator);
+
+    read_prog.end();
+
+    const convert_prog = parent_prog.start(
+        if (is_collection) "Converting collection..." else "Converting timeline...",
+        0,
+    );
+
+    if (state.output_path)
+        |path|
     {
-        // Handle collection formats
-        const ser_collection = try serialization.read_serializable_collection_from_file(
+        try serialization.serializable.write_to_file(
             allocator,
             io,
-            state.input_path,
+            root,
+            path,
+            write_options,
         );
-
-        read_prog.end();
-
-        const convert_prog = parent_prog.start(
-            "Converting collection...",
-            0,
-        );
-
-        // Write collection output
-        if (state.output_path) 
-            |path|
-        {
-            try serialization.serializable.write_to_file(
-                allocator,
-                io,
-                .{ .collection = ser_collection },
-                path,
-                write_options,
-            );
-        }
-        else
-        {
-            // Write to stdout
-            var out_file = std.Io.File.stdout();
-            var file_writer_buffer: [16 * 1024]u8 = undefined;
-            var file_writer = out_file.writer(io, &file_writer_buffer);
-            const writer = &file_writer.interface;
-
-            try serialization.write_serializable_collection_to_writer(
-                allocator,
-                ser_collection,
-                output_format,
-                state.metadata_mode,
-                writer,
-            );
-
-            try writer.flush();
-        }
-
-        convert_prog.end();
-    } 
-    else 
-    {
-        // For TLA/TLB/TLZ formats, use SerializableTimeline directly to preserve
-        // metadata_hash and metadata_map. Only go through schema.Timeline for
-        // OTIO JSON input which requires the JSON parsing infrastructure.
-        if (
-            // @TODO: use the Adapter's types to get more information (like
-            // root type)
-            input_format == .tla 
-            or input_format == .tlb 
-            or input_format == .tlz
-        )
-        {
-            const input_metadata_mode: serialization.ReadOptions.ContentFilter = (
-                switch (state.metadata_mode) {
-                    .no_metadata => .all_except_metadata,
-                    else => .all,
-                }
-            );
-
-            // Read directly to SerializableTimeline (preserves metadata)
-            var ser_timeline = (
-                try serialization.read_serializable_timeline_from_file(
-                    allocator,
-                    io,
-                    state.input_path,
-                    input_metadata_mode,
-                )
-            );
-            defer ser_timeline.deinit(allocator);
-
-            read_prog.end();
-
-            const convert_prog = parent_prog.start(
-                "Converting timeline...",
-                0,
-            );
-
-            if (state.output_path) 
-                |path|
-            {
-                try serialization.serializable.write_to_file(
-                    allocator,
-                    io,
-                    .{ .timeline = ser_timeline },
-                    path,
-                    write_options,
-                );
-            }
-            else
-            {
-                // Write to stdout
-                var out_file = std.Io.File.stdout();
-                var file_writer_buffer: [16 * 1024]u8 = undefined;
-                var file_writer = out_file.writer(io, &file_writer_buffer);
-                const writer = &file_writer.interface;
-
-                try serialization.write_serializable_to_writer(
-                    allocator,
-                    ser_timeline,
-                    output_format,
-                    state.metadata_mode,
-                    writer,
-                );
-
-                try writer.flush();
-            }
-
-            convert_prog.end();
-        }
-        else
-        {
-            // OTIO JSON input - must go through schema.Timeline
-            var tl_ref = try serialization.read_from_file(
-                allocator,
-                io,
-                state.input_path,
-                .{},
-            );
-            defer tl_ref.deinit(allocator);
-
-            read_prog.end();
-
-            const convert_prog = parent_prog.start(
-                "Converting timeline...",
-                0,
-            );
-
-            if (state.output_path) |path|
-            {
-                try serialization.write_to_file(
-                    allocator,
-                    io,
-                    tl_ref,
-                    path,
-                    write_options,
-                );
-            }
-            else
-            {
-                // Write to stdout
-                var out_file = std.Io.File.stdout();
-                var file_writer_buffer: [16 * 1024]u8 = undefined;
-                var file_writer = out_file.writer(io, &file_writer_buffer);
-                const writer = &file_writer.interface;
-
-                try serialization.write_to_writer(
-                    allocator,
-                    tl_ref,
-                    writer,
-                    output_format,
-                    .{ .metadata_mode = state.metadata_mode },
-                );
-
-                try writer.flush();
-            }
-
-            convert_prog.end();
-        }
     }
+    else
+    {
+        var out_file = std.Io.File.stdout();
+        var file_writer_buffer: [16 * 1024]u8 = undefined;
+        var file_writer = out_file.writer(io, &file_writer_buffer);
+        const writer = &file_writer.interface;
+
+        try serialization.serializable.write_to_writer(
+            allocator,
+            root,
+            writer,
+            output_format,
+            write_options,
+        );
+
+        try writer.flush();
+    }
+
+    convert_prog.end();
 
     if (state.output_path) 
         |path|
@@ -549,14 +396,6 @@ pub fn main(
 // ----------------------------------------------------------------------------
 // Tests
 // ----------------------------------------------------------------------------
-
-test "get_extension returns correct extension" {
-    try std.testing.expectEqualStrings(".tla", get_extension("foo.tla").?);
-    try std.testing.expectEqualStrings(".tlb", get_extension("path/to/file.tlb").?);
-    try std.testing.expectEqualStrings(".tlz", get_extension("/abs/path/bundle.tlz").?);
-    try std.testing.expectEqualStrings(".otio", get_extension("test.otio").?);
-    try std.testing.expect(get_extension("no_extension") == null);
-}
 
 test "FileFormat stringToEnum parses extensions correctly" {
     // Test that we can parse all supported output formats
@@ -578,108 +417,62 @@ test "FileFormat stringToEnum parses extensions correctly" {
     );
 }
 
-test "roundtrip tla format via read_from_buffer and write_to_buffer" {
+/// Test helper: read `path`, write it to memory as `format`, read that back,
+/// and check the timeline's name and child count survive.
+fn expect_roundtrip_through(
+    path: []const u8,
+    format: serialization.FileFormat,
+) !void
+{
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
-    // Read a test file
-    const ser_timeline = try serialization.read_from_file(
+    var original = try serialization.serializable.read_from_file(
         allocator,
-        "otio_sample_data/simple_cut.tla",
-    );
-
-    // Write to buffer as tla
-    const buffer = try serialization.write_to_buffer(
-        allocator,
-        ser_timeline,
-        .tla,
+        io,
+        path,
         .{},
     );
-    defer allocator.free(buffer);
+    defer original.deinit(allocator);
 
-    // Read back from buffer
-    const roundtrip_timeline = try serialization.read_from_buffer(
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
+    defer buffer.deinit();
+    try serialization.serializable.write_to_writer(
         allocator,
-        buffer,
-        .tla,
+        original,
+        &buffer.writer,
+        format,
+        .{},
     );
+    try std.testing.expect(buffer.written().len > 0);
 
-    // Verify basic structure matches
+    var reader: std.Io.Reader = .fixed(buffer.written());
+    var roundtrip = try serialization.serializable.read_from_reader(
+        allocator,
+        &reader,
+        format,
+        .{},
+    );
+    defer roundtrip.deinit(allocator);
+
     try std.testing.expectEqualStrings(
-        ser_timeline.name orelse "",
-        roundtrip_timeline.name orelse "",
+        original.timeline.name,
+        roundtrip.timeline.name,
     );
     try std.testing.expectEqual(
-        ser_timeline.tracks.children.len,
-        roundtrip_timeline.tracks.children.len,
+        original.timeline.children.len,
+        roundtrip.timeline.children.len,
     );
 }
 
-test "roundtrip tlb format via read_from_buffer and write_to_buffer" {
-    const allocator = std.testing.allocator;
-
-    // Read a test file
-    const ser_timeline = try serialization.read_from_file(
-        allocator,
-        "otio_sample_data/simple_cut.tla",
-    );
-
-    // Write to buffer as tlb (FlatBuffers binary)
-    const buffer = try serialization.write_to_buffer(
-        allocator,
-        ser_timeline,
-        .tlb,
-        .{},
-    );
-    defer allocator.free(buffer);
-
-    // Read back from buffer
-    const roundtrip_timeline = try serialization.read_from_buffer(
-        allocator,
-        buffer,
-        .tlb,
-    );
-
-    // Verify basic structure matches
-    try std.testing.expectEqualStrings(
-        ser_timeline.name orelse "",
-        roundtrip_timeline.name orelse "",
-    );
-    try std.testing.expectEqual(
-        ser_timeline.tracks.children.len,
-        roundtrip_timeline.tracks.children.len,
-    );
+test "otiocat: roundtrip tla through tla" {
+    try expect_roundtrip_through("otio_sample_data/simple_cut.tla", .tla);
 }
 
-test "convert otio to tla via buffer" {
-    const allocator = std.testing.allocator;
+test "otiocat: roundtrip tla through tlb" {
+    try expect_roundtrip_through("otio_sample_data/simple_cut.tla", .tlb);
+}
 
-    // Read OTIO JSON file
-    const ser_timeline = try serialization.read_from_file(
-        allocator,
-        "sample_otio_files/simple_cut.otio",
-    );
-
-    // Write to buffer as tla
-    const buffer = try serialization.write_to_buffer(
-        allocator,
-        ser_timeline,
-        .tla,
-        .{},
-    );
-    defer allocator.free(buffer);
-
-    // Verify we got some output
-    try std.testing.expect(buffer.len > 0);
-
-    // Read back and verify
-    const roundtrip = try serialization.read_from_buffer(
-        allocator,
-        buffer,
-        .tla,
-    );
-
-    try std.testing.expectEqual(
-        ser_timeline.tracks.children.len,
-        roundtrip.tracks.children.len,
-    );
+test "otiocat: convert otio through tla" {
+    try expect_roundtrip_through("otio_sample_data/simple_cut.otio", .tla);
 }

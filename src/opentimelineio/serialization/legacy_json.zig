@@ -18,6 +18,7 @@ const format_m = @import("format.zig");
 
 const ascii = @import("ascii.zig");
 const serializable = @import("serializable.zig");
+const json_metadata = @import("../json_metadata.zig");
 
 const SerializableObjectTypes = enum {
     Timeline,
@@ -778,12 +779,13 @@ fn read_markers(
         );
 
         // Read color
-        const color = (
-            if (try maybe_string(allocator, marker_obj, "color")) 
-                |color_str|
-                otio.MarkerColor.from_string(color_str) orelse .red
-            else .red
-        );
+        const color: otio.MarkerColor = color_blk: {
+            const color_str = (
+                try maybe_string(allocator, marker_obj, "color")
+            ) orelse break :color_blk .red;
+            defer allocator.free(color_str);
+            break :color_blk otio.MarkerColor.from_string(color_str) orelse .red;
+        };
 
         // Read comment
         const comment = (
@@ -849,10 +851,9 @@ fn read_otio_object(
                     content_filter,
                 )
             );
-            const st = otio.Stack{
-                .name = so_stack.stack.name,
-                .children = so_stack.stack.children,
-            };
+            // Take the whole stack by value, including its markers; the heap
+            // cell it was returned in is destroyed below.
+            const st = so_stack.stack.*;
             const tl = try allocator.create(otio.Timeline);
 
             // discrete information
@@ -1020,7 +1021,9 @@ fn read_otio_object(
                         and meta_val.object.count() > 0
                     ) 
                     {
-                        break :blk meta_val;
+                        // meta_val lives in the JSON parse arena; the clip
+                        // must own its copy.
+                        break :blk try json_metadata.clone(allocator, meta_val);
                     }
                     break :blk null;
                 }
@@ -1489,7 +1492,7 @@ fn otio_json_to_serializable_timeline(
         ),
 
         // Collections cannot be converted to timeline - use serialize_collection instead
-        .collection => return error.UseSerializeCollectionInstead,
+        .collection => return error.UnsupportedRootObject,
     };
 
     // OTIO JSON is schema version 0; readers upgrade it via
@@ -1509,10 +1512,7 @@ pub const TimelineCodec = struct {
     ) !serializable.SerializableTimeline
     {
         // all_except_metadata is applied by the adapter after conversion.
-        if (options.content_filter == .only_metadata)
-        {
-            return error.OnlyMetadataNotSupportedForDeserialization;
-        }
+        _ = options;
 
         const source = try reader.allocRemaining(allocator, .unlimited);
         defer allocator.free(source);

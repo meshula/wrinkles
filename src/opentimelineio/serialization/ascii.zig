@@ -16,23 +16,16 @@ const ziggy = @import("ziggy");
 
 const opentime = @import("opentime");
 const sampling = @import("sampling");
-const topology_m = @import("topology");
 const curve = @import("curve");
-const string = @import("string_stuff");
 
 const schema = @import("../schema.zig");
-const domain_mod = @import("../domain.zig");
 
 const versioning = @import("versioning.zig");
-const legacy_json = @import("legacy_json.zig");
-const bundle_utils = @import("bundle_utils.zig");
 const binary = @import("binary.zig");
-const bundle = @import("bundle.zig");
 const format_m = @import("format.zig");
 const serializable = @import("serializable.zig");
 
 // Intermediate representation types and helpers (see serializable.zig)
-const MetadataContext = serializable.MetadataContext;
 const MetadataMap = serializable.MetadataMap;
 const MetadataValue = serializable.MetadataValue;
 const SerializableAffineTransform1D = serializable.SerializableAffineTransform1D;
@@ -67,37 +60,10 @@ const SerializableTransition = serializable.SerializableTransition;
 const SerializableURIReference = serializable.SerializableURIReference;
 const SerializableWarp = serializable.SerializableWarp;
 const bezier_curve_to_serializable = serializable.bezier_curve_to_serializable;
-const hash_to_hex_string = serializable.hash_to_hex_string;
-const hex_string_to_hash = serializable.hex_string_to_hash;
 const linear_curve_to_serializable = serializable.linear_curve_to_serializable;
 const serializable_to_bezier_curve = serializable.serializable_to_bezier_curve;
-const serializable_to_gap = serializable.serializable_to_gap;
-const serializable_to_interval = serializable.serializable_to_interval;
 const serializable_to_linear_curve = serializable.serializable_to_linear_curve;
-const serializable_to_optional_interval = serializable.serializable_to_optional_interval;
 const serializable_to_timeline = serializable.serializable_to_timeline;
-
-/// Write a Timeline to a writer in the specified format.
-/// Converts to serializable format internally.
-fn write_timeline_to_writer(
-    allocator: std.mem.Allocator,
-    timeline: *schema.Timeline,
-    format: FileFormat,
-    metadata_mode: format_m.WriteOptions.MetadataMode,
-    writer: anytype,
-) !void
-{
-    var ser_timeline: SerializableTimeline = try .from(allocator, timeline);
-    defer ser_timeline.deinit(allocator);
-
-    try write_serializable_to_writer(
-        allocator,
-        ser_timeline,
-        format,
-        metadata_mode,
-        writer,
-    );
-}
 
 
 /// Serializable variant of Clip with inline metadata (for --inline-metadata output)
@@ -387,80 +353,6 @@ pub const SerializableCollectionItemNoMetadata = union(enum) {
 // ----------------------------------------------------------------------------
 // Main Serialization Entry Points (using tla)
 // ----------------------------------------------------------------------------
-
-/// Serialize a Timeline to tla format and write to the provided writer.
-fn serialize_timeline(
-    timeline: *schema.Timeline,
-    allocator: std.mem.Allocator,
-    writer: *std.Io.Writer,
-) !void
-{
-    // Convert to serializable format
-    var intermediate_tl = try SerializableTimeline.from(
-        allocator,
-        timeline,
-    );
-    defer intermediate_tl.deinit(allocator);
-
-    // Serialize directly - ziggy 0.1.0 CAN parse unions in arrays!
-    try ziggy.serialize(
-        intermediate_tl,
-        .{
-            .whitespace = .space_4,
-            .emit_null_fields = false,
-        },
-        writer
-    );
-}
-
-/// Deserialize a Timeline from tla format source string.
-///
-/// Automatically detects the version in the file and upgrades to the current
-/// version if needed (requires registered upgrade functions).
-///
-/// If content_filter is .all_except_metadata, the metadata_map
-/// field's tokens are consumed without being parsed (see `SkippedValue`).
-/// This provides significant performance gains for large files with
-/// extensive metadata.
-pub fn deserialize_timeline(
-    allocator: std.mem.Allocator,
-    source: [:0]const u8,
-    content_filter: format_m.ReadOptions.ContentFilter,
-) !*schema.Timeline
-{
-    var meta: ziggy.Deserializer.Meta = .init;
-    var serializable_tl = switch (content_filter) {
-        .all => try ziggy.deserializeLeaky(
-            SerializableTimeline,
-            allocator,
-            source,
-            &meta,
-            .{ .copy_strings = .always },
-        ),
-        .all_except_metadata => s_t: {
-            // Use the no-metadata variant that skips parsing metadata_map entirely
-            var serializable_tl_no_md = try ziggy.deserializeLeaky(
-                SerializableTimelineNoMetadata,
-                allocator,
-                source,
-                &meta,
-                .{ .copy_strings = .always },
-            );
-
-            // convert back to regular SerializableTimeline
-            break :s_t  serializable_tl_no_md.to_serializable_timeline();
-        },
-        .only_metadata => return error.OnlyMetadataNotSupportedForDeserialization,
-    };
-    defer serializable_tl.deinit(allocator);
-
-    try serializable.finalize_timeline(allocator, &serializable_tl);
-
-    return try serializable_to_timeline(
-        allocator,
-        serializable_tl,
-    );
-}
 
 // @TODO: collapse these serialize functions that recursively call components
 //        down
@@ -820,6 +712,63 @@ fn convert_composable_to_no_metadata(
     };
 }
 
+/// Test helper: encode `data` with a codec namespace into an owned buffer.
+fn test_encode(
+    comptime Codec: type,
+    allocator: std.mem.Allocator,
+    data: anytype,
+    metadata_mode: format_m.WriteOptions.MetadataMode,
+) ![]u8
+{
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    errdefer out.deinit();
+    try Codec.write(
+        allocator,
+        data,
+        &out.writer,
+        .{ .metadata_mode = metadata_mode },
+    );
+    return try out.toOwnedSlice();
+}
+
+/// The value type a codec namespace reads.
+fn CodecData(
+    comptime Codec: type,
+) type
+{
+    const ret = @typeInfo(@TypeOf(Codec.read)).@"fn".return_type.?;
+    return @typeInfo(ret).error_union.payload;
+}
+
+/// Test helper: decode `bytes` with a codec namespace.
+fn test_decode(
+    comptime Codec: type,
+    allocator: std.mem.Allocator,
+    bytes: []const u8,
+) !CodecData(Codec)
+{
+    var reader: std.Io.Reader = .fixed(bytes);
+    return try Codec.read(allocator, &reader, .{});
+}
+
+/// Test helper: decode the file at `path` with a codec namespace.
+fn test_read_file(
+    comptime Codec: type,
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    path: []const u8,
+) !CodecData(Codec)
+{
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(
+        io,
+        path,
+        allocator,
+        .unlimited,
+    );
+    defer allocator.free(bytes);
+    return try test_decode(Codec, allocator, bytes);
+}
+
 test "timeline serialization: tla round-trip"
 {
     const allocator = std.testing.allocator;
@@ -840,28 +789,22 @@ test "timeline serialization: tla round-trip"
     };
 
     // Serialize to tla format
-    var buffer: std.Io.Writer.Allocating = .init(allocator);
-    defer buffer.deinit();
-
-    try serialize_timeline(
-        &timeline,
+    var ser_timeline = try SerializableTimeline.from(allocator, &timeline);
+    defer ser_timeline.deinit(allocator);
+    const buffer = try test_encode(
+        TimelineCodec,
         allocator,
-        &buffer.writer,
+        ser_timeline,
+        .hash_reference,
     );
-
-    // Add null terminator for ziggy
-    const written = buffer.written();
-    const source_with_null = try allocator.alloc(u8, written.len + 1);
-    defer allocator.free(source_with_null);
-    @memcpy(source_with_null[0..written.len], written);
-    source_with_null[written.len] = 0;
-    const source: [:0]const u8 = source_with_null[0..written.len :0];
+    defer allocator.free(buffer);
 
     // Deserialize back
-    const loaded_timeline = try deserialize_timeline(
+    var loaded_ser = try test_decode(TimelineCodec, allocator, buffer);
+    defer loaded_ser.deinit(allocator);
+    const loaded_timeline = try serializable_to_timeline(
         allocator,
-        source,
-        .all,
+        loaded_ser,
     );
     defer allocator.destroy(loaded_timeline);
     defer loaded_timeline.deinit(allocator);
@@ -1039,26 +982,13 @@ fn expect_all_modes_match_schema(
     {
         var buf: std.Io.Writer.Allocating = .init(allocator);
         defer buf.deinit();
-        if (is_collection)
-        {
-            try write_collection_to_writer(
-                allocator,
-                value,
-                .tlca,
-                mode,
-                &buf.writer,
-            );
-        }
-        else
-        {
-            try write_serializable_to_writer(
-                allocator,
-                value,
-                .tla,
-                mode,
-                &buf.writer,
-            );
-        }
+        const Codec = if (is_collection) CollectionCodec else TimelineCodec;
+        try Codec.write(
+            allocator,
+            value,
+            &buf.writer,
+            .{ .metadata_mode = mode },
+        );
         try buf.writer.writeByte(0);
         const written = buf.written();
         const source: [:0]const u8 = written[0 .. written.len - 1 :0];
@@ -1400,7 +1330,7 @@ test "tla schema: fixtures match the schema when re-serialized"
         defer arena.deinit();
         const allocator = arena.allocator();
 
-        const tl = read_from_file(allocator, io, path) catch |err| {
+        const tl = test_read_file(TimelineCodec, allocator, io, path) catch |err| {
             std.debug.print("unable to read {s}: {t}\n", .{ path, err });
             return err;
         };
@@ -1493,7 +1423,8 @@ test "tlca schema: fixtures match the schema when re-serialized"
         defer arena.deinit();
         const allocator = arena.allocator();
 
-        const collection = read_collection_from_file(
+        const collection = test_read_file(
+            CollectionCodec,
             allocator,
             io,
             path,
@@ -1509,255 +1440,9 @@ test "tlca schema: fixtures match the schema when re-serialized"
 }
 
 // ----------------------------------------------------------------------------
-// Universal File Reading
+// TLA / TLCA writers (metadata output modes)
 // ----------------------------------------------------------------------------
 
-
-/// Supported file format types for read/write operations.
-/// Re-exported from format.zig for backward compatibility.
-pub const FileFormat = format_m.FileFormat;
-
-/// Read a timeline from a buffer into SerializableTimeline.
-/// Supports: .otio (JSON), .tla, .tlb (FlatBuffers)
-/// Note: .tlz format is not supported for buffer reading as it requires
-/// file system access for the ZIP archive. Use read_from_file for .tlz.
-///
-/// This is useful for cases where data is already in memory, such as
-/// from sokol_fetch callbacks or network transfers.
-pub fn read_from_buffer(
-    allocator: std.mem.Allocator,
-    buffer: []const u8,
-    format: FileFormat,
-) !SerializableTimeline
-{
-    var meta: ziggy.Deserializer.Meta = .init;
-    switch (format) {
-        .tla => {
-            // Ziggy requires null-terminated source
-            // Check if already null-terminated
-            if (buffer.len > 0 and buffer[buffer.len - 1] == 0) {
-                return try ziggy.deserializeLeaky(
-                    SerializableTimeline,
-                    allocator,
-                    buffer[0 .. buffer.len - 1 :0],
-                    &meta,
-                    .{},
-                );
-            }
-            // Need to add null terminator
-            // Note: source_with_null must NOT be freed here because
-            // deserializeLeaky returns data containing slices into this buffer.
-            // The caller is responsible for managing this memory (typically via
-            // an ArenaAllocator).
-            const source_with_null = try allocator.alloc(u8, buffer.len + 1);
-            @memcpy(source_with_null[0..buffer.len], buffer);
-            source_with_null[buffer.len] = 0;
-            return try ziggy.deserializeLeaky(
-                SerializableTimeline,
-                allocator,
-                source_with_null[0..buffer.len :0],
-                &meta,
-                .{},
-            );
-        },
-        .tlb => {
-            return try binary.deserialize_to_serializable_timeline(
-                allocator,
-                buffer,
-                .all,
-            );
-        },
-        .otio => {
-            var otio_reader: std.Io.Reader = .fixed(buffer);
-            var tl = try legacy_json.TimelineCodec.read(
-                allocator,
-                &otio_reader,
-                .{},
-            );
-            try serializable.finalize_timeline(allocator, &tl);
-            return tl;
-        },
-        .tlz => {
-            // TLZ is a ZIP archive that requires file system access
-            return error.TlzRequiresFileAccess;
-        },
-        .tlca, .tlcb, .tlcz => {
-            // Collection formats are not timelines
-            return error.NotATimelineFormat;
-        },
-    }
-}
-
-/// Read a timeline from any supported file format into SerializableTimeline.
-/// Supports: .otio (JSON), .tla, .tlb (FlatBuffers), .tlz (bundle)
-/// The file format is determined by the file extension.
-pub fn read_from_file(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    file_path: []const u8,
-) !SerializableTimeline
-{
-    // Check file extension to determine format
-    const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
-        return error.NoFileExtension;
-    };
-    const extension = file_path[ext_start + 1 ..];  // Skip the leading dot
-
-    const format = std.meta.stringToEnum(FileFormat, extension) orelse {
-        return error.UnsupportedFileFormat;
-    };
-
-    // Handle .tlz separately since it manages its own file reading
-    if (format == .tlz)
-    {
-        const root = try bundle.read_root_from_file(
-            allocator,
-            io,
-            file_path,
-            .tlz,
-            .{},
-        );
-        return root.timeline;
-    }
-
-    // For other formats, read the file contents first
-    const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
-    defer file.close(io);
-
-    var read_buf: [4096]u8 = undefined;
-    var file_reader = file.reader(io, &read_buf);
-
-    if (format == .tla) {
-        // Read with null sentinel so ziggy can use the buffer directly.
-        // deserializeLeaky stores slices into the source buffer, so this
-        // buffer must outlive the returned SerializableTimeline.
-        // Callers should use an ArenaAllocator to manage this lifetime.
-        const source = try file_reader.interface.allocRemainingAlignedSentinel(
-            allocator,
-            .unlimited,
-            .@"1",
-            0,
-        );
-        var meta: ziggy.Deserializer.Meta = .init;
-        return try ziggy.deserializeLeaky(
-            SerializableTimeline,
-            allocator,
-            source,
-            &meta,
-            .{},
-        );
-    }
-
-    // For non-TLA formats, read normally
-    const source = try file_reader.interface.allocRemaining(
-        allocator,
-        .unlimited,
-    );
-    defer allocator.free(source);
-
-    return try read_from_buffer(allocator, source, format);
-}
-
-// ----------------------------------------------------------------------------
-// Universal File Writing
-// ----------------------------------------------------------------------------
-
-
-/// Options for writing timeline files
-pub const WriteOptions = struct {
-    /// Controls how metadata is output in TLA format
-    metadata_mode: format_m.WriteOptions.MetadataMode = .hash_reference,
-
-    /// TLZ bundle format (tla or tlb inside the bundle)
-    bundle_format: bundle_utils.BundleFormat = .tla,
-
-    /// TLZ media handling policy
-    media_policy: bundle_utils.MediaReferencePolicy = .missing_if_not_file,
-
-    /// Base directory for resolving media paths (for TLZ bundles)
-    media_base_dir: ?[]const u8 = null,
-};
-
-/// Write a SerializableTimeline to an allocated buffer.
-/// Supports: .tla, .tlb (FlatBuffers)
-/// Note: .tlz format is not supported for buffer writing as it requires
-/// file system access for the ZIP archive. Use write_to_file for .tlz.
-///
-/// Returns an allocated buffer that the caller must free.
-/// This is useful for cases where you need the serialized data in memory,
-/// such as for network transfers or in-memory processing.
-pub fn write_to_buffer(
-    allocator: std.mem.Allocator,
-    intermediate_tl: SerializableTimeline,
-    format: FileFormat,
-    metadata_mode: format_m.WriteOptions.MetadataMode,
-) ![]u8
-{
-    switch (format)
-    {
-        // TLZ is a ZIP archive that requires file system access
-        .tlz => return error.TlzRequiresFileAccess,
-
-        // OTIO JSON output is not currently supported
-        .otio => return error.OtioJsonWriteNotSupported,
-        else => {},
-    }
-
-    // Use an allocating writer to build the buffer
-    var buffer = std.Io.Writer.Allocating.init(allocator);
-    errdefer buffer.deinit();
-
-    try write_serializable_to_writer(
-        allocator,
-        intermediate_tl,
-        format,
-        metadata_mode,
-        &buffer.writer,
-    );
-
-    return try buffer.toOwnedSlice();
-}
-
-/// Write a SerializableTimeline to a writer in the specified format.
-///
-/// Use this function when you have a SerializableTimeline and want to
-/// preserve all fields including metadata_hash and metadata_map.
-pub fn write_serializable_to_writer(
-    allocator: std.mem.Allocator,
-    intermediate_tl: SerializableTimeline,
-    format: FileFormat,
-    metadata_mode: format_m.WriteOptions.MetadataMode,
-    writer: anytype,
-) anyerror!void
-{
-    switch (format) {
-        .tla => {
-            try write_tla_with_metadata_mode(
-                allocator,
-                intermediate_tl,
-                metadata_mode,
-                writer,
-            );
-        },
-        .tlb => {
-            try binary.serialize_from_serializable_timeline(
-                intermediate_tl,
-                allocator,
-                writer,
-            );
-        },
-        .otio => {
-            return error.OtioJsonWriteNotSupported;
-        },
-        .tlz => {
-            return error.TlzRequiresFileAccess;
-        },
-        .tlca, .tlcb, .tlcz => {
-            // Collection formats are not timelines - use write_collection_to_writer instead
-            return error.NotATimelineFormat;
-        },
-    }
-}
 
 /// Write SerializableTimeline to TLA format with the specified metadata mode.
 fn write_tla_with_metadata_mode(
@@ -1808,213 +1493,6 @@ fn write_tla_with_metadata_mode(
         },
     }
     _ = try writer.write("\n");
-}
-
-// ----------------------------------------------------------------------------
-// Collection File Reading/Writing
-// ----------------------------------------------------------------------------
-
-/// Read a collection from a buffer into SerializableCollection.
-/// Supports: .tlca (ASCII tla)
-/// Note: .tlcb (FlatBuffers) requires binary_serialization_flatbufs support.
-pub fn read_collection_from_buffer(
-    allocator: std.mem.Allocator,
-    buffer: []const u8,
-    format: FileFormat,
-) !SerializableCollection
-{
-    var meta: ziggy.Deserializer.Meta = .init;
-    switch (format) {
-        .tlca => {
-            // Ziggy requires null-terminated source
-            if (buffer.len > 0 and buffer[buffer.len - 1] == 0) {
-                return try ziggy.deserializeLeaky(
-                    SerializableCollection,
-                    allocator,
-                    buffer[0 .. buffer.len - 1 :0],
-                    &meta,
-                    .{},
-                );
-            }
-            // Need to add null terminator
-            // Note: source_with_null must NOT be freed here because
-            // deserializeLeaky returns data containing slices into this buffer.
-            const source_with_null = try allocator.alloc(u8, buffer.len + 1);
-            @memcpy(source_with_null[0..buffer.len], buffer);
-            source_with_null[buffer.len] = 0;
-            return try ziggy.deserializeLeaky(
-                SerializableCollection,
-                allocator,
-                source_with_null[0..buffer.len :0],
-                &meta,
-                .{},
-            );
-        },
-        .tlcb => {
-            return try binary.deserialize_collection(
-                allocator,
-                buffer,
-            );
-        },
-        else => return error.NotACollectionFormat,
-    }
-}
-
-/// Read a collection from any supported file format into SerializableCollection.
-/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
-/// The file format is determined by the file extension.
-pub fn read_collection_from_file(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    file_path: []const u8,
-) !SerializableCollection
-{
-    // Check file extension to determine format
-    const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
-        return error.NoFileExtension;
-    };
-    const extension = file_path[ext_start + 1 ..];  // Skip the leading dot
-
-    const format = std.meta.stringToEnum(FileFormat, extension) orelse {
-        return error.UnsupportedFileFormat;
-    };
-
-    // Read the file contents
-    const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
-    defer file.close(io);
-
-    var read_buf: [4096]u8 = undefined;
-    var file_reader = file.reader(io, &read_buf);
-
-    if (format == .tlca) {
-        // Read with null sentinel so ziggy can use the buffer directly.
-        // deserializeLeaky stores slices into the source buffer, so this
-        // buffer must outlive the returned SerializableCollection.
-        const source = try file_reader.interface.allocRemainingAlignedSentinel(
-            allocator,
-            .unlimited,
-            .@"1",
-            0,
-        );
-        var meta: ziggy.Deserializer.Meta = .init;
-        return try ziggy.deserializeLeaky(
-            SerializableCollection,
-            allocator,
-            source,
-            &meta,
-            .{},
-        );
-    }
-
-    // For non-TLCA formats, read normally
-    const source = try file_reader.interface.allocRemaining(
-        allocator,
-        .unlimited,
-    );
-    defer allocator.free(source);
-
-    return try read_collection_from_buffer(allocator, source, format);
-}
-
-/// Options for writing collection files (subset of WriteOptions relevant to collections)
-pub const CollectionWriteOptions = struct {
-    /// Controls how metadata is output in TLCA format
-    metadata_mode: format_m.WriteOptions.MetadataMode = .hash_reference,
-};
-
-/// Write a SerializableCollection to a buffer.
-/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
-/// Returns an allocated buffer that the caller must free.
-pub fn write_collection_to_buffer(
-    allocator: std.mem.Allocator,
-    collection: SerializableCollection,
-    format: FileFormat,
-    metadata_mode: format_m.WriteOptions.MetadataMode,
-) ![]u8
-{
-    // Use an allocating writer to build the buffer
-    var buffer = std.Io.Writer.Allocating.init(allocator);
-    errdefer buffer.deinit();
-
-    try write_collection_to_writer(
-        allocator,
-        collection,
-        format,
-        metadata_mode,
-        &buffer.writer,
-    );
-
-    return try buffer.toOwnedSlice();
-}
-
-/// Write a SerializableCollection to a file.
-/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
-/// The file format is determined by the file extension.
-pub fn write_collection_to_file(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    collection: SerializableCollection,
-    file_path: []const u8,
-    options: format_m.WriteOptions.MetadataMode,
-) !void
-{
-    // Check file extension to determine format
-    const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
-        return error.NoFileExtension;
-    };
-    const extension = file_path[ext_start + 1 ..];  // Skip the leading dot
-
-    const format = std.meta.stringToEnum(FileFormat, extension) orelse {
-        return error.UnsupportedFileFormat;
-    };
-
-    // Open file and write
-    const file = try std.Io.Dir.cwd().createFile(io,file_path, .{});
-    defer file.close(io);
-
-    var file_writer_buffer: [16 * 1024]u8 = undefined;
-    var file_writer = file.writer(io, &file_writer_buffer);
-    const writer = &file_writer.interface;
-
-    try write_collection_to_writer(
-        allocator,
-        collection,
-        format,
-        options,
-        writer,
-    );
-
-    try writer.flush();
-}
-
-/// Write a SerializableCollection to a writer in the specified format.
-pub fn write_collection_to_writer(
-    allocator: std.mem.Allocator,
-    collection: SerializableCollection,
-    format: FileFormat,
-    metadata_mode: format_m.WriteOptions.MetadataMode,
-    writer: anytype,
-) !void
-{
-    switch (format) {
-        .tlca => {
-            try write_tlca_with_metadata_mode(
-                allocator,
-                collection,
-                metadata_mode,
-                writer,
-            );
-        },
-        .tlcb => {
-            // Binary format doesn't support inline metadata - always use hash references
-            try binary.serialize_collection(
-                collection,
-                allocator,
-                writer,
-            );
-        },
-        else => return error.NotACollectionFormat,
-    }
 }
 
 /// Write SerializableCollection to TLCA format with the specified metadata mode.
@@ -2404,23 +1882,17 @@ test "collection serialization: tlca round-trip"
     };
 
     // Serialize to TLCA
-    const buffer = try write_collection_to_buffer(
+    const buffer = try test_encode(
+        CollectionCodec,
         allocator,
         original,
-        .tlca,
-        .hash_reference
+        .hash_reference,
     );
     defer allocator.free(buffer);
 
-    // Deserialize back using arena (deserializeLeaky stores slices into source)
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-
-    const roundtrip = try read_collection_from_buffer(
-        arena.allocator(),
-        buffer,
-        .tlca,
-    );
+    // Deserialize back
+    var roundtrip = try test_decode(CollectionCodec, allocator, buffer);
+    defer roundtrip.deinit(allocator);
 
     // Verify
     try std.testing.expectEqualStrings("Test Collection", roundtrip.name);
@@ -2452,16 +1924,16 @@ test "collection serialization: tlcb round-trip"
     };
 
     // Serialize to TLCB
-    const buffer = try write_collection_to_buffer(
+    const buffer = try test_encode(
+        binary.CollectionCodec,
         allocator,
         original,
-        .tlcb,
         .hash_reference,
     );
     defer allocator.free(buffer);
 
     // Deserialize back
-    var roundtrip = try read_collection_from_buffer(allocator, buffer, .tlcb);
+    var roundtrip = try test_decode(binary.CollectionCodec, allocator, buffer);
     defer roundtrip.deinit(allocator);
 
     // Verify
@@ -2497,30 +1969,29 @@ test "collection serialization: tlca to tlcb cross-format"
     };
 
     // Serialize to TLCA first
-    const tlca_buffer = try write_collection_to_buffer(
+    const tlca_buffer = try test_encode(
+        CollectionCodec,
         allocator,
         original,
-        .tlca,
         .hash_reference,
     );
     defer allocator.free(tlca_buffer);
 
-    // Read TLCA back using arena (deserializeLeaky stores slices into source)
-    var tlca_arena = std.heap.ArenaAllocator.init(allocator);
-    defer tlca_arena.deinit();
-    const from_tlca = try read_collection_from_buffer(tlca_arena.allocator(), tlca_buffer, .tlca);
+    // Read TLCA back
+    var from_tlca = try test_decode(CollectionCodec, allocator, tlca_buffer);
+    defer from_tlca.deinit(allocator);
 
     // Convert to TLCB
-    const tlcb_buffer = try write_collection_to_buffer(
+    const tlcb_buffer = try test_encode(
+        binary.CollectionCodec,
         allocator,
         from_tlca,
-        .tlcb,
         .hash_reference,
     );
     defer allocator.free(tlcb_buffer);
 
     // Read TLCB back
-    var from_tlcb = try read_collection_from_buffer(allocator, tlcb_buffer, .tlcb);
+    var from_tlcb = try test_decode(binary.CollectionCodec, allocator, tlcb_buffer);
     defer from_tlcb.deinit(allocator);
 
     // Verify
@@ -2656,7 +2127,6 @@ pub const TimelineCodec = struct {
                     reader,
                 )
             ).to_serializable_timeline(),
-            .only_metadata => error.OnlyMetadataNotSupportedForDeserialization,
         };
     }
 
@@ -2684,11 +2154,8 @@ pub const CollectionCodec = struct {
         options: format_m.ReadOptions,
     ) !SerializableCollection
     {
-        if (options.content_filter == .only_metadata)
-        {
-            return error.OnlyMetadataNotSupportedForDeserialization;
-        }
         // all_except_metadata is applied by the adapter after parsing.
+        _ = options;
         return try parse_ziggy(SerializableCollection, allocator, reader);
     }
 

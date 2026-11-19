@@ -28,12 +28,12 @@ fn testRoundtrip(
     var tla_buffer = std.Io.Writer.Allocating.init(allocator);
     defer tla_buffer.deinit();
 
-    try serialization.write_serializable_to_writer(
+    try serialization.serializable.write_to_writer(
         allocator,
-        timeline_from_tla,
-        .tla,
-        .hash_reference,
+        .{ .timeline = timeline_from_tla },
         &tla_buffer.writer,
+        .tla,
+        .{},
     );
     const tla_output = try tla_buffer.toOwnedSlice();
     defer allocator.free(tla_output);
@@ -60,12 +60,12 @@ fn testRoundtrip(
     var tlb_buffer = std.Io.Writer.Allocating.init(allocator);
     defer tlb_buffer.deinit();
 
-    try serialization.write_serializable_to_writer(
+    try serialization.serializable.write_to_writer(
         allocator,
-        timeline_from_tlb,
-        .tla,
-        .hash_reference,
+        .{ .timeline = timeline_from_tlb },
         &tlb_buffer.writer,
+        .tla,
+        .{},
     );
     const tlb_output = try tlb_buffer.toOwnedSlice();
     defer allocator.free(tlb_output);

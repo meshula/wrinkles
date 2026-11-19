@@ -4247,6 +4247,36 @@ test "tlb: metadata offset points to correct boundary"
 // Roundtrip Tests - verify TLA -> TLB -> TLA preserves all data
 // ============================================================================
 
+/// Test helper: encode a SerializableTimeline as TLA text (owned).
+fn test_tla_text(
+    allocator: Allocator,
+    timeline: serializable.SerializableTimeline,
+) ![]u8
+{
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    errdefer out.deinit();
+    try ascii.TimelineCodec.write(allocator, timeline, &out.writer, .{});
+    return try out.toOwnedSlice();
+}
+
+/// Test helper: read a TLA file as a SerializableTimeline.
+fn test_read_tla_file(
+    allocator: Allocator,
+    io: std.Io,
+    path: []const u8,
+) !serializable.SerializableTimeline
+{
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(
+        io,
+        path,
+        allocator,
+        .unlimited,
+    );
+    defer allocator.free(bytes);
+    var reader: std.Io.Reader = .fixed(bytes);
+    return try ascii.TimelineCodec.read(allocator, &reader, .{});
+}
+
 /// Helper to run a single roundtrip test given file paths
 fn run_roundtrip_test_from_paths(
     allocator: Allocator,
@@ -4255,24 +4285,19 @@ fn run_roundtrip_test_from_paths(
     tlb_path: []const u8,
 ) !bool
 {
-    // Read and parse the TLA file using ascii.read_from_file -> SerializableTimeline
-    // Note: We use an ArenaAllocator for TLA parsing because ziggy.parseLeaky
-    // allocates strings that cannot be freed individually with the general purpose allocator.
+    // Read and parse the TLA file
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
-    const timeline_from_tla = try ascii.read_from_file(
+    const timeline_from_tla = try test_read_tla_file(
         arena.allocator(),
         io,
         tla_path,
     );
-    // No deinit needed - arena handles all TLA allocations
 
     // Serialize TLA timeline to TLA string (normalized)
-    const tla_output = try ascii.write_to_buffer(
+    const tla_output = try test_tla_text(
         allocator,
         timeline_from_tla,
-        .tla,
-        .hash_reference,
     );
     defer allocator.free(tla_output);
 
@@ -4296,11 +4321,9 @@ fn run_roundtrip_test_from_paths(
     defer timeline_from_tlb.deinit(allocator);
 
     // Serialize TLB timeline to TLA string
-    const tlb_output = try ascii.write_to_buffer(
+    const tlb_output = try test_tla_text(
         allocator,
         timeline_from_tlb,
-        .tla,
-        .hash_reference,
     );
     defer allocator.free(tlb_output);
 
@@ -4439,7 +4462,7 @@ test "ascii: parse just_clip.tla and deinit (leak test)"
     defer arena.deinit();
 
     // Read and parse TLA file
-    const timeline = try ascii.read_from_file(
+    const timeline = try test_read_tla_file(
         arena.allocator(),
         io,
         "test_files/just_clip.tla",

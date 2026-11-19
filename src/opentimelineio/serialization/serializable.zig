@@ -24,6 +24,7 @@ const schema = @import("../schema.zig");
 const domain_mod = @import("../domain.zig");
 
 const versioning = @import("versioning.zig");
+const json_metadata = @import("../json_metadata.zig");
 
 
 // Re-export curve control point for convenience
@@ -910,30 +911,11 @@ pub const SerializableTimeline = struct {
             );
         }
 
-        // Merge timeline-level metadata_map (std.json.Value) into the
-        // accumulated MetadataMap so it roundtrips through serialization.
+        // Timeline-level entries no clip references.
         if (timeline.metadata_map)
             |json_val|
         {
-            if (json_val == .object) {
-                var obj_iter = json_val.object.iterator();
-                while (obj_iter.next())
-                    |entry|
-                {
-                    const meta_val = try meta_ctx.json_to_metadata_value(
-                        entry.value_ptr.*,
-                    );
-                    const duped_key = try allocator.dupe(
-                        u8,
-                        entry.key_ptr.*,
-                    );
-                    try metadata_map.fields.put(
-                        allocator,
-                        duped_key,
-                        meta_val,
-                    );
-                }
-            }
+            try meta_ctx.merge_json_object(json_val);
         }
 
         return .{
@@ -1215,6 +1197,33 @@ pub const MetadataContext = struct {
         }
     }
 
+    /// Merge the entries of a JSON object into the map under their existing
+    /// keys.  Keys already present (e.g. added by a clip) are left as-is.
+    pub fn merge_json_object(
+        self: *MetadataContext,
+        json_val: std.json.Value,
+    ) !void
+    {
+        if (json_val != .object)
+        {
+            return;
+        }
+        var iter = json_val.object.iterator();
+        while (iter.next())
+            |entry|
+        {
+            if (self.metadata_map.fields.contains(entry.key_ptr.*))
+            {
+                continue;
+            }
+            const meta_val = try self.json_to_metadata_value(
+                entry.value_ptr.*,
+            );
+            const key = try self.allocator.dupe(u8, entry.key_ptr.*);
+            try self.metadata_map.fields.put(self.allocator, key, meta_val);
+        }
+    }
+
     /// Add metadata to the map and return its Blake3 hash key as a hex string.
     /// If metadata with the same hash already exists, just returns the
     /// existing key.
@@ -1267,7 +1276,8 @@ pub const MetadataContext = struct {
             meta_val,
         );
 
-        return hash_str;
+        // The map owns `hash_str` as its key; the caller gets its own copy.
+        return try self.allocator.dupe(u8, hash_str);
     }
 };
 
@@ -1842,8 +1852,83 @@ fn serializable_to_mapping(
     };
 }
 
+/// Resolves clip metadata hashes against a root's metadata map while
+/// converting serializable data to schema objects, and tracks which entries
+/// clips referenced so the rest can stay on the timeline/collection.
+const MetadataResolver = struct {
+    allocator: std.mem.Allocator,
+    maybe_map: ?*const MetadataMap,
+    /// Keys referenced by clips (slices owned by the serializable data).
+    referenced: std.StringHashMapUnmanaged(void) = .empty,
+
+    fn init(
+        allocator: std.mem.Allocator,
+        maybe_map: ?*const MetadataMap,
+    ) MetadataResolver
+    {
+        return .{ .allocator = allocator, .maybe_map = maybe_map };
+    }
+
+    fn deinit(
+        self: *@This(),
+    ) void
+    {
+        self.referenced.deinit(self.allocator);
+    }
+
+    /// The metadata for a clip's `metadata_hash`, as JSON owned by the
+    /// caller, or null if the clip has none.
+    fn clip_metadata(
+        self: *@This(),
+        maybe_hash: ?[]const u8,
+    ) error{OutOfMemory}!?std.json.Value
+    {
+        const hash = maybe_hash orelse return null;
+        const map = self.maybe_map orelse return null;
+        const value = map.fields.get(hash) orelse return null;
+        try self.referenced.put(self.allocator, hash, {});
+        return try metadata_value_to_json(self.allocator, value);
+    }
+
+    /// The entries no clip referenced, as a JSON object owned by the caller,
+    /// or null if there are none.
+    fn unreferenced_json(
+        self: *@This(),
+    ) error{OutOfMemory}!?std.json.Value
+    {
+        const map = self.maybe_map orelse return null;
+        var result: std.json.ObjectMap = .empty;
+        errdefer json_metadata.deinit(self.allocator, .{ .object = result });
+
+        var iter = map.fields.iterator();
+        while (iter.next())
+            |entry|
+        {
+            if (self.referenced.contains(entry.key_ptr.*))
+            {
+                continue;
+            }
+            const key = try self.allocator.dupe(u8, entry.key_ptr.*);
+            errdefer self.allocator.free(key);
+            const value = try metadata_value_to_json(
+                self.allocator,
+                entry.value_ptr.*,
+            );
+            try result.put(self.allocator, key, value);
+        }
+
+        if (result.count() == 0)
+        {
+            result.deinit(self.allocator);
+            return null;
+        }
+        return .{ .object = result };
+    }
+};
+
 fn serializable_to_clip(
     allocator: std.mem.Allocator,
+    resolver: *MetadataResolver,
     ser_clip: SerializableClip,
 ) !*schema.Clip
 {
@@ -1875,6 +1960,9 @@ fn serializable_to_clip(
             allocator,
             ser_clip.markers,
         ),
+        .maybe_metadata_json = try resolver.clip_metadata(
+            ser_clip.metadata_hash,
+        ),
     };
     return clip_ptr;
 }
@@ -1900,6 +1988,7 @@ pub fn serializable_to_gap(
 
 fn serializable_to_warp(
     allocator: std.mem.Allocator,
+    resolver: *MetadataResolver,
     ser_warp: SerializableWarp,
 ) !*schema.Warp
 {
@@ -1908,6 +1997,7 @@ fn serializable_to_warp(
         .name = try allocator.dupe(u8, ser_warp.name),
         .child = try serializable_to_composable(
             allocator,
+            resolver,
             ser_warp.child.*,
         ),
         .transform = try serializable_to_topology(
@@ -1920,6 +2010,7 @@ fn serializable_to_warp(
 
 fn serializable_to_track(
     allocator: std.mem.Allocator,
+    resolver: *MetadataResolver,
     ser_track: SerializableTrack,
 ) !*schema.Track
 {
@@ -1933,6 +2024,7 @@ fn serializable_to_track(
     {
         children[i] = try serializable_to_composable(
             allocator,
+            resolver,
             ser_child,
         );
     }
@@ -1955,6 +2047,7 @@ fn serializable_to_track(
 
 fn serializable_to_stack(
     allocator: std.mem.Allocator,
+    resolver: *MetadataResolver,
     ser_stack: SerializableStack,
 ) !*schema.Stack
 {
@@ -1968,6 +2061,7 @@ fn serializable_to_stack(
     {
         children[i] = try serializable_to_composable(
             allocator,
+            resolver,
             ser_child,
         );
     }
@@ -1990,11 +2084,13 @@ fn serializable_to_stack(
 
 fn serializable_to_transition(
     allocator: std.mem.Allocator,
+    resolver: *MetadataResolver,
     ser_trans: SerializableTransition,
 ) !*schema.Transition
 {
     const container_ptr = try serializable_to_stack(
         allocator,
+        resolver,
         ser_trans.container,
     );
 
@@ -2016,27 +2112,28 @@ fn serializable_to_transition(
 
 fn serializable_to_composable(
     allocator: std.mem.Allocator,
+    resolver: *MetadataResolver,
     ser_comp: SerializableComposable,
 ) error{ OutOfMemory, MissingDiscretePartition }!schema.references.CompositionItemHandle
 {
     return switch (ser_comp) {
         .clip => |clip_val| .{
-            .clip = try serializable_to_clip(allocator, clip_val),
+            .clip = try serializable_to_clip(allocator, resolver, clip_val),
         },
         .gap => |gap_val| .{
             .gap = try serializable_to_gap(allocator, gap_val),
         },
         .track => |track_val| .{
-            .track = try serializable_to_track(allocator, track_val),
+            .track = try serializable_to_track(allocator, resolver, track_val),
         },
         .stack => |stack_val| .{
-            .stack = try serializable_to_stack(allocator, stack_val),
+            .stack = try serializable_to_stack(allocator, resolver, stack_val),
         },
         .warp => |warp_val| .{
-            .warp = try serializable_to_warp(allocator, warp_val),
+            .warp = try serializable_to_warp(allocator, resolver, warp_val),
         },
         .transition => |trans_val| .{
-            .transition = try serializable_to_transition(allocator, trans_val),
+            .transition = try serializable_to_transition(allocator, resolver, trans_val),
         },
     };
 }
@@ -2052,10 +2149,24 @@ pub fn serializable_to_timeline(
         intermediate_tl.children.len,
     );
 
+    var resolver: MetadataResolver = .init(
+        allocator,
+        if (intermediate_tl.metadata_map)
+            |*mm|
+            mm
+        else
+            null,
+    );
+    defer resolver.deinit();
+
     for (intermediate_tl.children, 0..)
         |ser_child, i|
     {
-        children[i] = try serializable_to_composable(allocator, ser_child);
+        children[i] = try serializable_to_composable(
+            allocator,
+            &resolver,
+            ser_child,
+        );
     }
 
     const timeline_ptr = try allocator.create(schema.Timeline);
@@ -2071,11 +2182,8 @@ pub fn serializable_to_timeline(
                 .audio = serializable_to_optional_sig(intermediate_tl.presentation_space_discrete_partitions.audio),
             },
         },
-        .metadata_map = if (intermediate_tl.metadata_map)
-            |mm|
-            try metadata_map_to_json(allocator, mm)
-        else
-            null,
+        // Entries clips reference now live on those clips.
+        .metadata_map = try resolver.unreferenced_json(),
     };
 
     return timeline_ptr;
@@ -2093,10 +2201,24 @@ pub fn serializable_to_collection(
         ser_coll.children.len,
     );
 
+    var resolver: MetadataResolver = .init(
+        allocator,
+        if (ser_coll.metadata_map)
+            |*mm|
+            mm
+        else
+            null,
+    );
+    defer resolver.deinit();
+
     for (ser_coll.children, 0..)
         |ser_child, i|
     {
-        children[i] = try serializable_collection_item_to_handle(allocator, ser_child);
+        children[i] = try serializable_collection_item_to_handle(
+            allocator,
+            &resolver,
+            ser_child,
+        );
     }
 
     const collection_ptr = try allocator.create(schema.Collection);
@@ -2104,6 +2226,8 @@ pub fn serializable_to_collection(
         .name = try allocator.dupe(u8, ser_coll.name),
         .description = try allocator.dupe(u8, ser_coll.description),
         .children = children,
+        // Entries clips reference now live on those clips.
+        .maybe_metadata_json = try resolver.unreferenced_json(),
     };
 
     return collection_ptr;
@@ -2112,6 +2236,7 @@ pub fn serializable_to_collection(
 /// Convert SerializableCollectionItem to schema.CompositionItemHandle
 fn serializable_collection_item_to_handle(
     allocator: std.mem.Allocator,
+    resolver: *MetadataResolver,
     ser_item: SerializableCollectionItem,
 ) !schema.references.CompositionItemHandle
 {
@@ -2120,22 +2245,22 @@ fn serializable_collection_item_to_handle(
             .timeline = try serializable_to_timeline(allocator, tl),
         },
         .clip => |clip_val| .{
-            .clip = try serializable_to_clip(allocator, clip_val),
+            .clip = try serializable_to_clip(allocator, resolver, clip_val),
         },
         .gap => |gap_val| .{
             .gap = try serializable_to_gap(allocator, gap_val),
         },
         .track => |track_val| .{
-            .track = try serializable_to_track(allocator, track_val),
+            .track = try serializable_to_track(allocator, resolver, track_val),
         },
         .stack => |stack_val| .{
-            .stack = try serializable_to_stack(allocator, stack_val),
+            .stack = try serializable_to_stack(allocator, resolver, stack_val),
         },
         .warp => |warp_val| .{
-            .warp = try serializable_to_warp(allocator, warp_val),
+            .warp = try serializable_to_warp(allocator, resolver, warp_val),
         },
         .transition => |trans_val| .{
-            .transition = try serializable_to_transition(allocator, trans_val),
+            .transition = try serializable_to_transition(allocator, resolver, trans_val),
         },
     };
 }
@@ -2159,6 +2284,13 @@ pub fn collection_to_serializable(
         |child, i|
     {
         ser_children[i] = try handle_to_serializable_collection_item(allocator, child, &meta_ctx);
+    }
+
+    // Collection-level entries no clip references.
+    if (collection.maybe_metadata_json)
+        |json_val|
+    {
+        try meta_ctx.merge_json_object(json_val);
     }
 
     return .{
@@ -2480,7 +2612,9 @@ test "clip serialization: round-trip"
     try std.testing.expectEqual(@as(f64, 5.0), ser_clip.bounds_s.?.continuous[1]);
 
     // Convert back
-    const clip_ptr = try serializable_to_clip(allocator, ser_clip);
+    var resolver: MetadataResolver = .init(allocator, null);
+    defer resolver.deinit();
+    const clip_ptr = try serializable_to_clip(allocator, &resolver, ser_clip);
     defer allocator.destroy(clip_ptr);
     defer allocator.free(clip_ptr.name);
     defer allocator.free(clip_ptr.media.data_reference.uri.target_uri);

@@ -7,6 +7,28 @@ const std = @import("std");
 
 const bundle_utils = @import("bundle_utils.zig");
 
+/// Errors raised by format detection and dispatch.  The public `Error` set
+/// (adapter.zig) combines these with the versioning and bundle errors.
+pub const FormatError = error{
+    /// The path has no file extension to detect a format from.
+    NoFileExtension,
+    /// The file extension is not a supported format.
+    UnsupportedFileFormat,
+    /// The format can be read but not written (e.g. .otio).
+    FormatIsReadOnly,
+    /// The format stores a collection, but a timeline was given or expected.
+    NotATimelineFormat,
+    /// The format stores a timeline, but a collection was given or expected.
+    NotACollectionFormat,
+    /// Bundles (.tlz/.tlcz) can only be read from or written to files.
+    BundleRequiresFileAccess,
+    /// A schema handle that is not a timeline or collection was given.
+    ExpectedTimelineOrCollection,
+    /// The document's root object cannot be represented (e.g. an OTIO
+    /// SerializableCollection read as a timeline).
+    UnsupportedRootObject,
+};
+
 /// Supported file formats for read/write operations. Format is auto-detected
 /// from file extension, or can be specified explicitly.
 pub const FileFormat = enum {
@@ -54,6 +76,10 @@ pub const FileFormat = enum {
 
 /// Options for reading timeline/collection files.
 pub const ReadOptions = struct {
+    /// Override format detection from file extension.
+    /// If null, format is detected from the input file path.
+    format: ?FileFormat = null,
+
     /// What content to include in the result.
     content_filter: ContentFilter = .all,
 
@@ -70,8 +96,6 @@ pub const ReadOptions = struct {
         all,
         /// Read structure but skip metadata_map (faster for large files)
         all_except_metadata,
-        /// Read only metadata, skip timeline structure
-        only_metadata,
 
         pub const default: ContentFilter = .all;
     };

@@ -75,6 +75,7 @@ const references = @import("../references.zig");
 const format_m = @import("format.zig");
 const versioning = @import("versioning.zig");
 const test_output = @import("test_output");
+const json_metadata = @import("../json_metadata.zig");
 
 // ============================================================================
 // Format descriptors
@@ -83,6 +84,15 @@ const test_output = @import("test_output");
 pub const FileFormat = format_m.FileFormat;
 pub const ReadOptions = format_m.ReadOptions;
 pub const WriteOptions = format_m.WriteOptions;
+
+/// Errors raised by the serialization library itself.  Functions may also
+/// return allocation, I/O and format-specific decoding errors (from ziggy,
+/// FlatBuffers, std.json and ZIP parsing).
+pub const Error = (
+    format_m.FormatError
+    || versioning.VersionError
+    || bundle.TlzError
+);
 
 // Alias for backward compatibility with existing code
 pub const CompositionItemHandle = references.CompositionItemHandle;
@@ -596,151 +606,6 @@ pub fn write_root_to_file(
 }
 
 // ============================================================================
-// Serializable-level helpers (TODO(serialization stage 5): fold into the
-// `serializable` namespace and remove)
-// ============================================================================
-
-/// Write a SerializableTimeline to a file; format from the extension.
-pub fn write_serializable_timeline_to_file(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    intermediate_tl: serializable_types.SerializableTimeline,
-    file_path: []const u8,
-    metadata_mode: WriteOptions.MetadataMode,
-) !void
-{
-    try write_root_to_file(
-        allocator,
-        io,
-        .{ .timeline = intermediate_tl },
-        file_path,
-        try FileFormat.from_path(file_path),
-        .{ .metadata_mode = metadata_mode },
-    );
-}
-
-/// Write a SerializableTimeline to a writer in the specified format.
-pub fn write_serializable_to_writer(
-    allocator: std.mem.Allocator,
-    intermediate_tl: serializable_types.SerializableTimeline,
-    format: FileFormat,
-    metadata_mode: WriteOptions.MetadataMode,
-    writer: *std.Io.Writer,
-) !void
-{
-    try write_root(
-        allocator,
-        .{ .timeline = intermediate_tl },
-        writer,
-        format,
-        .{ .metadata_mode = metadata_mode },
-    );
-}
-
-/// Read a SerializableTimeline from a reader in the specified format.
-pub fn read_serializable_timeline_from_reader(
-    allocator: std.mem.Allocator,
-    reader: *std.Io.Reader,
-    format: FileFormat,
-    content_filter: ReadOptions.ContentFilter,
-) !serializable_types.SerializableTimeline
-{
-    if (descriptor(format).is_collection)
-    {
-        return error.NotATimelineFormat;
-    }
-    const root = try read_root(
-        allocator,
-        reader,
-        format,
-        .{ .content_filter = content_filter },
-    );
-    return root.timeline;
-}
-
-/// Read a SerializableTimeline from a file; format from the extension.
-pub fn read_serializable_timeline_from_file(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    file_path: []const u8,
-    content_filter: ReadOptions.ContentFilter,
-) !serializable_types.SerializableTimeline
-{
-    const format = try FileFormat.from_path(file_path);
-    if (descriptor(format).is_collection)
-    {
-        return error.NotATimelineFormat;
-    }
-    const root = try read_root_from_file(
-        allocator,
-        io,
-        file_path,
-        format,
-        .{ .content_filter = content_filter },
-    );
-    return root.timeline;
-}
-
-/// Read a SerializableCollection from a file; format from the extension.
-pub fn read_serializable_collection_from_file(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    file_path: []const u8,
-) !serializable_types.SerializableCollection
-{
-    const format = try FileFormat.from_path(file_path);
-    if (!descriptor(format).is_collection)
-    {
-        return error.NotACollectionFormat;
-    }
-    const root = try read_root_from_file(
-        allocator,
-        io,
-        file_path,
-        format,
-        .{},
-    );
-    return root.collection;
-}
-
-/// Write a SerializableCollection to a file; format from the extension.
-pub fn write_serializable_collection_to_file(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    collection: serializable_types.SerializableCollection,
-    file_path: []const u8,
-    metadata_mode: WriteOptions.MetadataMode,
-) !void
-{
-    try write_root_to_file(
-        allocator,
-        io,
-        .{ .collection = collection },
-        file_path,
-        try FileFormat.from_path(file_path),
-        .{ .metadata_mode = metadata_mode },
-    );
-}
-
-/// Write a SerializableCollection to a writer in the specified format.
-pub fn write_serializable_collection_to_writer(
-    allocator: std.mem.Allocator,
-    collection: serializable_types.SerializableCollection,
-    format: FileFormat,
-    metadata_mode: WriteOptions.MetadataMode,
-    writer: *std.Io.Writer,
-) !void
-{
-    try write_root(
-        allocator,
-        .{ .collection = collection },
-        writer,
-        format,
-        .{ .metadata_mode = metadata_mode },
-    );
-}
-
-// ============================================================================
 // Unified Public API
 // ============================================================================
 
@@ -757,7 +622,7 @@ pub fn read_from_file(
         allocator,
         io,
         file_path,
-        try FileFormat.from_path(file_path),
+        options.format orelse try FileFormat.from_path(file_path),
         options,
     );
     defer root.deinit(allocator);
@@ -812,13 +677,24 @@ pub fn write_to_writer(
     try write_root(allocator, root, writer, format, options);
 }
 
-/// Serializable submodule - for working with SerializableRoot directly
+/// Serializable API: read and write the intermediate representation
+/// directly (preserves metadata hash maps, etc.).  Same shape as the
+/// schema-level API, with `SerializableRoot` in place of a schema handle.
 pub const serializable = struct {
     pub const Root = SerializableRoot;
     pub const Timeline = serializable_types.SerializableTimeline;
     pub const Collection = serializable_types.SerializableCollection;
+    pub const CollectionItem = serializable_types.SerializableCollectionItem;
+    pub const Composable = serializable_types.SerializableComposable;
+    pub const Bounds = serializable_types.SerializableBounds;
+    pub const MetadataMap = serializable_types.MetadataMap;
+    pub const MetadataValue = serializable_types.MetadataValue;
 
-    /// Read to SerializableRoot (preserves metadata hash maps, etc.)
+    /// Every serializable type and conversion helper.
+    pub const types = serializable_types;
+
+    /// Read a root from a file.  Format is detected from the extension, or
+    /// use `options.format` to override.
     pub fn read_from_file(
         allocator: std.mem.Allocator,
         io: std.Io,
@@ -830,12 +706,13 @@ pub const serializable = struct {
             allocator,
             io,
             file_path,
-            try FileFormat.from_path(file_path),
+            options.format orelse try FileFormat.from_path(file_path),
             options,
         );
     }
 
-    /// Write from SerializableRoot
+    /// Write a root to a file.  Format is detected from the extension, or
+    /// use `options.format` to override.
     pub fn write_to_file(
         allocator: std.mem.Allocator,
         io: std.Io,
@@ -844,10 +721,37 @@ pub const serializable = struct {
         options: WriteOptions,
     ) !void
     {
-        const format = (
-            options.format orelse try FileFormat.from_path(file_path)
+        try write_root_to_file(
+            allocator,
+            io,
+            root,
+            file_path,
+            options.format orelse try FileFormat.from_path(file_path),
+            options,
         );
-        try write_root_to_file(allocator, io, root, file_path, format, options);
+    }
+
+    /// Read a root from a reader in `format`.
+    pub fn read_from_reader(
+        allocator: std.mem.Allocator,
+        reader: *std.Io.Reader,
+        format: FileFormat,
+        options: ReadOptions,
+    ) !SerializableRoot
+    {
+        return try read_root(allocator, reader, format, options);
+    }
+
+    /// Write a root to a writer in `format`.
+    pub fn write_to_writer(
+        allocator: std.mem.Allocator,
+        root: SerializableRoot,
+        writer: *std.Io.Writer,
+        format: FileFormat,
+        options: WriteOptions,
+    ) !void
+    {
+        try write_root(allocator, root, writer, format, options);
     }
 };
 
@@ -1025,13 +929,15 @@ test "adapter: read results own their memory (schema API)"
     const io = std.testing.io;
 
     // { file to load, format to feed through read_from_reader }
-    inline for (.{
-        .{ "otio_sample_data/simple_cut.tla", FileFormat.tla },
-        .{ "otio_sample_data/simple_cut.tlb", FileFormat.tlb },
-        .{ "otio_sample_data/simple_cut.otio", FileFormat.otio },
-        .{ TEST_COLLECTION_PATH, FileFormat.tlca },
-        .{ TEST_COLLECTION_PATH, FileFormat.tlcb },
-    })
+    inline for (
+        .{
+            .{ "otio_sample_data/simple_cut.tla", FileFormat.tla },
+            .{ "otio_sample_data/simple_cut.tlb", FileFormat.tlb },
+            .{ "otio_sample_data/simple_cut.otio", FileFormat.otio },
+            .{ TEST_COLLECTION_PATH, FileFormat.tlca },
+            .{ TEST_COLLECTION_PATH, FileFormat.tlcb },
+        }
+    )
         |case|
     {
         const path = case[0];
@@ -1090,12 +996,14 @@ test "adapter: read results own their memory (serializable API)"
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    inline for (.{
-        "otio_sample_data/simple_cut.tla",
-        "otio_sample_data/simple_cut.tlb",
-        "otio_sample_data/simple_cut.otio",
-        TEST_COLLECTION_PATH,
-    })
+    inline for (
+        .{
+            "otio_sample_data/simple_cut.tla",
+            "otio_sample_data/simple_cut.tlb",
+            "otio_sample_data/simple_cut.otio",
+            TEST_COLLECTION_PATH,
+        }
+    )
         |path|
     {
         var root = try serializable.read_from_file(
@@ -1131,14 +1039,16 @@ test "adapter: serializable.write_to_file every writable format"
         .{},
     );
 
-    inline for (.{
-        .{ timeline_root, "out.tla" },
-        .{ timeline_root, "out.tlb" },
-        .{ timeline_root, "out.tlz" },
-        .{ collection_root, "out.tlca" },
-        .{ collection_root, "out.tlcb" },
-        .{ collection_root, "out.tlcz" },
-    })
+    inline for (
+        .{
+            .{ timeline_root, "out.tla" },
+            .{ timeline_root, "out.tlb" },
+            .{ timeline_root, "out.tlz" },
+            .{ collection_root, "out.tlca" },
+            .{ collection_root, "out.tlcb" },
+            .{ collection_root, "out.tlcz" },
+        }
+    )
         |case|
     {
         const root = case[0];
@@ -1185,12 +1095,14 @@ test "adapter: read results own their metadata strings"
     const io = std.testing.io;
 
     // { file with metadata, format to feed through read_root }
-    inline for (.{
-        .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tla },
-        .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tlb },
-        .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlca },
-        .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlcb },
-    })
+    inline for (
+        .{
+            .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tla },
+            .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tlb },
+            .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlca },
+            .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlcb },
+        }
+    )
         |case|
     {
         const path = case[0];
@@ -1203,10 +1115,12 @@ test "adapter: read results own their metadata strings"
         // Source bytes in `format`.
         var loaded = try serializable.read_from_file(allocator, io, path, .{});
         defer loaded.deinit(allocator);
-        try std.testing.expect(switch (loaded) {
-            .timeline => |t| t.metadata_map != null,
-            .collection => |c| c.metadata_map != null,
-        });
+        try std.testing.expect(
+            switch (loaded) {
+                .timeline => |t| t.metadata_map != null,
+                .collection => |c| c.metadata_map != null,
+            },
+        );
 
         var encoded: std.Io.Writer.Allocating = .init(allocator);
         defer encoded.deinit();
@@ -1248,12 +1162,14 @@ test "adapter: bundles round-trip metadata and honor read options"
     defer tmp.cleanup();
 
     // { source with metadata, bundle format, inner encoding }
-    inline for (.{
-        .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tlz, .tla },
-        .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tlz, .tlb },
-        .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlcz, .tla },
-        .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlcz, .tlb },
-    })
+    inline for (
+        .{
+            .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tlz, .tla },
+            .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tlz, .tlb },
+            .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlcz, .tla },
+            .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlcz, .tlb },
+        }
+    )
         |case|
     {
         const path = case[0];
@@ -1309,10 +1225,12 @@ test "adapter: bundles round-trip metadata and honor read options"
             .{ .content_filter = .all_except_metadata },
         );
         defer no_md.deinit(allocator);
-        try std.testing.expect(switch (no_md) {
-            .timeline => |t| t.metadata_map == null,
-            .collection => |c| c.metadata_map == null,
-        });
+        try std.testing.expect(
+            switch (no_md) {
+                .timeline => |t| t.metadata_map == null,
+                .collection => |c| c.metadata_map == null,
+            },
+        );
     }
 
     // extract_to_directory writes every entry out.
@@ -1336,6 +1254,216 @@ test "adapter: bundles round-trip metadata and honor read options"
         // The last write above used tlb content.
         try tmp.dir.access(io, "extracted/content.tlb", .{});
     }
+}
+
+/// Test helper: one "clip name => metadata JSON" line per clip in `root`, in
+/// document order, resolving each clip's `metadata_hash` in the map of the
+/// root (or nested timeline) it belongs to.  Independent of key strings.
+fn clip_metadata_summary(
+    allocator: std.mem.Allocator,
+    root: SerializableRoot,
+) ![]u8
+{
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    errdefer out.deinit();
+    const w = &out.writer;
+
+    switch (root) {
+        .timeline => |tl| try summarize_children(
+            allocator,
+            w,
+            tl.children,
+            tl.metadata_map,
+        ),
+        .collection => |coll| for (coll.children)
+            |item|
+        {
+            switch (item) {
+                .timeline => |tl| try summarize_children(
+                    allocator,
+                    w,
+                    tl.children,
+                    tl.metadata_map,
+                ),
+                .clip => |cl| try summarize_clip(
+                    allocator,
+                    w,
+                    cl,
+                    coll.metadata_map,
+                ),
+                .track => |tr| try summarize_children(
+                    allocator,
+                    w,
+                    tr.children,
+                    coll.metadata_map,
+                ),
+                .stack => |st| try summarize_children(
+                    allocator,
+                    w,
+                    st.children,
+                    coll.metadata_map,
+                ),
+                .warp => |wp| try summarize_children(
+                    allocator,
+                    w,
+                    wp.child[0..1],
+                    coll.metadata_map,
+                ),
+                .transition => |tx| try summarize_children(
+                    allocator,
+                    w,
+                    tx.container.children,
+                    coll.metadata_map,
+                ),
+                .gap => {},
+            }
+        },
+    }
+    return try out.toOwnedSlice();
+}
+
+fn summarize_children(
+    allocator: std.mem.Allocator,
+    w: *std.Io.Writer,
+    children: []const serializable_types.SerializableComposable,
+    maybe_map: ?serializable_types.MetadataMap,
+) !void
+{
+    for (children)
+        |child|
+    {
+        switch (child) {
+            .clip => |cl| try summarize_clip(allocator, w, cl, maybe_map),
+            .track => |tr| try summarize_children(
+                allocator,
+                w,
+                tr.children,
+                maybe_map,
+            ),
+            .stack => |st| try summarize_children(
+                allocator,
+                w,
+                st.children,
+                maybe_map,
+            ),
+            .warp => |wp| try summarize_children(
+                allocator,
+                w,
+                wp.child[0..1],
+                maybe_map,
+            ),
+            .transition => |tx| try summarize_children(
+                allocator,
+                w,
+                tx.container.children,
+                maybe_map,
+            ),
+            .gap => {},
+        }
+    }
+}
+
+fn summarize_clip(
+    allocator: std.mem.Allocator,
+    w: *std.Io.Writer,
+    clip: serializable_types.SerializableClip,
+    maybe_map: ?serializable_types.MetadataMap,
+) !void
+{
+    try w.print("{s} => ", .{clip.name});
+    const maybe_value = blk: {
+        const hash = clip.metadata_hash orelse break :blk null;
+        const map = maybe_map orelse break :blk null;
+        break :blk map.fields.get(hash);
+    };
+    if (maybe_value)
+        |value|
+    {
+        const json = try serializable_types.metadata_value_to_json(
+            allocator,
+            value,
+        );
+        defer json_metadata.deinit(allocator, json);
+        try std.json.Stringify.value(json, .{}, w);
+    }
+    else
+    {
+        try w.writeAll("(none)");
+    }
+    try w.writeByte('\n');
+}
+
+test "adapter: schema handle round trip preserves metadata"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    // { fixture, keys are content hashes so text must match exactly }
+    inline for (
+        .{
+            .{ TEST_TIMELINE_METADATA_PATH, true },
+            .{ TEST_COLLECTION_METADATA_PATH, false },
+        }
+    )
+        |case|
+    {
+        const path = case[0];
+        const exact = case[1];
+        errdefer std.debug.print("failed for: {s}\n", .{path});
+
+        // Reference: the serializable form.
+        var direct = try serializable.read_from_file(allocator, io, path, .{});
+        defer direct.deinit(allocator);
+        const format: FileFormat = if (direct == .collection) .tlca else .tla;
+
+        // Through schema handles and back.
+        var handle = try read_from_file(allocator, io, path, .{});
+        defer handle.deinit(allocator);
+
+        var out: std.Io.Writer.Allocating = .init(allocator);
+        defer out.deinit();
+        try write_to_writer(allocator, handle, &out.writer, format, .{});
+
+        var reader: std.Io.Reader = .fixed(out.written());
+        var result = try read_root(allocator, &reader, format, .{});
+        defer result.deinit(allocator);
+
+        // Every clip keeps exactly its own metadata.
+        const expected_summary = try clip_metadata_summary(allocator, direct);
+        defer allocator.free(expected_summary);
+        const actual_summary = try clip_metadata_summary(allocator, result);
+        defer allocator.free(actual_summary);
+        try std.testing.expect(
+            std.mem.indexOf(u8, expected_summary, "=> {") != null
+        );
+        try std.testing.expectEqualStrings(expected_summary, actual_summary);
+
+        // Files whose keys are content hashes round-trip byte for byte.
+        if (exact)
+        {
+            const expected = try root_as_text(allocator, direct);
+            defer allocator.free(expected);
+            try std.testing.expectEqualStrings(expected, out.written());
+        }
+    }
+}
+
+test "adapter: OTIO metadata is owned by the result"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    const path = "otio_sample_data/premiere_example.otio";
+
+    // Serializable API: metadata survives the importer's parse arena.
+    var root = try serializable.read_from_file(allocator, io, path, .{});
+    defer root.deinit(allocator);
+    const summary = try clip_metadata_summary(allocator, root);
+    defer allocator.free(summary);
+    try std.testing.expect(std.mem.indexOf(u8, summary, "=> {") != null);
+
+    // Schema API: clips own their metadata JSON and deinit frees it.
+    var handle = try read_from_file(allocator, io, path, .{});
+    defer handle.deinit(allocator);
 }
 
 test "adapter: writing a read-only format errors without creating a file"

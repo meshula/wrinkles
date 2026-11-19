@@ -38,6 +38,7 @@ const string = @import("string_stuff");
 const topology_m = @import("topology");
 const curve = @import("curve");
 const domain = @import("domain.zig");
+const json_metadata = @import("json_metadata.zig");
 const string_stuff = @import("string_stuff");
 
 pub const references = @import("references.zig");
@@ -254,8 +255,8 @@ pub const Clip = struct {
     /// Information about the media this clip cuts into the track.
     media: MediaReference,
 
-    /// Optional metadata as raw JSON value (from OTIO JSON parsing).
-    /// Will be serialized to ziggy format and stored in Timeline's metadata_map.
+    /// Optional metadata as a JSON value, owned by this clip (see
+    /// json_metadata.zig).  Serialized into the root's metadata_map.
     maybe_metadata_json: ?std.json.Value = null,
 
     /// Markers attached to this clip.
@@ -352,6 +353,11 @@ pub const Clip = struct {
             m.deinit(allocator);
         }
         allocator.free(self.markers);
+        if (self.maybe_metadata_json)
+            |metadata|
+        {
+            json_metadata.deinit(allocator, metadata);
+        }
     }
 
     /// Build a handle to this Clip.
@@ -985,8 +991,8 @@ pub const Timeline = struct {
     /// Markers attached to this timeline.
     markers: []marker.Marker = &.{},
 
-    /// Optional metadata as raw JSON value.
-    /// Stored as std.json.Value for consistency with Clip and Collection.
+    /// Optional timeline-level metadata entries not attached to any clip,
+    /// as a JSON object owned by this timeline (see json_metadata.zig).
     metadata_map: ?std.json.Value = null,
 
     /// The internal temporal coordinate systems of the Timeline.
@@ -1009,6 +1015,11 @@ pub const Timeline = struct {
             m.deinit(allocator);
         }
         allocator.free(self.markers);
+        if (self.metadata_map)
+            |metadata|
+        {
+            json_metadata.deinit(allocator, metadata);
+        }
     }
 
     /// Presentation space of Timeline -> presentation space of `Tracks` stack.
@@ -1044,7 +1055,8 @@ pub const Collection = struct {
     /// Child items in the collection.
     children: []references.CompositionItemHandle = &.{},
 
-    /// Optional metadata as raw JSON value.
+    /// Optional collection-level metadata entries not attached to any clip,
+    /// as a JSON object owned by this collection (see json_metadata.zig).
     maybe_metadata_json: ?std.json.Value = null,
 
     /// Collections have no temporal spaces - they are organizational only.
@@ -1064,6 +1076,11 @@ pub const Collection = struct {
             c.deinit(allocator);
         }
         allocator.free(self.children);
+        if (self.maybe_metadata_json)
+            |metadata|
+        {
+            json_metadata.deinit(allocator, metadata);
+        }
     }
 
     /// Build a handle to this Collection.

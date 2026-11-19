@@ -1521,6 +1521,36 @@ pub fn build(
             },
             );
 
+        // otiocat's own unit tests (also run by `zig build test`)
+        {
+            const otiocat_tests = b.addTest(
+                .{
+                    .name = "test_otiocat",
+                    .root_module = b.createModule(
+                        .{
+                            .root_source_file = b.path("src/otiocat.zig"),
+                            .target = options.target,
+                            .optimize = options.optimize,
+                            .imports = &.{
+                                .{ .name = "string_stuff", .module = string_stuff },
+                                .{ .name = "opentimelineio", .module = opentimelineio },
+                            },
+                        },
+                    ),
+                    .filters = &.{
+                        options.test_filter orelse &.{},
+                    },
+                },
+            );
+            const run_otiocat_tests = b.addRunArtifact(otiocat_tests);
+            const otiocat_test_step = b.step(
+                "test_otiocat",
+                "Run unit tests for otiocat",
+            );
+            otiocat_test_step.dependOn(&run_otiocat_tests.step);
+            options.test_step.dependOn(otiocat_test_step);
+        }
+
         try executable(
             b,
             "test_roundtrip_leak",
