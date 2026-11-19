@@ -546,7 +546,8 @@ test "fmt all ones"
     );
     defer allocator.free(result);
 
-    const expected_str = "1101" ++ ("0" ** bits) ++ "1";
+    const zeroes: [bits]u8 = @splat('0');
+    const expected_str = "1101" ++ zeroes ++ "1";
 
     try std.testing.expectEqual(expected_str.len, result.len);
     try std.testing.expectEqualStrings(expected_str, result);

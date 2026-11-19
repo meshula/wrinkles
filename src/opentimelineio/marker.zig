@@ -64,13 +64,13 @@ pub const Marker = struct {
 
 test "MarkerColor: string conversion round-trip"
 {
-    inline for (std.meta.fields(MarkerColor))
-        |color_field|
+    inline for (@typeInfo(MarkerColor).@"enum".field_names)
+        |color_name|
     {
-        const str = color_field.name;
+        const str = color_name;
         const parsed = MarkerColor.from_string(str);
         try std.testing.expect(parsed != null);
-        try std.testing.expectEqual(@field(MarkerColor, color_field.name), parsed.?);
+        try std.testing.expectEqual(@field(MarkerColor, color_name), parsed.?);
     }
 }
 

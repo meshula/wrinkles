@@ -310,10 +310,11 @@ pub export fn otio_fetch_cvr_type_str(
 
     const buf_slice = buf[0..len];
 
-    _ = std.fmt.bufPrintZ(
+    _ = std.fmt.bufPrintSentinel(
         buf_slice,
         "{s}",
         .{ space },
+        0,
     ) catch |err| {
         std.log.err("error printing to buffer: {any}\n", .{err});
         std.log.err("input buffer: '{s}'", .{buf_slice});
@@ -336,10 +337,11 @@ pub export fn otio_fetch_cvr_name_str(
 
     const item_name = ref.name();
 
-    _ = std.fmt.bufPrintZ(
+    _ = std.fmt.bufPrintSentinel(
         buf_slice,
         "{?s}",
         .{ item_name },
+        0,
     ) catch |err| {
         std.log.err("error printing to buffer: {any}\n", .{err});
         std.log.err("input buffer: '{s}'", .{buf_slice});
@@ -936,10 +938,11 @@ pub export fn otio_transition_kind(
     const buf_slice = buf[0..len];
     const kind_str = transition.kind;
 
-    _ = std.fmt.bufPrintZ(
+    _ = std.fmt.bufPrintSentinel(
         buf_slice,
         "{s}",
         .{ kind_str },
+        0,
     ) catch return -1;
 
     return @intCast(kind_str.len);

@@ -23,7 +23,12 @@ pub const TreeChars = struct {
         .last = "└── ",
         .vertical = "│   ",
         .space = "    ",
-        .header_line = "═══════════════════════════════════════════════════════════════",
+        .header_line = (
+            "═════════════════════�"
+            ++ "��═══════════════════�"
+            ++ "�════════════════════"
+            ++ "═"
+        ),
         .vertical_single = "│",
     };
 
@@ -33,7 +38,10 @@ pub const TreeChars = struct {
         .last = "+-- ",
         .vertical = "|   ",
         .space = "    ",
-        .header_line = "===================================================================",
+        .header_line = (
+            "================================================================"
+            ++ "==="
+        ),
         .vertical_single = "|",
     };
 };
@@ -44,7 +52,9 @@ pub fn format_bounds(
     maybe_bounds: ?opentime.ContinuousInterval,
 ) ![]const u8
 {
-    if (maybe_bounds) |bounds| {
+    if (maybe_bounds)
+        |bounds|
+    {
         return try std.fmt.allocPrint(
             allocator,
             " [{d:.2}s - {d:.2}s]",
@@ -61,16 +71,27 @@ pub fn format_bounds_with_discrete(
     maybe_discrete: ?sampling.SampleIndexGenerator,
 ) ![]const u8
 {
-    if (maybe_bounds) |bounds| {
-        if (maybe_discrete) |discrete| {
+    if (maybe_bounds)
+        |bounds|
+    {
+        if (maybe_discrete)
+            |discrete|
+        {
             // Calculate discrete indices for start and end
             const start_idx = discrete.index_at_ordinate(bounds.start);
             const end_idx = discrete.index_at_ordinate(bounds.end);
 
-            // Format the rate string - use "/" for rationals like "24000/1001 hz"
+            // Format the rate string - use "/" for rationals like "24000/1001
+            // hz"
             const rate_str = switch (discrete.sample_rate_hz) {
-                .Integer => |r| try std.fmt.allocPrint(allocator, "{d} hz", .{r}),
-                .Rational => |r| try std.fmt.allocPrint(allocator, "{d}/{d} hz", .{r.num, r.den}),
+                .Integer => |r|
+                    try std.fmt.allocPrint(allocator, "{d} hz", .{r}),
+                .Rational => |r|
+                    try std.fmt.allocPrint(
+                        allocator,
+                        "{d}/{d} hz",
+                        .{ r.num, r.den },
+                    ),
             };
             defer allocator.free(rate_str);
 
@@ -85,7 +106,9 @@ pub fn format_bounds_with_discrete(
                     rate_str,
                 },
             );
-        } else {
+        }
+        else
+        {
             return try std.fmt.allocPrint(
                 allocator,
                 " [{d:.2}s - {d:.2}s]",
@@ -106,9 +129,19 @@ pub fn render_stack(
     maybe_metadata_map: ?serialization.MetadataMap,
 ) void
 {
-    for (stack.children, 0..) |child, i| {
+    for (stack.children, 0..)
+        |child, i|
+    {
         const is_last = (i == stack.children.len - 1);
-        render_item(allocator, child, prefix, is_last, chars, show_metadata, maybe_metadata_map);
+        render_item(
+            allocator,
+            child,
+            prefix,
+            is_last,
+            chars,
+            show_metadata,
+            maybe_metadata_map,
+        );
     }
 }
 
@@ -130,7 +163,8 @@ pub fn render_item(
         allocator,
         "{s}{s}",
         .{ prefix, child_prefix_add },
-    ) catch "(alloc error)";
+    )
+    catch "(alloc error)";
     defer allocator.free(child_prefix);
 
     switch (item) {
@@ -142,78 +176,141 @@ pub fn render_item(
             );
 
             // Render tracks stack
-            render_stack(allocator, &tl.tracks, child_prefix, chars, show_metadata, maybe_metadata_map);
+            render_stack(
+                allocator,
+                &tl.tracks,
+                child_prefix,
+                chars,
+                show_metadata,
+                maybe_metadata_map,
+            );
         },
         .stack => |st| {
             const name = if (st.name.len > 0) st.name else "(unnamed)";
-            const bounds_str = format_bounds(allocator, st.maybe_bounds_s) catch "";
-            defer if (bounds_str.len > 0) allocator.free(bounds_str);
+            const bounds_str = format_bounds(allocator, st.maybe_bounds_s)
+            catch "";
+            defer if (bounds_str.len > 0)
+            {
+                allocator.free(bounds_str);
+            };
 
             std.debug.print(
                 "{s}{s}Stack: {s}{s}\n",
                 .{ prefix, connector, name, bounds_str },
             );
 
-            // Display markers if present - Stack has children, so always show vertical
-            if (st.markers.len > 0) {
+            // Display markers if present - Stack has children, so always show
+            // vertical
+            if (st.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}{s}       markers: {} marker(s)\n",
                     .{ child_prefix, chars.vertical_single, st.markers.len },
                 );
-                for (st.markers, 0..) |marker, idx| {
-                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
+                for (st.markers, 0..)
+                    |marker, idx|
+                {
+                    const marker_name = if (marker.name.len > 0) marker.name
+                    else "(unnamed)";
                     std.debug.print(
                         "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single, idx + 1, marker_name, @tagName(marker.color),
-                           marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
+                        .{
+                            child_prefix,
+                            chars.vertical_single,
+                            idx + 1,
+                            marker_name,
+                            @tagName(marker.color),
+                            marker.marked_range.start.as(f64),
+                            marker.marked_range.end.as(f64),
+                        },
                     );
                 }
             }
 
-            render_stack(allocator, st, child_prefix, chars, show_metadata, maybe_metadata_map);
+            render_stack(
+                allocator,
+                st,
+                child_prefix,
+                chars,
+                show_metadata,
+                maybe_metadata_map,
+            );
         },
         .track => |tr| {
             const name = if (tr.name.len > 0) tr.name else "(unnamed)";
-            const bounds_str = format_bounds(allocator, tr.maybe_bounds_s) catch "";
-            defer if (bounds_str.len > 0) allocator.free(bounds_str);
+            const bounds_str = format_bounds(allocator, tr.maybe_bounds_s)
+            catch "";
+            defer if (bounds_str.len > 0)
+            {
+                allocator.free(bounds_str);
+            };
 
             std.debug.print(
                 "{s}{s}Track: {s}{s} ({d} children)\n",
                 .{ prefix, connector, name, bounds_str, tr.children.len },
             );
 
-            // Display markers if present - Track has children, so always show vertical
-            if (tr.markers.len > 0) {
+            // Display markers if present - Track has children, so always show
+            // vertical
+            if (tr.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}{s}       markers: {} marker(s)\n",
                     .{ child_prefix, chars.vertical_single, tr.markers.len },
                 );
-                for (tr.markers, 0..) |marker, idx| {
-                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
+                for (tr.markers, 0..)
+                    |marker, idx|
+                {
+                    const marker_name = if (marker.name.len > 0) marker.name
+                    else "(unnamed)";
                     std.debug.print(
                         "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single, idx + 1, marker_name, @tagName(marker.color),
-                           marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
+                        .{
+                            child_prefix,
+                            chars.vertical_single,
+                            idx + 1,
+                            marker_name,
+                            @tagName(marker.color),
+                            marker.marked_range.start.as(f64),
+                            marker.marked_range.end.as(f64),
+                        },
                     );
                 }
             }
 
             // Render track children
-            for (tr.children, 0..) |child, i| {
+            for (tr.children, 0..)
+                |child, i|
+            {
                 const child_is_last = (i == tr.children.len - 1);
-                render_item(allocator, child, child_prefix, child_is_last, chars, show_metadata, maybe_metadata_map);
+                render_item(
+                    allocator,
+                    child,
+                    child_prefix,
+                    child_is_last,
+                    chars,
+                    show_metadata,
+                    maybe_metadata_map,
+                );
             }
         },
         .clip => |cl| {
             const name = if (cl.name.len > 0) cl.name else "(unnamed)";
             // Use clip bounds if set, otherwise fall back to media bounds
-            const bounds_to_show = cl.maybe_bounds_s orelse cl.media.maybe_bounds_s;
+            const bounds_to_show = (
+                cl.maybe_bounds_s
+                orelse cl.media.maybe_bounds_s
+            );
             const bounds_str = format_bounds_with_discrete(
                 allocator,
                 bounds_to_show,
                 cl.media.maybe_discrete_partition,
-            ) catch "";
-            defer if (bounds_str.len > 0) allocator.free(bounds_str);
+            )
+            catch "";
+            defer if (bounds_str.len > 0)
+            {
+                allocator.free(bounds_str);
+            };
 
             // Get media info
             const media_info = switch (cl.media.data_reference) {
@@ -232,46 +329,72 @@ pub fn render_item(
                 .{ child_prefix, media_info },
             );
 
-            // Display markers if present - Clip is a leaf, use child_prefix for vertical
-            if (cl.markers.len > 0) {
+            // Display markers if present - Clip is a leaf, use child_prefix
+            // for vertical
+            if (cl.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}    markers: {} marker(s)\n",
                     .{ child_prefix, cl.markers.len },
                 );
-                for (cl.markers, 0..) |marker, idx| {
-                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
+                for (cl.markers, 0..)
+                    |marker, idx|
+                {
+                    const marker_name = if (marker.name.len > 0) marker.name
+                    else "(unnamed)";
                     std.debug.print(
                         "{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, idx + 1, marker_name, @tagName(marker.color),
-                           marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
+                        .{
+                            child_prefix,
+                            idx + 1,
+                            marker_name,
+                            @tagName(marker.color),
+                            marker.marked_range.start.as(f64),
+                            marker.marked_range.end.as(f64),
+                        },
                     );
                 }
             }
-            // Note: metadata display is only available when using --show-metadata flag,
+            // Note: metadata display is only available when using
+            // --show-metadata flag,
             // which uses render_serializable_item instead of this function
         },
         .gap => |gp| {
             const name = if (gp.name.len > 0) gp.name else "(unnamed)";
             const bounds_str = format_bounds(allocator, gp.bounds_s) catch "";
-            defer if (bounds_str.len > 0) allocator.free(bounds_str);
+            defer if (bounds_str.len > 0)
+            {
+                allocator.free(bounds_str);
+            };
 
             std.debug.print(
                 "{s}{s}Gap: {s}{s}\n",
                 .{ prefix, connector, name, bounds_str },
             );
 
-            // Display markers if present - Gap is a leaf, use child_prefix for vertical
-            if (gp.markers.len > 0) {
+            // Display markers if present - Gap is a leaf, use child_prefix
+            // for vertical
+            if (gp.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}    markers: {} marker(s)\n",
                     .{ child_prefix, gp.markers.len },
                 );
-                for (gp.markers, 0..) |marker, idx| {
-                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
+                for (gp.markers, 0..)
+                    |marker, idx|
+                {
+                    const marker_name = if (marker.name.len > 0) marker.name
+                    else "(unnamed)";
                     std.debug.print(
                         "{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, idx + 1, marker_name, @tagName(marker.color),
-                           marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
+                        .{
+                            child_prefix,
+                            idx + 1,
+                            marker_name,
+                            @tagName(marker.color),
+                            marker.marked_range.start.as(f64),
+                            marker.marked_range.end.as(f64),
+                        },
                     );
                 }
             }
@@ -284,12 +407,24 @@ pub fn render_item(
             );
 
             // Render warp's child
-            render_item(allocator, wp.child, child_prefix, true, chars, show_metadata, maybe_metadata_map);
+            render_item(
+                allocator,
+                wp.child,
+                child_prefix,
+                true,
+                chars,
+                show_metadata,
+                maybe_metadata_map,
+            );
         },
         .transition => |tr| {
             const name = if (tr.name.len > 0) tr.name else "(unnamed)";
-            const bounds_str = format_bounds(allocator, tr.maybe_bounds_s) catch "";
-            defer if (bounds_str.len > 0) allocator.free(bounds_str);
+            const bounds_str = format_bounds(allocator, tr.maybe_bounds_s)
+            catch "";
+            defer if (bounds_str.len > 0)
+            {
+                allocator.free(bounds_str);
+            };
 
             std.debug.print(
                 "{s}{s}Transition: {s} (kind: {s}){s}\n",
@@ -297,7 +432,14 @@ pub fn render_item(
             );
 
             // Render transition's container (stack)
-            render_stack(allocator, &tr.container, child_prefix, chars, show_metadata, maybe_metadata_map);
+            render_stack(
+                allocator,
+                &tr.container,
+                child_prefix,
+                chars,
+                show_metadata,
+                maybe_metadata_map,
+            );
         },
         .collection => |coll| {
             const name = if (coll.name.len > 0) coll.name else "(unnamed)";
@@ -311,7 +453,15 @@ pub fn render_item(
                 |child, idx|
             {
                 const child_is_last = idx == coll.children.len - 1;
-                render_item(allocator, child, child_prefix, child_is_last, chars, show_metadata, maybe_metadata_map);
+                render_item(
+                    allocator,
+                    child,
+                    child_prefix,
+                    child_is_last,
+                    chars,
+                    show_metadata,
+                    maybe_metadata_map,
+                );
             }
         },
     }
@@ -331,23 +481,39 @@ pub fn render_metadata_value(
 
     switch (value) {
         .null => std.debug.print("{s}{s}null\n", .{ prefix, indent_str }),
-        .bool => |b| std.debug.print("{s}{s}{}\n", .{ prefix, indent_str, b }),
-        .integer => |i| std.debug.print("{s}{s}{d}\n", .{ prefix, indent_str, i }),
-        .float => |f| std.debug.print("{s}{s}{d}\n", .{ prefix, indent_str, f }),
-        .bytes => |s| std.debug.print("{s}{s}\"{s}\"\n", .{ prefix, indent_str, s }),
-        .@"union" => |t| std.debug.print("{s}{s}<tag: {s}>\n", .{ prefix, indent_str, t.tag }),
+        .bool => |b|
+            std.debug.print("{s}{s}{}\n", .{ prefix, indent_str, b }),
+        .integer => |i|
+            std.debug.print("{s}{s}{d}\n", .{ prefix, indent_str, i }),
+        .float => |f|
+            std.debug.print("{s}{s}{d}\n", .{ prefix, indent_str, f }),
+        .bytes => |s|
+            std.debug.print("{s}{s}\"{s}\"\n", .{ prefix, indent_str, s }),
+        .@"union" => |t|
+            std.debug.print(
+                "{s}{s}<tag: {s}>\n",
+                .{ prefix, indent_str, t.tag },
+            ),
         .array => |arr| {
             std.debug.print("{s}{s}[\n", .{ prefix, indent_str });
-            for (arr) |item| {
+            for (arr)
+                |item|
+            {
                 render_metadata_value(allocator, item, prefix, indent + 2);
             }
             std.debug.print("{s}{s}]\n", .{ prefix, indent_str });
         },
-        .@"enum" => |e| std.debug.print("{s}{s}{s}", .{prefix, indent_str, e}),
+        .@"enum" => |e|
+            std.debug.print("{s}{s}{s}", .{ prefix, indent_str, e }),
         .kv => |map| {
             var iter = map.fields.iterator();
-            while (iter.next()) |entry| {
-                std.debug.print("{s}{s}{s}: ", .{ prefix, indent_str, entry.key_ptr.* });
+            while (iter.next())
+                |entry|
+            {
+                std.debug.print(
+                    "{s}{s}{s}: ",
+                    .{ prefix, indent_str, entry.key_ptr.* },
+                );
                 // For simple values, print on same line
                 switch (entry.value_ptr.*) {
                     .null, .bool, .integer, .float, .bytes, .@"enum" => {
@@ -356,7 +522,12 @@ pub fn render_metadata_value(
                     },
                     .array, .kv, .@"union" => {
                         std.debug.print("\n", .{});
-                        render_metadata_value(allocator, entry.value_ptr.*, prefix, indent + 2);
+                        render_metadata_value(
+                            allocator,
+                            entry.value_ptr.*,
+                            prefix,
+                            indent + 2,
+                        );
                     },
                 }
             }
@@ -390,15 +561,26 @@ pub fn render_serializable_timeline(
     show_metadata: bool,
 ) void
 {
-    const name = if (ser_timeline.name.len > 0) ser_timeline.name else "(unnamed)";
+    const name = if (ser_timeline.name.len > 0) ser_timeline.name
+    else "(unnamed)";
     std.debug.print("Timeline: {s}\n", .{name});
     std.debug.print("{s}\n", .{chars.vertical_single});
 
     std.debug.print("{s}Stack: (tracks)\n", .{chars.last});
 
-    for (ser_timeline.children, 0..) |child, i| {
+    for (ser_timeline.children, 0..)
+        |child, i|
+    {
         const is_last = (i == ser_timeline.children.len - 1);
-        render_serializable_item(allocator, child, "    ", is_last, chars, show_metadata, ser_timeline.metadata_map);
+        render_serializable_item(
+            allocator,
+            child,
+            "    ",
+            is_last,
+            chars,
+            show_metadata,
+            ser_timeline.metadata_map,
+        );
     }
 }
 
@@ -420,7 +602,8 @@ pub fn render_serializable_item(
         allocator,
         "{s}{s}",
         .{ prefix, child_prefix_add },
-    ) catch "(alloc error)";
+    )
+    catch "(alloc error)";
     defer allocator.free(child_prefix);
 
     switch (item) {
@@ -431,25 +614,47 @@ pub fn render_serializable_item(
                 .{ prefix, connector, name, tr.children.len },
             );
 
-            // Display markers if present - Track has children, so always show vertical
-            if (tr.markers.len > 0) {
+            // Display markers if present - Track has children, so always show
+            // vertical
+            if (tr.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}{s}       markers: {} marker(s)\n",
                     .{ child_prefix, chars.vertical_single, tr.markers.len },
                 );
-                for (tr.markers, 0..) |marker, idx| {
-                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
+                for (tr.markers, 0..)
+                    |marker, idx|
+                {
+                    const marker_name = if (marker.name.len > 0) marker.name
+                    else "(unnamed)";
                     std.debug.print(
                         "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single, idx + 1, marker_name, marker.color,
-                           marker.marked_range[0], marker.marked_range[1] },
+                        .{
+                            child_prefix,
+                            chars.vertical_single,
+                            idx + 1,
+                            marker_name,
+                            marker.color,
+                            marker.marked_range[0],
+                            marker.marked_range[1],
+                        },
                     );
                 }
             }
 
-            for (tr.children, 0..) |child, i| {
+            for (tr.children, 0..)
+                |child, i|
+            {
                 const child_is_last = (i == tr.children.len - 1);
-                render_serializable_item(allocator, child, child_prefix, child_is_last, chars, show_metadata, maybe_metadata_map);
+                render_serializable_item(
+                    allocator,
+                    child,
+                    child_prefix,
+                    child_is_last,
+                    chars,
+                    show_metadata,
+                    maybe_metadata_map,
+                );
             }
         },
         .stack => |st| {
@@ -459,31 +664,60 @@ pub fn render_serializable_item(
                 .{ prefix, connector, name, st.children.len },
             );
 
-            // Display markers if present - Stack has children, so always show vertical
-            if (st.markers.len > 0) {
+            // Display markers if present - Stack has children, so always show
+            // vertical
+            if (st.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}{s}       markers: {} marker(s)\n",
                     .{ child_prefix, chars.vertical_single, st.markers.len },
                 );
-                for (st.markers, 0..) |marker, idx| {
-                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
+                for (st.markers, 0..)
+                    |marker, idx|
+                {
+                    const marker_name = if (marker.name.len > 0) marker.name
+                    else "(unnamed)";
                     std.debug.print(
                         "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single, idx + 1, marker_name, marker.color,
-                           marker.marked_range[0], marker.marked_range[1] },
+                        .{
+                            child_prefix,
+                            chars.vertical_single,
+                            idx + 1,
+                            marker_name,
+                            marker.color,
+                            marker.marked_range[0],
+                            marker.marked_range[1],
+                        },
                     );
                 }
             }
 
-            for (st.children, 0..) |child, i| {
+            for (st.children, 0..)
+                |child, i|
+            {
                 const child_is_last = (i == st.children.len - 1);
-                render_serializable_item(allocator, child, child_prefix, child_is_last, chars, show_metadata, maybe_metadata_map);
+                render_serializable_item(
+                    allocator,
+                    child,
+                    child_prefix,
+                    child_is_last,
+                    chars,
+                    show_metadata,
+                    maybe_metadata_map,
+                );
             }
         },
         .clip => |cl| {
             const name = if (cl.name.len > 0) cl.name else "(unnamed)";
-            const bounds_str = format_serializable_bounds(allocator, cl.bounds_s) catch "";
-            defer if (bounds_str.len > 0) allocator.free(bounds_str);
+            const bounds_str = format_serializable_bounds(
+                allocator,
+                cl.bounds_s,
+            )
+            catch "";
+            defer if (bounds_str.len > 0)
+            {
+                allocator.free(bounds_str);
+            };
 
             // Get media info
             const media_info = switch (cl.media.data_reference) {
@@ -502,29 +736,55 @@ pub fn render_serializable_item(
                 .{ child_prefix, media_info },
             );
 
-            // Display markers if present - Clip is a leaf, use child_prefix for vertical
-            if (cl.markers.len > 0) {
+            // Display markers if present - Clip is a leaf, use child_prefix
+            // for vertical
+            if (cl.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}    markers: {} marker(s)\n",
                     .{ child_prefix, cl.markers.len },
                 );
-                for (cl.markers, 0..) |marker, idx| {
-                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
+                for (cl.markers, 0..)
+                    |marker, idx|
+                {
+                    const marker_name = if (marker.name.len > 0) marker.name
+                    else "(unnamed)";
                     std.debug.print(
                         "{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, idx + 1, marker_name, marker.color,
-                           marker.marked_range[0], marker.marked_range[1] },
+                        .{
+                            child_prefix,
+                            idx + 1,
+                            marker_name,
+                            marker.color,
+                            marker.marked_range[0],
+                            marker.marked_range[1],
+                        },
                     );
                 }
             }
 
             // Show metadata if enabled and available
-            if (show_metadata) {
-                if (cl.metadata_hash) |hash| {
-                    if (maybe_metadata_map) |mm| {
-                        if (mm.fields.get(hash)) |metadata_value| {
-                            std.debug.print("{s}    metadata:\n", .{child_prefix});
-                            render_metadata_value(allocator, metadata_value, child_prefix, 6);
+            if (show_metadata)
+            {
+                if (cl.metadata_hash)
+                    |hash|
+                {
+                    if (maybe_metadata_map)
+                        |mm|
+                    {
+                        if (mm.fields.get(hash))
+                            |metadata_value|
+                        {
+                            std.debug.print(
+                                "{s}    metadata:\n",
+                                .{child_prefix},
+                            );
+                            render_metadata_value(
+                                allocator,
+                                metadata_value,
+                                child_prefix,
+                                6,
+                            );
                         }
                     }
                 }
@@ -536,26 +796,41 @@ pub fn render_serializable_item(
                 allocator,
                 " [{d:.2}s - {d:.2}s]",
                 .{ gp.bounds_s[0], gp.bounds_s[1] },
-            ) catch "";
-            defer if (bounds_str.len > 0) allocator.free(bounds_str);
+            )
+            catch "";
+            defer if (bounds_str.len > 0)
+            {
+                allocator.free(bounds_str);
+            };
 
             std.debug.print(
                 "{s}{s}Gap: {s}{s}\n",
                 .{ prefix, connector, name, bounds_str },
             );
 
-            // Display markers if present - Gap is a leaf, use child_prefix for vertical
-            if (gp.markers.len > 0) {
+            // Display markers if present - Gap is a leaf, use child_prefix
+            // for vertical
+            if (gp.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}    markers: {} marker(s)\n",
                     .{ child_prefix, gp.markers.len },
                 );
-                for (gp.markers, 0..) |marker, idx| {
-                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
+                for (gp.markers, 0..)
+                    |marker, idx|
+                {
+                    const marker_name = if (marker.name.len > 0) marker.name
+                    else "(unnamed)";
                     std.debug.print(
                         "{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, idx + 1, marker_name, marker.color,
-                           marker.marked_range[0], marker.marked_range[1] },
+                        .{
+                            child_prefix,
+                            idx + 1,
+                            marker_name,
+                            marker.color,
+                            marker.marked_range[0],
+                            marker.marked_range[1],
+                        },
                     );
                 }
             }
@@ -567,7 +842,15 @@ pub fn render_serializable_item(
                 .{ prefix, connector, name },
             );
 
-            render_serializable_item(allocator, wp.child.*, child_prefix, true, chars, show_metadata, maybe_metadata_map);
+            render_serializable_item(
+                allocator,
+                wp.child.*,
+                child_prefix,
+                true,
+                chars,
+                show_metadata,
+                maybe_metadata_map,
+            );
         },
         .transition => |tr| {
             const name = if (tr.name.len > 0) tr.name else "(unnamed)";
@@ -577,9 +860,19 @@ pub fn render_serializable_item(
             );
 
             // Render transition's container children
-            for (tr.container.children, 0..) |child, i| {
+            for (tr.container.children, 0..)
+                |child, i|
+            {
                 const child_is_last = (i == tr.container.children.len - 1);
-                render_serializable_item(allocator, child, child_prefix, child_is_last, chars, show_metadata, maybe_metadata_map);
+                render_serializable_item(
+                    allocator,
+                    child,
+                    child_prefix,
+                    child_is_last,
+                    chars,
+                    show_metadata,
+                    maybe_metadata_map,
+                );
             }
         },
     }
@@ -591,18 +884,22 @@ pub fn format_serializable_bounds(
     maybe_bounds: ?serialization.SerializableBounds,
 ) ![]const u8
 {
-    if (maybe_bounds) |bounds| {
+    if (maybe_bounds)
+        |bounds|
+    {
         return switch (bounds) {
-            .continuous => |cont| try std.fmt.allocPrint(
-                allocator,
-                " [{d:.2}s - {d:.2}s]",
-                .{ cont[0], cont[1] },
-            ),
-            .discrete => |disc| try std.fmt.allocPrint(
-                allocator,
-                " [frame {d} - {d}]",
-                .{ disc[0], disc[1] },
-            ),
+            .continuous => |cont|
+                try std.fmt.allocPrint(
+                    allocator,
+                    " [{d:.2}s - {d:.2}s]",
+                    .{ cont[0], cont[1] },
+                ),
+            .discrete => |disc|
+                try std.fmt.allocPrint(
+                    allocator,
+                    " [frame {d} - {d}]",
+                    .{ disc[0], disc[1] },
+                ),
         };
     }
     return try allocator.dupe(u8, "");
@@ -616,18 +913,32 @@ pub fn render_serializable_collection(
     show_metadata: bool,
 ) void
 {
-    const name = if (collection.name.len > 0) collection.name else "(unnamed)";
+    const name = (
+        if (collection.name.len > 0) collection.name
+        else "(unnamed)"
+    );
     std.debug.print("Collection: {s}\n", .{name});
 
-    if (collection.description.len > 0) {
+    if (collection.description.len > 0)
+    {
         std.debug.print("  description: {s}\n", .{collection.description});
     }
 
     std.debug.print("{s}\n", .{chars.vertical_single});
 
-    for (collection.children, 0..) |child, i| {
+    for (collection.children, 0..)
+        |child, i|
+    {
         const is_last = (i == collection.children.len - 1);
-        render_serializable_collection_item(allocator, child, "", is_last, chars, show_metadata, collection.metadata_map);
+        render_serializable_collection_item(
+            allocator,
+            child,
+            "",
+            is_last,
+            chars,
+            show_metadata,
+            collection.metadata_map,
+        );
     }
 }
 
@@ -649,11 +960,13 @@ pub fn render_serializable_collection_item(
         allocator,
         "{s}{s}",
         .{ prefix, child_prefix_add },
-    ) catch "(alloc error)";
+    )
+    catch "(alloc error)";
     defer allocator.free(child_prefix);
 
     const name = switch (item) {
-        inline else => |thing| if (thing.name.len > 0) thing.name else "(unnamed)",
+        inline else => |thing|
+            if (thing.name.len > 0) thing.name else "(unnamed)",
     };
 
     switch (item) {
@@ -664,7 +977,8 @@ pub fn render_serializable_collection_item(
             );
 
             // Display markers if present
-            if (tl.markers.len > 0) {
+            if (tl.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}{s}          markers: {} marker(s)\n",
                     .{ child_prefix, chars.vertical_single, tl.markers.len },
@@ -672,9 +986,19 @@ pub fn render_serializable_collection_item(
             }
 
             // Render children (tracks)
-            for (tl.children, 0..) |child, i| {
+            for (tl.children, 0..)
+                |child, i|
+            {
                 const child_is_last = (i == tl.children.len - 1);
-                render_serializable_item(allocator, child, child_prefix, child_is_last, chars, show_metadata, tl.metadata_map orelse maybe_metadata_map);
+                render_serializable_item(
+                    allocator,
+                    child,
+                    child_prefix,
+                    child_is_last,
+                    chars,
+                    show_metadata,
+                    tl.metadata_map orelse maybe_metadata_map,
+                );
             }
         },
         .track => |tr| {
@@ -684,16 +1008,27 @@ pub fn render_serializable_collection_item(
             );
 
             // Display markers if present
-            if (tr.markers.len > 0) {
+            if (tr.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}{s}       markers: {} marker(s)\n",
                     .{ child_prefix, chars.vertical_single, tr.markers.len },
                 );
             }
 
-            for (tr.children, 0..) |child, i| {
+            for (tr.children, 0..)
+                |child, i|
+            {
                 const child_is_last = (i == tr.children.len - 1);
-                render_serializable_item(allocator, child, child_prefix, child_is_last, chars, show_metadata, maybe_metadata_map);
+                render_serializable_item(
+                    allocator,
+                    child,
+                    child_prefix,
+                    child_is_last,
+                    chars,
+                    show_metadata,
+                    maybe_metadata_map,
+                );
             }
         },
         .stack => |st| {
@@ -703,21 +1038,39 @@ pub fn render_serializable_collection_item(
             );
 
             // Display markers if present
-            if (st.markers.len > 0) {
+            if (st.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}{s}       markers: {} marker(s)\n",
                     .{ child_prefix, chars.vertical_single, st.markers.len },
                 );
             }
 
-            for (st.children, 0..) |child, i| {
+            for (st.children, 0..)
+                |child, i|
+            {
                 const child_is_last = (i == st.children.len - 1);
-                render_serializable_item(allocator, child, child_prefix, child_is_last, chars, show_metadata, maybe_metadata_map);
+                render_serializable_item(
+                    allocator,
+                    child,
+                    child_prefix,
+                    child_is_last,
+                    chars,
+                    show_metadata,
+                    maybe_metadata_map,
+                );
             }
         },
         .clip => |cl| {
-            const bounds_str = format_serializable_bounds(allocator, cl.bounds_s) catch "";
-            defer if (bounds_str.len > 0) allocator.free(bounds_str);
+            const bounds_str = format_serializable_bounds(
+                allocator,
+                cl.bounds_s,
+            )
+            catch "";
+            defer if (bounds_str.len > 0)
+            {
+                allocator.free(bounds_str);
+            };
 
             // Get media info
             const media_info = switch (cl.media.data_reference) {
@@ -737,7 +1090,8 @@ pub fn render_serializable_collection_item(
             );
 
             // Display markers if present
-            if (cl.markers.len > 0) {
+            if (cl.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}    markers: {} marker(s)\n",
                     .{ child_prefix, cl.markers.len },
@@ -745,12 +1099,27 @@ pub fn render_serializable_collection_item(
             }
 
             // Show metadata if enabled and available
-            if (show_metadata) {
-                if (cl.metadata_hash) |hash| {
-                    if (maybe_metadata_map) |mm| {
-                        if (mm.fields.get(hash)) |metadata_value| {
-                            std.debug.print("{s}    metadata:\n", .{child_prefix});
-                            render_metadata_value(allocator, metadata_value, child_prefix, 6);
+            if (show_metadata)
+            {
+                if (cl.metadata_hash)
+                    |hash|
+                {
+                    if (maybe_metadata_map)
+                        |mm|
+                    {
+                        if (mm.fields.get(hash))
+                            |metadata_value|
+                        {
+                            std.debug.print(
+                                "{s}    metadata:\n",
+                                .{child_prefix},
+                            );
+                            render_metadata_value(
+                                allocator,
+                                metadata_value,
+                                child_prefix,
+                                6,
+                            );
                         }
                     }
                 }
@@ -761,8 +1130,12 @@ pub fn render_serializable_collection_item(
                 allocator,
                 " [{d:.2}s - {d:.2}s]",
                 .{ gp.bounds_s[0], gp.bounds_s[1] },
-            ) catch "";
-            defer if (bounds_str.len > 0) allocator.free(bounds_str);
+            )
+            catch "";
+            defer if (bounds_str.len > 0)
+            {
+                allocator.free(bounds_str);
+            };
 
             std.debug.print(
                 "{s}{s}Gap: {s}{s}\n",
@@ -770,7 +1143,8 @@ pub fn render_serializable_collection_item(
             );
 
             // Display markers if present
-            if (gp.markers.len > 0) {
+            if (gp.markers.len > 0)
+            {
                 std.debug.print(
                     "{s}    markers: {} marker(s)\n",
                     .{ child_prefix, gp.markers.len },
@@ -783,7 +1157,15 @@ pub fn render_serializable_collection_item(
                 .{ prefix, connector, name },
             );
 
-            render_serializable_item(allocator, wp.child.*, child_prefix, true, chars, show_metadata, maybe_metadata_map);
+            render_serializable_item(
+                allocator,
+                wp.child.*,
+                child_prefix,
+                true,
+                chars,
+                show_metadata,
+                maybe_metadata_map,
+            );
         },
         .transition => |tr| {
             std.debug.print(
@@ -792,9 +1174,19 @@ pub fn render_serializable_collection_item(
             );
 
             // Render transition's container children
-            for (tr.container.children, 0..) |child, i| {
+            for (tr.container.children, 0..)
+                |child, i|
+            {
                 const child_is_last = (i == tr.container.children.len - 1);
-                render_serializable_item(allocator, child, child_prefix, child_is_last, chars, show_metadata, maybe_metadata_map);
+                render_serializable_item(
+                    allocator,
+                    child,
+                    child_prefix,
+                    child_is_last,
+                    chars,
+                    show_metadata,
+                    maybe_metadata_map,
+                );
             }
         },
     }

@@ -411,25 +411,27 @@ pub fn expectOrdinateEqual(
         return;
     }
 
-    inline for (std.meta.fields(Ordinate))
-        |f|
+    const ord_ti = @typeInfo(Ordinate).@"struct";
+    inline for (ord_ti.field_names, ord_ti.field_types)
+        |f_name, f_type|
     {
         errdefer std.log.err(
-            "field: " ++ f.name ++ " did not match.", .{}
+            "field: " ++ f_name ++ " did not match.",
+            .{}
         );
-        switch (@typeInfo(f.type)) {
+        switch (@typeInfo(f_type)) {
             .int, .comptime_int => try std.testing.expectEqual(
-                @field(expected, f.name),
-                @field(measured, f.name),
+                @field(expected, f_name),
+                @field(measured, f_name),
             ),
             .float, .comptime_float => try std.testing.expectApproxEqAbs(
-                @field(expected, f.name),
-                @field(measured, f.name),
+                @field(expected, f_name),
+                @field(measured, f_name),
                 // util.EPSILON_F,
                 1e-3,
             ),
             inline else => @compileError(
-                "Do not know how to handle fields of type: " ++ f.type
+                "Do not know how to handle fields of type: " ++ f_type
             ),
         }
     }

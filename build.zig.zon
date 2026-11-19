@@ -2,7 +2,7 @@
     .name = .wrinkles,
     .version = "0.0.1",
     .fingerprint = 0xcdd5ec7e0ff0ce3e, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .comath = .{
             .path = "../../../external_sources/comath/",
@@ -16,20 +16,20 @@
             .hash = "N-V-__8AAJENngBClgu4SHZlBpEv0r8H-PSGJS6G_ma05tdj",
         },
         .zig_wav_io = .{
-            .url = "git+https://github.com/ssteinbach/zig-wav-io.git#a43ff48091165734d9ed38948a6b4dd3eae659c9",
-            .hash = "zig_wav_io-0.1.0-PYygzNEMAQDo94KcwXYc99epSh1go4VSYgIdCmPB02Kr",
+            .url = "git+https://github.com/ssteinbach/zig-wav-io.git#af18074e913f34ad41454e3b3769e1754e8bd94f",
+            .hash = "zig_wav_io-0.1.0-PYygzHUTAQBFR_oWMxj8MCP3Rc3KKefwAjnu0eGkWfep",
         },
-        .zgui_cimgui_implot_sokol = .{
-            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#57941f5bfe9279d061662a6281c67dadec49911b",
-            .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXvm_DABqtqIrmChkGcxDGkwSQDYwXxojX868JoMg",
-        },
+        // .zgui_cimgui_implot_sokol = .{
+        //     .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#57941f5bfe9279d061662a6281c67dadec49911b",
+        //     .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXvm_DABqtqIrmChkGcxDGkwSQDYwXxojX868JoMg",
+        // },
         .ziggy = .{
-            .url = "git+https://github.com/ssteinbach/ziggy#f890af04166182e4211082b4e9464d51a707b56a",
-            .hash = "ziggy-0.1.0-kTg8vzVqBgCOom7iiD1pCmeEivU6AXCrNkovN9s7qgy0",
+            .url = "git+https://github.com/ssteinbach/ziggy#8c115737db06c44d6cf9dfa602768fa900765d74",
+            .hash = "ziggy-0.3.0-kTg8v8PCCAB6FQFHlKPLc0aRKaw4bTDODvp-qJRPLdL8",
         },
         .flatbuffers = .{
-            .url = "git+https://github.com/ssteinbach/zig-flatbuffers.git#414a0a5147a30853c5095a3106b756b04df334ad",
-            .hash = "flatbuffers-0.2.0-Ntd6Di4tAgBisVQQG7UTel8RhaF-_Dz9stWcKW0yLXSz",
+            .url = "git+https://github.com/nDimensional/zig-flatbuffers.git#0f6a8df94cfaa854caad74438aef74e008de685f",
+            .hash = "flatbuffers-0.4.0-Ntd6DoUiAgDdf5nwS-m9X8hJHnHKGUPX9b4YKWjrplEQ",
         },
     },
     .paths = .{

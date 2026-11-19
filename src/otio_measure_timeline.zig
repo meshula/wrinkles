@@ -10,7 +10,10 @@ const builtin = @import("builtin");
 fn _parse_args(
     allocator: std.mem.Allocator,
     args: std.process.Args,
-) ![]const []const u8 
+) !struct{
+    files_to_measure: []const []const u8,
+    output_fps: ?u8,
+}
 {
     var arg_iter = args.iterate();
 
@@ -65,7 +68,10 @@ fn _parse_args(
         try files_to_measure.append(allocator, fpath);
     }
 
-    return try files_to_measure.toOwnedSlice(allocator);
+    return .{
+        .files_to_measure = try files_to_measure.toOwnedSlice(allocator),
+        .output_fps = discrete_fps,
+    };
 }
 
 /// Usage message for argument parsing.
@@ -98,20 +104,20 @@ pub fn main(
     const allocator = init.gpa;
     const io = init.io;
 
-    const input_files = try _parse_args(allocator, init.minimal.args);
-    defer allocator.free(input_files);
+    const args = try _parse_args(allocator, init.minimal.args);
+    defer allocator.free(args.files_to_measure);
 
     const prog = std.Progress.start(io, .{});
     defer prog.end();
 
     const parent_prog = prog.start(
         "Measuring OTIO Files",
-        input_files.len,
+        args.files_to_measure.len,
     );
 
     var buffer:[1024]u8 = undefined;
 
-    for (input_files)
+    for (args.files_to_measure)
         |filepath|
     {
         const name = try std.fmt.bufPrint(
@@ -200,13 +206,13 @@ pub fn main(
             }
         }
 
-        var projection_topo = (
+        var pb_from_tl_pres = (
             try otio.projection.TemporalProjectionBuilder.init_from(
                 allocator,
                 tl_ref.space_node(.presentation),
             )
         );
-        defer projection_topo.deinit(allocator);
+        defer pb_from_tl_pres.deinit(allocator);
 
         build_map_pro.end();
 
@@ -225,12 +231,33 @@ pub fn main(
             items += child.track.children.len;
         }
 
-        tl_ref.timeline.discrete_space_partitions.presentation.picture = .{
-            .sample_rate_hz = .{ .Integer = 24 },
-            .start_index = 86400,
-        };
-
         std.debug.print("Total items: {d}\n", .{items});
-        std.debug.print("RefTopo: {f}\n", .{projection_topo});
+        std.debug.print("RefTopo: {f}\n", .{pb_from_tl_pres});
+
+        std.debug.print("Discrete Infomration / Domain:\n", .{});
+
+        for (&[_]otio.Domain{.picture, .audio,})
+            |dmn|
+        {
+            if (
+                tl_ref.discrete_partition_for_space(
+                    .presentation,
+                    dmn,
+                )
+            ) |index_generator|
+            {
+                std.debug.print(
+                    "  {s}: {f}\n",
+                    .{@tagName(dmn), index_generator}
+                );
+            }
+            else 
+            {
+                std.debug.print(
+                    "  {s}: (none)\n",
+                    .{@tagName(dmn)}
+                );
+            }
+        }
     }
 }

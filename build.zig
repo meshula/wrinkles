@@ -2,8 +2,6 @@
 
 const std = @import("std");
 
-const ziis = @import("zgui_cimgui_implot_sokol");
-
 /// check for the `dot` program on $PATH
 fn graphviz_dot_on_path(
     allocator: std.mem.Allocator,
@@ -41,6 +39,10 @@ pub const Options = struct {
 
     /// select which tests to run
     test_filter: ?[]const u8 = null,
+
+    /// Include gui tools in the build
+    /// XXX: disabled while upstream dependencies are broken
+    build_gui_tools: bool = false,
 
     // common build steps to attach artifacts to
 
@@ -171,17 +173,24 @@ pub fn executable(
     // run and install the executable
     if (options.target.result.cpu.arch.isWasm())
     {
-        _ = try ziis.build_wasm(
-            b,
-            .{
-                .app_name = name,
-                .mod_main = exe.root_module,
-                .dep_c_libs = options.c_deps,
-                .dep_ziis_builder = options.dep_ziis.?.builder,
-                .target = options.target,
-                .optimize = options.optimize,
-            }
-        );
+        if (options.build_gui_tools)
+        {
+            @panic("currently not supported");
+
+            // const ziis = @import("zgui_cimgui_implot_sokol");
+            //
+            // _ = try ziis.build_wasm(
+            //     b,
+            //     .{
+            //         .app_name = name,
+            //         .mod_main = exe.root_module,
+            //         .dep_c_libs = options.c_deps,
+            //         .dep_ziis_builder = options.dep_ziis.?.builder,
+            //         .target = options.target,
+            //         .optimize = options.optimize,
+            //     }
+            // );
+        }
     }
     else
     {
@@ -207,11 +216,7 @@ pub fn executable(
 
         // pass commandline arguments to the executable
         // zig build blah-run -- arg1 arg2 etc
-        if (b.args) 
-            |args| 
-        {
-            run_cmd.addArgs(args);
-        }
+        run_cmd.addPassthruArgs();
     }
 
     // docs
@@ -566,11 +571,7 @@ fn cpp_binary(
     );
     var run_cmd = b.addRunArtifact(exe);
     run_step.dependOn(&run_cmd.step);
-    if (b.args) 
-        |args| 
-    {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
 
     return exe;
 }
@@ -706,6 +707,12 @@ pub fn build(
             "test-filter",
             "filter for tests to run",
         ) orelse null,
+
+        .build_gui_tools = b.option(
+            bool,
+            "build-gui-tools",
+            "include gui examples and tools in the build",
+        ) orelse false,
 
         // steps
         .test_step = b.step(
@@ -859,13 +866,15 @@ pub fn build(
     //
     // submodules and dependencies
     //
-    options.dep_ziis = b.dependency(
-        "zgui_cimgui_implot_sokol",
-        .{
-            .optimize = options.optimize,
-            .target = options.target,
-        },
-    );
+
+    // XXX: currently busted
+    // options.dep_ziis = b.dependency(
+    //     "zgui_cimgui_implot_sokol",
+    //     .{
+    //         .optimize = options.optimize,
+    //         .target = options.target,
+    //     },
+    // );
 
     const comath_dep = b.dependency(
         "comath",
@@ -1279,20 +1288,22 @@ pub fn build(
         //
         // timeline widget (reusable Gantt-chart renderer, no OTIO dependency)
         //
-        const timeline_widget = module_with_tests_and_artifact(
-            "timeline_widget",
-            .{
-                .b = b,
-                .options = options,
-                .fpath = "src/timeline_widget.zig",
-                .deps = &.{
-                    .{
-                        .name = "zgui_cimgui_implot_sokol",
-                        .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol"),
-                    },
-                    },
-                },
-                );
+
+        // XXX: ziis broken
+        // const timeline_widget = module_with_tests_and_artifact(
+        //     "timeline_widget",
+        //     .{
+        //         .b = b,
+        //         .options = options,
+        //         .fpath = "src/timeline_widget.zig",
+        //         .deps = &.{
+        //             .{
+        //                 .name = "zgui_cimgui_implot_sokol",
+        //                 .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol"),
+        //             },
+        //         },
+        //     },
+        // );
 
         //
         // executables
@@ -1303,10 +1314,12 @@ pub fn build(
             // external deps
             .{ .name = "comath", .module = comath_dep.module("comath") },
             .{ .name = "wav", .module = wav_dep },
-            .{
-                .name = "zgui_cimgui_implot_sokol",
-                .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol")
-            },
+
+            // XXX: ziis
+            // .{
+            //     .name = "zgui_cimgui_implot_sokol",
+            //     .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol")
+            // },
 
             // internal deps
             .{ .name = "string_stuff", .module = string_stuff },
@@ -1319,54 +1332,59 @@ pub fn build(
             .{ .name = "sampling", .module = sampling },
 
             .{ .name = "opentimelineio", .module = opentimelineio },
-            .{ .name = "timeline_widget", .module = timeline_widget },
+
+            // XXX: ziis
+            // .{ .name = "timeline_widget", .module = timeline_widget },
         };
 
-        // probably gone for good, but haven't removed yet
-        try executable(
-            b,
-            "curvet",
-            "Interactive curve editor and visualizer",
-            "src/curvet.zig",
-            options,
-            common_deps,
-        );
+        if (options.build_gui_tools)
+        {
+            // probably gone for good, but haven't removed yet
+            try executable(
+                b,
+                "curvet",
+                "Interactive curve editor and visualizer",
+                "src/curvet.zig",
+                options,
+                common_deps,
+            );
 
-        try executable(
-            b,
-            "sokol_test",
-            "Sokol graphics backend test",
-            "src/sokol_test.zig",
-            options,
-            common_deps,
-        );
+            try executable(
+                b,
+                "sokol_test",
+                "Sokol graphics backend test",
+                "src/sokol_test.zig",
+                options,
+                common_deps,
+            );
 
-        try executable(
-            b,
-            "transformation_visualizer",
-            "Visualize time transformations between spaces",
-            "src/transformation_visualizer.zig",
-            options,
-            common_deps,
-        );
+            try executable(
+                b,
+                "transformation_visualizer",
+                "Visualize time transformations between spaces",
+                "src/transformation_visualizer.zig",
+                options,
+                common_deps,
+            );
 
-        try executable(
-            b,
-            "wrinkles_visual_debugger",
-            "Visual debugger for wrinkles data structures",
-            "src/wrinkles_visual_debugger.zig",
-            options,
-            common_deps,
-        );
+            try executable(
+                b,
+                "wrinkles_visual_debugger",
+                "Visual debugger for wrinkles data structures",
+                "src/wrinkles_visual_debugger.zig",
+                options,
+                common_deps,
+            );
 
-        try executable(
-            b,
-            "otio_space_visualizer",
-            "Visualize OTIO timeline coordinate spaces",
-            "src/otio_space_visualizer.zig",
-            options,
-            common_deps,
-        );
+            try executable(
+                b,
+                "otio_space_visualizer",
+                "Visualize OTIO timeline coordinate spaces",
+                "src/otio_space_visualizer.zig",
+                options,
+                common_deps,
+            );
+        }
 
         try executable(
             b,

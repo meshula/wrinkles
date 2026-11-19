@@ -39,7 +39,7 @@ fn _parse_args(
         if (
             string.eql_latin_s8(fpath, "--help")
             or (string.eql_latin_s8(fpath, "-h"))
-        ) 
+        )
         {
             usage("");
         }
@@ -47,7 +47,7 @@ fn _parse_args(
         if (
             string.eql_latin_s8(fpath, "--ascii")
             or (string.eql_latin_s8(fpath, "-a"))
-        ) 
+        )
         {
             use_ascii = true;
             continue;
@@ -56,7 +56,8 @@ fn _parse_args(
         if (
             string.eql_latin_s8(fpath, "--show-metadata")
             or (string.eql_latin_s8(fpath, "-m"))
-        ) {
+        )
+        {
             show_metadata = true;
             continue;
         }
@@ -92,7 +93,8 @@ pub fn usage(
         \\  -m, --show-metadata  Display metadata present on clips (off by default)
         \\
         \\{s}
-        , .{msg}
+        ,
+        .{msg},
     );
 
     std.process.exit(1);
@@ -135,7 +137,7 @@ fn get_extension(
 ) ?[]const u8
 {
     const ext_start = (
-        std.mem.lastIndexOfScalar(u8, path, '.') 
+        std.mem.lastIndexOfScalar(u8, path, '.')
         orelse return null
     );
 
@@ -148,12 +150,15 @@ fn is_collection_file(
 ) bool
 {
     const ext = get_extension(filepath) orelse return false;
-    return std.mem.eql(u8, ext, ".tlca") or std.mem.eql(u8, ext, ".tlcb");
+    return (
+        std.mem.eql(u8, ext, ".tlca")
+        or std.mem.eql(u8, ext, ".tlcb")
+    );
 }
 
 pub fn main(
     init: std.process.Init,
-) !void 
+) !void
 {
     // use the debug allocator in debug builds, otherwise use smp
     const allocator = init.gpa;
@@ -162,34 +167,39 @@ pub fn main(
     const parsed_args = try _parse_args(allocator, init.minimal.args);
     defer allocator.free(parsed_args.files);
 
-    if (parsed_args.files.len == 0) 
+    if (parsed_args.files.len == 0)
     {
         usage("Error: No input files specified.");
     }
 
     const chars: otio.hierarchy_text_render.TreeChars = (
-        if (parsed_args.use_ascii) .ascii 
+        if (parsed_args.use_ascii) .ascii
         else .unicode
     );
 
-    for (parsed_args.files) |filepath| {
+    for (parsed_args.files)
+        |filepath|
+    {
         // Check file exists
         var found = true;
-        std.Io.Dir.cwd().access(io, filepath, .{}) catch |e| switch (e) {
+        std.Io.Dir.cwd().access(io, filepath, .{})
+        catch |e| switch (e) {
             error.FileNotFound => found = false,
             else => return e,
         };
 
-        if (!found) {
+        if (!found)
+        {
             std.log.err(
                 "File: {s} does not exist or is not accessible.",
-                .{filepath}
+                .{filepath},
             );
             continue;
         }
 
         // Check if this is a collection file
-        if (is_collection_file(filepath)) {
+        if (is_collection_file(filepath))
+        {
             // Print header for collection
             std.debug.print("\n", .{});
             std.debug.print("{s}\n", .{chars.header_line});
@@ -198,16 +208,28 @@ pub fn main(
             std.debug.print("\n", .{});
 
             // Read and render collection
-            const ser_collection = read_to_serializable_collection(allocator, io, filepath) catch |err| {
+            const ser_collection = read_to_serializable_collection(
+                allocator,
+                io,
+                filepath,
+            )
+            catch |err| {
                 std.log.err(
                     "Failed to read collection file '{s}': {s}",
-                    .{ filepath, @errorName(err) }
+                    .{ filepath, @errorName(err) },
                 );
                 continue;
             };
 
-            otio.hierarchy_text_render.render_serializable_collection(allocator, ser_collection, chars, parsed_args.show_metadata);
-        } else {
+            otio.hierarchy_text_render.render_serializable_collection(
+                allocator,
+                ser_collection,
+                chars,
+                parsed_args.show_metadata,
+            );
+        }
+        else
+        {
             // Print header for timeline
             std.debug.print("\n", .{});
             std.debug.print("{s}\n", .{chars.header_line});
@@ -215,28 +237,42 @@ pub fn main(
             std.debug.print("{s}\n", .{chars.header_line});
             std.debug.print("\n", .{});
 
-            if (parsed_args.show_metadata) {
+            if (parsed_args.show_metadata)
+            {
                 // Read as SerializableTimeline to access metadata
-                const ser_timeline = read_to_serializable_timeline(allocator, io, filepath) catch |err| {
+                const ser_timeline = read_to_serializable_timeline(
+                    allocator,
+                    io,
+                    filepath,
+                )
+                catch |err| {
                     std.log.err(
                         "Failed to read file '{s}': {s}",
-                        .{ filepath, @errorName(err) }
+                        .{ filepath, @errorName(err) },
                     );
                     continue;
                 };
 
-                otio.hierarchy_text_render.render_serializable_timeline(allocator, ser_timeline, chars, true);
-            } else {
+                otio.hierarchy_text_render.render_serializable_timeline(
+                    allocator,
+                    ser_timeline,
+                    chars,
+                    true,
+                );
+            }
+            else
+            {
                 // Read the file without metadata for faster reads
                 var tl_ref = otio.read_from_file(
                     allocator,
                     io,
                     filepath,
                     .{ .content_filter = .all_except_metadata },
-                ) catch |err| {
+                )
+                catch |err| {
                     std.log.err(
                         "Failed to read file '{s}': {s}",
-                        .{ filepath, @errorName(err) }
+                        .{ filepath, @errorName(err) },
                     );
                     continue;
                 };
@@ -249,12 +285,26 @@ pub fn main(
 
                 // Render the tracks stack
                 const tracks = &tl_ref.timeline.tracks;
-                const tracks_name = if (tracks.name.len > 0) tracks.name else "(tracks)";
-                std.debug.print("{s}Stack: {s}\n", .{ chars.last, tracks_name });
+                const tracks_name = if (tracks.name.len > 0) tracks.name
+                else "(tracks)";
+                std.debug.print(
+                    "{s}Stack: {s}\n",
+                    .{ chars.last, tracks_name },
+                );
 
-                for (tracks.children, 0..) |child, i| {
+                for (tracks.children, 0..)
+                    |child, i|
+                {
                     const is_last = (i == tracks.children.len - 1);
-                    otio.hierarchy_text_render.render_item(allocator, child, "    ", is_last, chars, false, null);
+                    otio.hierarchy_text_render.render_item(
+                        allocator,
+                        child,
+                        "    ",
+                        is_last,
+                        chars,
+                        false,
+                        null,
+                    );
                 }
             }
         }
