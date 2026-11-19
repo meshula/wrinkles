@@ -331,6 +331,57 @@ pub fn downgrade_with(
     }
 }
 
+/// True if `Table` has every step from `from_version` down to `to_version`
+/// (trivially true when they are equal).
+pub fn downgrade_supported(
+    comptime Table: type,
+    from_version: u32,
+    to_version: u32,
+) bool
+{
+    if (to_version > from_version)
+    {
+        return false;
+    }
+    var version = from_version;
+    while (version > to_version)
+        : (version -= 1)
+    {
+        if (Table.get(version, version - 1) == null)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// Every version data at `from_version` can be written as with `Table`,
+/// newest first (always includes `from_version` itself).
+pub fn downgrade_targets(
+    comptime Table: type,
+    comptime from_version: u32,
+) []const u32
+{
+    comptime {
+        var targets: []const u32 = &.{};
+        var version: u32 = from_version;
+        while (true)
+        {
+            if (downgrade_supported(Table, from_version, version))
+            {
+                targets = targets ++ &[_]u32{version};
+            }
+            if (version == 0)
+            {
+                break;
+            }
+            version -= 1;
+        }
+        const result = targets[0..targets.len].*;
+        return &result;
+    }
+}
+
 const serializable = @import("serializable.zig");
 const SerializableTimeline = serializable.SerializableTimeline;
 const SerializableCollection = serializable.SerializableCollection;
@@ -411,6 +462,18 @@ comptime {
         }
     }
 }
+
+/// Schema versions a timeline can be written as, newest first.
+pub const TIMELINE_WRITE_VERSIONS = downgrade_targets(
+    TimelineDowngrades,
+    CURRENT_SCHEMA_VERSION,
+);
+
+/// Schema versions a collection can be written as, newest first.
+pub const COLLECTION_WRITE_VERSIONS = downgrade_targets(
+    CollectionDowngrades,
+    CURRENT_SCHEMA_VERSION,
+);
 
 /// Upgrade a SerializableTimeline to `to_version`.
 pub fn upgrade_timeline(
@@ -830,4 +893,25 @@ test "versioning: collection tables"
             upgrade_collection(allocator, &too_old, CURRENT_SCHEMA_VERSION),
         );
     }
+}
+
+test "versioning: downgrade_targets lists reachable versions newest first"
+{
+    // FakeDowngrades has 4->3, 3->2 and 2->1 but no 1->0.
+    const targets = comptime downgrade_targets(FakeDowngrades, FAKE_CURRENT);
+    try std.testing.expectEqualSlices(u32, &.{ 4, 3, 2, 1 }, targets);
+
+    try std.testing.expect(downgrade_supported(FakeDowngrades, 4, 1));
+    try std.testing.expect(!downgrade_supported(FakeDowngrades, 4, 0));
+    try std.testing.expect(!downgrade_supported(FakeDowngrades, 1, 2));
+
+    // The real tables always allow writing the current version.
+    try std.testing.expectEqual(
+        CURRENT_SCHEMA_VERSION,
+        TIMELINE_WRITE_VERSIONS[0],
+    );
+    try std.testing.expectEqual(
+        CURRENT_SCHEMA_VERSION,
+        COLLECTION_WRITE_VERSIONS[0],
+    );
 }

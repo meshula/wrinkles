@@ -32,6 +32,8 @@ const builtin = @import("builtin");
 /// Use the new unified WriteOptions.MetadataMode
 const MetadataMode = serialization.WriteOptions.MetadataMode;
 
+const TARGET_VERSION_FLAG = "--target-version=";
+
 const State = struct {
     input_path: []const u8,
     output_path: ?[]const u8,
@@ -40,6 +42,12 @@ const State = struct {
     // TLZ bundle options
     bundle_format: serialization.bundle_utils.BundleFormat = .tla,
     media_policy: serialization.bundle_utils.MediaReferencePolicy = .missing_if_not_file,
+
+    /// Schema version to write; null writes the current version.
+    maybe_target_version: ?u32 = null,
+
+    /// Print the writable schema versions and exit.
+    list_target_versions: bool = false,
 
     pub fn deinit(
         self: @This(),
@@ -69,6 +77,8 @@ fn parse_args(
     var metadata_mode: MetadataMode = .hash_reference;
     var bundle_format: serialization.bundle_utils.BundleFormat = .tla;
     var media_policy: serialization.bundle_utils.MediaReferencePolicy = .missing_if_not_file;
+    var maybe_target_version: ?u32 = null;
+    var list_target_versions = false;
 
     // Ignore the app name, always first in args
     _ = arg_iter.skip();
@@ -122,6 +132,18 @@ fn parse_args(
         {
             media_policy = .all_missing;
         }
+        else if (std.mem.startsWith(u8, arg, TARGET_VERSION_FLAG))
+        {
+            maybe_target_version = std.fmt.parseInt(
+                u32,
+                arg[TARGET_VERSION_FLAG.len..],
+                10,
+            ) catch usage("Invalid --target-version value.");
+        }
+        else if (string.eql_latin_s8(arg, "--list-target-versions"))
+        {
+            list_target_versions = true;
+        }
         else if (arg.len > 0 and arg[0] == '-')
         {
             // Unknown flag
@@ -145,6 +167,25 @@ fn parse_args(
         }
     }
 
+    if (list_target_versions)
+    {
+        if (input_path)
+            |path|
+        {
+            allocator.free(path);
+        }
+        if (output_path)
+            |path|
+        {
+            allocator.free(path);
+        }
+        return .{
+            .input_path = try allocator.dupe(u8, ""),
+            .output_path = null,
+            .list_target_versions = true,
+        };
+    }
+
     if (positional_count < 1)
     {
         usage("Not enough arguments.");
@@ -156,6 +197,7 @@ fn parse_args(
         .metadata_mode = metadata_mode,
         .bundle_format = bundle_format,
         .media_policy = media_policy,
+        .maybe_target_version = maybe_target_version,
     };
 }
 
@@ -193,6 +235,10 @@ pub fn usage(
         \\  -m, --inline-metadata Print metadata inline on each clip instead of
         \\                        using hash references (TLA/TLCA output only)
         \\  -M, --no-metadata     Omit all metadata from output
+        \\  --target-version=N    Write schema version N instead of the current
+        \\                        version (downgrades a copy of the data)
+        \\  --list-target-versions  Print the schema versions that can be
+        \\                        written, then exit
         \\
         \\TLZ Bundle Options (for .tlz output):
         \\  --bundle-format=tla     Use TLA text format inside bundle (default)
@@ -218,6 +264,10 @@ pub fn usage(
         \\  otiocat timeline.tla timeline.tlz --bundle-format=tlb  # Binary inside
         \\  otiocat timeline.tla timeline.tlz --media-policy=error  # Require media
         \\
+        \\Version Examples:
+        \\  otiocat --list-target-versions          # Writable schema versions
+        \\  otiocat --target-version=1 in.tla out.tla  # Write version 1
+        \\
         \\Metadata Options (TLA/TLCA output only):
         \\  otiocat -M timeline.otio              # No metadata in output
         \\  otiocat -m timeline.otio              # Metadata inline on clips
@@ -226,6 +276,41 @@ pub fn usage(
         , .{msg}
     );
     std.process.exit(1);
+}
+
+/// Print the schema versions this build can write, per root type.
+fn print_target_versions(
+    io: std.Io,
+) !void
+{
+    var out_file = std.Io.File.stdout();
+    var buffer: [1024]u8 = undefined;
+    var file_writer = out_file.writer(io, &buffer);
+    const w = &file_writer.interface;
+
+    const versioning = serialization.versioning;
+    try w.print(
+        "Current schema version: {d}\n" ++
+        "Writable schema versions (--target-version=N):\n",
+        .{versioning.CURRENT_SCHEMA_VERSION},
+    );
+    inline for (
+        .{
+            .{ "timelines   (.tla, .tlb, .tlz)", versioning.TIMELINE_WRITE_VERSIONS },
+            .{ "collections (.tlca, .tlcb, .tlcz)", versioning.COLLECTION_WRITE_VERSIONS },
+        }
+    )
+        |row|
+    {
+        try w.print("  {s}:", .{row[0]});
+        for (row[1])
+            |version|
+        {
+            try w.print(" {d}", .{version});
+        }
+        try w.writeByte('\n');
+    }
+    try w.flush();
 }
 
 pub fn main(
@@ -246,6 +331,12 @@ pub fn main(
 
     const state = try parse_args(allocator, init.minimal.args);
     defer state.deinit(allocator);
+
+    if (state.list_target_versions)
+    {
+        try print_target_versions(io);
+        return;
+    }
 
     const prog = std.Progress.start(io, .{});
     defer prog.end();
@@ -322,10 +413,33 @@ pub fn main(
         std.process.exit(1);
     }
 
+    if (state.maybe_target_version)
+        |target|
+    {
+        const writable = (
+            if (is_collection) serialization.versioning.COLLECTION_WRITE_VERSIONS
+            else serialization.versioning.TIMELINE_WRITE_VERSIONS
+        );
+        if (std.mem.indexOfScalar(u32, writable, target) == null)
+        {
+            std.log.err(
+                "Cannot write {s} schema version {d}; writable versions: {any}"
+                ++ " (see --list-target-versions)",
+                .{
+                    if (is_collection) "collection" else "timeline",
+                    target,
+                    writable,
+                },
+            );
+            std.process.exit(1);
+        }
+    }
+
     // Options for every file write.  When bundling, relative media URIs are
     // resolved against the input document's directory.
     const write_options: serialization.WriteOptions = .{
         .metadata_mode = state.metadata_mode,
+        .target_version = state.maybe_target_version,
         .bundle_options = .{
             .content_format = state.bundle_format,
             .media_policy = state.media_policy,

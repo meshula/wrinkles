@@ -1659,6 +1659,102 @@ pub fn finalize_collection(
     );
 }
 
+/// Deep-copy a serializable value of type `T` so the copy owns all of its
+/// memory (every slice, string, pointer and metadata map is duplicated) and
+/// can be freed with its `deinit` independently of `value`.
+///
+/// Works by reflection, so new fields on serializable types are copied
+/// automatically.  On OutOfMemory the partial copy is leaked.
+pub fn deep_clone(
+    comptime T: type,
+    allocator: std.mem.Allocator,
+    value: T,
+) error{OutOfMemory}!T
+{
+    if (T == MetadataMap)
+    {
+        var result: MetadataMap = .{ .container_kind = value.container_kind };
+        try result.fields.ensureTotalCapacity(allocator, value.fields.count());
+        var iter = value.fields.iterator();
+        while (iter.next())
+            |entry|
+        {
+            result.fields.putAssumeCapacity(
+                try allocator.dupe(u8, entry.key_ptr.*),
+                try deep_clone(MetadataValue, allocator, entry.value_ptr.*),
+            );
+        }
+        return result;
+    }
+
+    switch (@typeInfo(T)) {
+        .int, .float, .bool, .@"enum", .void, .comptime_int, .comptime_float => {
+            return value;
+        },
+        .optional => |info| {
+            const inner = value orelse return null;
+            return try deep_clone(info.child, allocator, inner);
+        },
+        .array => |info| {
+            var result: T = undefined;
+            for (value, 0..)
+                |item, i|
+            {
+                result[i] = try deep_clone(info.child, allocator, item);
+            }
+            return result;
+        },
+        .pointer => |info| switch (info.size) {
+            .one => {
+                const result = try allocator.create(info.child);
+                result.* = try deep_clone(info.child, allocator, value.*);
+                return result;
+            },
+            .slice => {
+                const result = try allocator.alloc(info.child, value.len);
+                for (value, 0..)
+                    |item, i|
+                {
+                    result[i] = try deep_clone(info.child, allocator, item);
+                }
+                return result;
+            },
+            else => @compileError(
+                "deep_clone: unsupported pointer type " ++ @typeName(T)
+            ),
+        },
+        .@"struct" => |info| {
+            var result: T = undefined;
+            inline for (info.field_names, info.field_types, info.field_attrs)
+                |name, FieldType, attrs|
+            {
+                if (comptime attrs.@"comptime")
+                {
+                    continue;
+                }
+                @field(result, name) = try deep_clone(
+                    FieldType,
+                    allocator,
+                    @field(value, name),
+                );
+            }
+            return result;
+        },
+        .@"union" => {
+            switch (value) {
+                inline else => |payload, tag| {
+                    return @unionInit(
+                        T,
+                        @tagName(tag),
+                        try deep_clone(@TypeOf(payload), allocator, payload),
+                    );
+                },
+            }
+        },
+        else => @compileError("deep_clone: unsupported type " ++ @typeName(T)),
+    }
+}
+
 // ----------------------------------------------------------------------------
 // Conversion Functions: Serializable → Schema
 // ----------------------------------------------------------------------------

@@ -113,6 +113,13 @@ pub const WriteOptions = struct {
     /// Bundle-specific options. Ignored for non-bundle formats.
     bundle_options: ?BundleOptions = null,
 
+    /// Schema version to write (see versioning.zig).  Null writes
+    /// `CURRENT_SCHEMA_VERSION`.  Older versions are produced by the root
+    /// type's downgrade table from a copy of the data; the input is never
+    /// modified.  `error.DowngradeNotSupported` if a step is missing,
+    /// `error.DowngradeTargetIsNewer` if the target is newer than the data.
+    target_version: ?u32 = null,
+
     /// Controls how metadata is output in TLA format
     pub const MetadataMode = enum {
         /// Default behavior: use hash references with metadata_map

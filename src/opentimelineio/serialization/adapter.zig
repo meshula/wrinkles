@@ -242,6 +242,30 @@ pub const SerializableRoot = union(enum) {
         return self == .timeline;
     }
 
+    /// The root's schema version.
+    pub fn schema_version(
+        self: @This(),
+    ) u32
+    {
+        return switch (self) {
+            .timeline => |t| t.schema_version,
+            .collection => |c| c.schema_version,
+        };
+    }
+
+    /// Deep copy that owns all of its memory; free it with `deinit`.
+    pub fn clone(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !SerializableRoot
+    {
+        return try serializable_types.deep_clone(
+            SerializableRoot,
+            allocator,
+            self,
+        );
+    }
+
     pub fn is_collection(
         self: @This(),
     ) bool
@@ -495,7 +519,102 @@ pub fn read_root(
     }
 }
 
-/// Write a serializable root to `writer` in `format`.
+/// A root ready to encode: either the caller's root, or an owned downgraded
+/// copy of it.
+const PreparedRoot = struct {
+    root: SerializableRoot,
+    owned: bool,
+
+    fn deinit(
+        self: *@This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        if (self.owned)
+        {
+            self.root.deinit(allocator);
+        }
+    }
+};
+
+/// Bring `root` to `target_version` for writing, using the given downgrade
+/// tables.  `root` itself is never modified.
+fn prepare_for_write_with(
+    comptime TimelineDowngrades: type,
+    comptime CollectionDowngrades: type,
+    allocator: std.mem.Allocator,
+    root: SerializableRoot,
+    maybe_target_version: ?u32,
+) !PreparedRoot
+{
+    const target = maybe_target_version orelse return .{
+        .root = root,
+        .owned = false,
+    };
+    const current = root.schema_version();
+    if (target == current)
+    {
+        return .{ .root = root, .owned = false };
+    }
+    if (target > current)
+    {
+        return error.DowngradeTargetIsNewer;
+    }
+
+    // Check the whole chain before paying for a copy.
+    const supported = switch (root) {
+        .timeline => versioning.downgrade_supported(
+            TimelineDowngrades,
+            current,
+            target,
+        ),
+        .collection => versioning.downgrade_supported(
+            CollectionDowngrades,
+            current,
+            target,
+        ),
+    };
+    if (!supported)
+    {
+        return error.DowngradeNotSupported;
+    }
+
+    var copy = try root.clone(allocator);
+    errdefer copy.deinit(allocator);
+    switch (copy) {
+        .timeline => |*t| try versioning.downgrade_with(
+            TimelineDowngrades,
+            allocator,
+            t,
+            target,
+        ),
+        .collection => |*c| try versioning.downgrade_with(
+            CollectionDowngrades,
+            allocator,
+            c,
+            target,
+        ),
+    }
+    return .{ .root = copy, .owned = true };
+}
+
+fn prepare_for_write(
+    allocator: std.mem.Allocator,
+    root: SerializableRoot,
+    maybe_target_version: ?u32,
+) !PreparedRoot
+{
+    return try prepare_for_write_with(
+        versioning.TimelineDowngrades,
+        versioning.CollectionDowngrades,
+        allocator,
+        root,
+        maybe_target_version,
+    );
+}
+
+/// Write a serializable root to `writer` in `format`, at
+/// `options.target_version` if set.
 pub fn write_root(
     allocator: std.mem.Allocator,
     root: SerializableRoot,
@@ -520,18 +639,28 @@ pub fn write_root(
                 const ns = comptime codec_namespace(fmt).?;
                 if (comptime desc.is_collection)
                 {
-                    switch (root) {
-                        .collection => |c| try ns.write(allocator, c, writer, options),
-                        .timeline => return error.NotATimelineFormat,
+                    if (root != .collection)
+                    {
+                        return error.NotATimelineFormat;
                     }
                 }
-                else
+                else if (root != .timeline)
                 {
-                    switch (root) {
-                        .timeline => |t| try ns.write(allocator, t, writer, options),
-                        .collection => return error.NotACollectionFormat,
-                    }
+                    return error.NotACollectionFormat;
                 }
+
+                var prepared = try prepare_for_write(
+                    allocator,
+                    root,
+                    options.target_version,
+                );
+                defer prepared.deinit(allocator);
+
+                const data = if (comptime desc.is_collection)
+                    prepared.root.collection
+                else
+                    prepared.root.timeline;
+                try ns.write(allocator, data, writer, options);
             }
         },
     }
@@ -610,6 +739,16 @@ pub fn write_root_to_file(
         return;
     }
 
+    // Downgrade before creating the file, so a failure leaves nothing behind.
+    var prepared = try prepare_for_write(
+        allocator,
+        root,
+        options.target_version,
+    );
+    defer prepared.deinit(allocator);
+    var prepared_options = options;
+    prepared_options.target_version = null;
+
     const file = try std.Io.Dir.cwd().createFile(io, file_path, .{});
     defer file.close(io);
 
@@ -617,7 +756,7 @@ pub fn write_root_to_file(
     var file_writer = file.writer(io, &write_buffer);
     const writer = &file_writer.interface;
 
-    try write_root(allocator, root, writer, format, options);
+    try write_root(allocator, prepared.root, writer, format, prepared_options);
     try writer.flush();
 }
 
@@ -1480,6 +1619,201 @@ test "adapter: OTIO metadata is owned by the result"
     // Schema API: clips own their metadata JSON and deinit frees it.
     var handle = try read_from_file(allocator, io, path, .{});
     defer handle.deinit(allocator);
+}
+
+test "adapter: SerializableRoot.clone is a deep copy"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    inline for (
+        .{
+            TEST_TIMELINE_METADATA_PATH,
+            TEST_COLLECTION_METADATA_PATH,
+            "test_files/simple_cut_with_media.tla",
+        }
+    )
+        |path|
+    {
+        errdefer std.debug.print("failed for: {s}\n", .{path});
+
+        var original = try serializable.read_from_file(allocator, io, path, .{});
+        const expected = try root_as_text(allocator, original);
+        defer allocator.free(expected);
+
+        var copy = try original.clone(allocator);
+        defer copy.deinit(allocator);
+
+        // The copy must not depend on the original's memory.
+        original.deinit(allocator);
+
+        const actual = try root_as_text(allocator, copy);
+        defer allocator.free(actual);
+        try std.testing.expectEqualStrings(expected, actual);
+    }
+}
+
+test "adapter: target_version"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    var root = try serializable.read_from_file(
+        allocator,
+        io,
+        TEST_TIMELINE_METADATA_PATH,
+        .{},
+    );
+    defer root.deinit(allocator);
+    const before = try root_as_text(allocator, root);
+    defer allocator.free(before);
+
+    // The current version is the same as not asking for one.
+    {
+        var out: std.Io.Writer.Allocating = .init(allocator);
+        defer out.deinit();
+        try write_root(
+            allocator,
+            root,
+            &out.writer,
+            .tla,
+            .{ .target_version = versioning.CURRENT_SCHEMA_VERSION },
+        );
+        try std.testing.expectEqualStrings(before, out.written());
+    }
+
+    // Unwritable targets fail before a file is created, input unchanged.
+    inline for (
+        .{
+            .{ versioning.CURRENT_SCHEMA_VERSION + 1, error.DowngradeTargetIsNewer },
+            .{ 0, error.DowngradeNotSupported },
+        }
+    )
+        |case|
+    {
+        const path = try tmp_path(allocator, tmp, "out.tla");
+        defer allocator.free(path);
+
+        try std.testing.expectError(
+            case[1],
+            serializable.write_to_file(
+                allocator,
+                io,
+                root,
+                path,
+                .{ .target_version = case[0] },
+            ),
+        );
+        try std.testing.expectError(
+            error.FileNotFound,
+            tmp.dir.access(io, "out.tla", .{}),
+        );
+
+        var out: std.Io.Writer.Allocating = .init(allocator);
+        defer out.deinit();
+        try std.testing.expectError(
+            case[1],
+            write_root(
+                allocator,
+                root,
+                &out.writer,
+                .tlb,
+                .{ .target_version = case[0] },
+            ),
+        );
+    }
+
+    const after = try root_as_text(allocator, root);
+    defer allocator.free(after);
+    try std.testing.expectEqualStrings(before, after);
+}
+
+/// A made-up timeline downgrade from the current version to the one before
+/// it, which renames the timeline.
+fn fake_downgrade_rename(
+    allocator: std.mem.Allocator,
+    timeline: *serializable_types.SerializableTimeline,
+) anyerror!void
+{
+    const renamed = try std.fmt.allocPrint(
+        allocator,
+        "{s} (v{d})",
+        .{ timeline.name, timeline.schema_version - 1 },
+    );
+    allocator.free(timeline.name);
+    timeline.name = renamed;
+}
+
+test "adapter: writing an older version downgrades a copy"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    const current = versioning.CURRENT_SCHEMA_VERSION;
+    const FakeTimelineDowngrades = versioning.TransformTable(
+        serializable_types.SerializableTimeline,
+        .downgrade,
+        &.{
+            .{
+                .from = current,
+                .to = current - 1,
+                .change = .{ .transform = fake_downgrade_rename },
+            },
+        },
+    );
+
+    var root = try serializable.read_from_file(
+        allocator,
+        io,
+        TEST_TIMELINE_METADATA_PATH,
+        .{},
+    );
+    defer root.deinit(allocator);
+    const before = try root_as_text(allocator, root);
+    defer allocator.free(before);
+    const original_name = try allocator.dupe(u8, root.timeline.name);
+    defer allocator.free(original_name);
+
+    var prepared = try prepare_for_write_with(
+        FakeTimelineDowngrades,
+        versioning.CollectionDowngrades,
+        allocator,
+        root,
+        current - 1,
+    );
+    defer prepared.deinit(allocator);
+
+    try std.testing.expect(prepared.owned);
+    try std.testing.expectEqual(current - 1, prepared.root.schema_version());
+    const expected_name = try std.fmt.allocPrint(
+        allocator,
+        "{s} (v{d})",
+        .{ original_name, current - 1 },
+    );
+    defer allocator.free(expected_name);
+    try std.testing.expectEqualStrings(
+        expected_name,
+        prepared.root.timeline.name,
+    );
+
+    // The downgraded copy encodes with the older version number.
+    const text = try root_as_text(allocator, prepared.root);
+    defer allocator.free(text);
+    const header = try std.fmt.allocPrint(
+        allocator,
+        ".schema_version = {d},",
+        .{current - 1},
+    );
+    defer allocator.free(header);
+    try std.testing.expect(std.mem.startsWith(u8, text, header));
+
+    // The caller's data is untouched.
+    const after = try root_as_text(allocator, root);
+    defer allocator.free(after);
+    try std.testing.expectEqualStrings(before, after);
 }
 
 test "adapter: writing a read-only format errors without creating a file"
