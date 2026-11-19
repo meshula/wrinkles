@@ -511,27 +511,6 @@ pub fn write_root(
     }
 }
 
-fn bundle_write_options(
-    options: WriteOptions,
-) bundle.WriteOptions
-{
-    const bundle_opts = (
-        options.bundle_options orelse WriteOptions.BundleOptions{}
-    );
-    return .{
-        .bundle_format = switch (bundle_opts.content_format) {
-            .tla => .tla,
-            .tlb => .tlb,
-        },
-        .media_policy = switch (bundle_opts.media_policy) {
-            .ErrorIfNotFile => .ErrorIfNotFile,
-            .MissingIfNotFile => .MissingIfNotFile,
-            .AllMissing => .AllMissing,
-        },
-        .media_base_dir = bundle_opts.media_base_dir,
-    };
-}
-
 /// Read a serializable root from the file at `file_path` in `format`.
 pub fn read_root_from_file(
     allocator: std.mem.Allocator,
@@ -541,34 +520,15 @@ pub fn read_root_from_file(
     options: ReadOptions,
 ) !SerializableRoot
 {
-    const desc = descriptor(format);
-
-    if (desc.is_bundle)
+    if (descriptor(format).is_bundle)
     {
-        // TODO(serialization stage 4): bundles should read their content
-        // through read_root and honor ReadOptions.extract_to_directory.
-        var root: SerializableRoot = if (desc.is_collection)
-            .{
-                .collection = try bundle.read_collection_from_file(
-                    allocator,
-                    io,
-                    file_path,
-                    .{},
-                ),
-            }
-        else
-            .{
-                .timeline = try bundle.read_from_file(
-                    allocator,
-                    io,
-                    file_path,
-                    .{},
-                ),
-            };
-        errdefer root.deinit(allocator);
-
-        try root.finalize(allocator, options);
-        return root;
+        return try bundle.read_root_from_file(
+            allocator,
+            io,
+            file_path,
+            format,
+            options,
+        );
     }
 
     const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
@@ -613,25 +573,14 @@ pub fn write_root_to_file(
 
     if (desc.is_bundle)
     {
-        // TODO(serialization stage 4): bundles should encode their content
-        // through write_root.
-        const bundle_opts = bundle_write_options(options);
-        switch (root) {
-            .timeline => |t| try bundle.write_to_file(
-                allocator,
-                io,
-                t,
-                file_path,
-                bundle_opts,
-            ),
-            .collection => |c| try bundle.write_collection_to_file(
-                allocator,
-                io,
-                c,
-                file_path,
-                bundle_opts,
-            ),
-        }
+        try bundle.write_root_to_file(
+            allocator,
+            io,
+            root,
+            file_path,
+            format,
+            options,
+        );
         return;
     }
 
@@ -666,12 +615,7 @@ pub fn write_serializable_timeline_to_file(
         .{ .timeline = intermediate_tl },
         file_path,
         try FileFormat.from_path(file_path),
-        .{
-            .metadata_mode = metadata_mode,
-            // Preserves this function's previous bundle default.
-            // TODO(serialization stage 4): settle on one default policy.
-            .bundle_options = .{ .media_policy = .ErrorIfNotFile },
-        },
+        .{ .metadata_mode = metadata_mode },
     );
 }
 
@@ -1292,6 +1236,105 @@ test "adapter: read results own their metadata strings"
         defer allocator.free(actual);
 
         try std.testing.expectEqualStrings(expected, actual);
+    }
+}
+
+test "adapter: bundles round-trip metadata and honor read options"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    // { source with metadata, bundle format, inner encoding }
+    inline for (.{
+        .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tlz, .tla },
+        .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tlz, .tlb },
+        .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlcz, .tla },
+        .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlcz, .tlb },
+    })
+        |case|
+    {
+        const path = case[0];
+        const bundle_format = case[1];
+        const content_format = case[2];
+        errdefer std.debug.print(
+            "failed for: {s} as .{t} with {t} content\n",
+            .{ path, bundle_format, content_format },
+        );
+
+        var original = try serializable.read_from_file(
+            allocator,
+            io,
+            path,
+            .{},
+        );
+        defer original.deinit(allocator);
+        const expected = try root_as_text(allocator, original);
+        defer allocator.free(expected);
+
+        const bundle_path = try tmp_path(
+            allocator,
+            tmp,
+            "out." ++ @tagName(bundle_format),
+        );
+        defer allocator.free(bundle_path);
+
+        try serializable.write_to_file(
+            allocator,
+            io,
+            original,
+            bundle_path,
+            .{ .bundle_options = .{ .content_format = content_format } },
+        );
+
+        // Full read matches the original.
+        var result = try serializable.read_from_file(
+            allocator,
+            io,
+            bundle_path,
+            .{},
+        );
+        defer result.deinit(allocator);
+        const actual = try root_as_text(allocator, result);
+        defer allocator.free(actual);
+        try std.testing.expectEqualStrings(expected, actual);
+
+        // Content filter applies inside bundles.
+        var no_md = try serializable.read_from_file(
+            allocator,
+            io,
+            bundle_path,
+            .{ .content_filter = .all_except_metadata },
+        );
+        defer no_md.deinit(allocator);
+        try std.testing.expect(switch (no_md) {
+            .timeline => |t| t.metadata_map == null,
+            .collection => |c| c.metadata_map == null,
+        });
+    }
+
+    // extract_to_directory writes every entry out.
+    {
+        const bundle_path = try tmp_path(allocator, tmp, "out.tlz");
+        defer allocator.free(bundle_path);
+
+        try tmp.dir.createDirPath(io, "extracted");
+        const extract_path = try tmp_path(allocator, tmp, "extracted");
+        defer allocator.free(extract_path);
+
+        var root = try serializable.read_from_file(
+            allocator,
+            io,
+            bundle_path,
+            .{ .extract_to_directory = extract_path },
+        );
+        defer root.deinit(allocator);
+
+        try tmp.dir.access(io, "extracted/version.txt", .{});
+        // The last write above used tlb content.
+        try tmp.dir.access(io, "extracted/content.tlb", .{});
     }
 }
 

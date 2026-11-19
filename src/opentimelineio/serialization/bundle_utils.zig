@@ -34,13 +34,13 @@ pub const BUNDLE_CONTENT_TLCB = "content.tlcb";
 /// Policy for handling media references during bundle creation
 pub const MediaReferencePolicy = enum {
     /// Raise error if any media reference doesn't point to valid file
-    ErrorIfNotFile,
+    error_if_not_file,
 
-    /// Replace invalid media references with MissingReference placeholders
-    MissingIfNotFile,
+    /// Leave references to missing files as-is and bundle the rest
+    missing_if_not_file,
 
-    /// Replace all media references with MissingReference placeholders
-    AllMissing,
+    /// Bundle no media files; leave all references as-is
+    all_missing,
 };
 
 /// Timeline format to use inside the TLZ bundle

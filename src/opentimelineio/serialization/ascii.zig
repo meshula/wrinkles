@@ -1610,7 +1610,14 @@ pub fn read_from_file(
     // Handle .tlz separately since it manages its own file reading
     if (format == .tlz)
     {
-        return try bundle.read_from_file(allocator, io, file_path, .{});
+        const root = try bundle.read_root_from_file(
+            allocator,
+            io,
+            file_path,
+            .tlz,
+            .{},
+        );
+        return root.timeline;
     }
 
     // For other formats, read the file contents first
@@ -1665,7 +1672,7 @@ pub const WriteOptions = struct {
     bundle_format: bundle_utils.BundleFormat = .tla,
 
     /// TLZ media handling policy
-    media_policy: bundle_utils.MediaReferencePolicy = .MissingIfNotFile,
+    media_policy: bundle_utils.MediaReferencePolicy = .missing_if_not_file,
 
     /// Base directory for resolving media paths (for TLZ bundles)
     media_base_dir: ?[]const u8 = null,

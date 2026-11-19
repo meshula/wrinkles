@@ -39,7 +39,7 @@ const State = struct {
 
     // TLZ bundle options
     bundle_format: serialization.bundle_utils.BundleFormat = .tla,
-    media_policy: serialization.bundle_utils.MediaReferencePolicy = .MissingIfNotFile,
+    media_policy: serialization.bundle_utils.MediaReferencePolicy = .missing_if_not_file,
 
     pub fn deinit(
         self: @This(),
@@ -68,7 +68,7 @@ fn parse_args(
     var output_path: ?[]const u8 = null;
     var metadata_mode: MetadataMode = .hash_reference;
     var bundle_format: serialization.bundle_utils.BundleFormat = .tla;
-    var media_policy: serialization.bundle_utils.MediaReferencePolicy = .MissingIfNotFile;
+    var media_policy: serialization.bundle_utils.MediaReferencePolicy = .missing_if_not_file;
 
     // Ignore the app name, always first in args
     _ = arg_iter.skip();
@@ -112,15 +112,15 @@ fn parse_args(
         // TLZ media policy options
         else if (string.eql_latin_s8(arg, "--media-policy=error"))
         {
-            media_policy = .ErrorIfNotFile;
+            media_policy = .error_if_not_file;
         }
         else if (string.eql_latin_s8(arg, "--media-policy=missing"))
         {
-            media_policy = .MissingIfNotFile;
+            media_policy = .missing_if_not_file;
         }
         else if (string.eql_latin_s8(arg, "--media-policy=all-missing"))
         {
-            media_policy = .AllMissing;
+            media_policy = .all_missing;
         }
         else if (arg.len > 0 and arg[0] == '-')
         {
@@ -306,7 +306,7 @@ pub fn main(
         std.process.exit(1);
     };
 
-    const is_collection = input_format == .tlca or input_format == .tlcb;
+    const is_collection = serialization.adapter.descriptor(input_format).is_collection;
 
     // Check output extension (default to .tla/.tlca for stdout based on input
     // type)
@@ -336,24 +336,38 @@ pub fn main(
 
     // Validate format compatibility
     const output_is_collection = (
-        output_format == .tlca or output_format == .tlcb
+        serialization.adapter.descriptor(output_format).is_collection
     );
 
     if (is_collection != output_is_collection) {
         std.log.err(
             "Cannot convert between timeline and collection formats. " ++
-            "Use timeline formats (.tla, .tlb, .tlz) or collection formats (.tlca, .tlcb).",
+            "Use timeline formats (.tla, .tlb, .tlz) or collection formats (.tlca, .tlcb, .tlcz).",
             .{}
         );
         std.process.exit(1);
     }
 
-    // TLZ output requires an output file (can't write to stdout)
-    if (output_format == .tlz and state.output_path == null)
+    // Bundle output requires an output file (can't write to stdout)
+    if (
+        serialization.adapter.descriptor(output_format).is_bundle
+        and state.output_path == null
+    )
     {
-        std.log.err("TLZ output requires an output file path", .{});
+        std.log.err("Bundle output requires an output file path", .{});
         std.process.exit(1);
     }
+
+    // Options for every file write.  When bundling, relative media URIs are
+    // resolved against the input document's directory.
+    const write_options: serialization.WriteOptions = .{
+        .metadata_mode = state.metadata_mode,
+        .bundle_options = .{
+            .content_format = state.bundle_format,
+            .media_policy = state.media_policy,
+            .media_base_dir = std.fs.path.dirname(state.input_path) orelse ".",
+        },
+    };
 
     if (is_collection) 
     {
@@ -375,12 +389,12 @@ pub fn main(
         if (state.output_path) 
             |path|
         {
-            try serialization.write_serializable_collection_to_file(
+            try serialization.serializable.write_to_file(
                 allocator,
                 io,
-                ser_collection,
+                .{ .collection = ser_collection },
                 path,
-                state.metadata_mode,
+                write_options,
             );
         }
         else
@@ -406,14 +420,6 @@ pub fn main(
     } 
     else 
     {
-        // @TODO: needs to be hooked up for bundle support
-        // Determine input directory for media references
-        const input_dir = (
-            std.fs.path.dirname(state.input_path)
-            orelse "."
-        );
-        _ = input_dir;
-
         // For TLA/TLB/TLZ formats, use SerializableTimeline directly to preserve
         // metadata_hash and metadata_map. Only go through schema.Timeline for
         // OTIO JSON input which requires the JSON parsing infrastructure.
@@ -453,12 +459,12 @@ pub fn main(
             if (state.output_path) 
                 |path|
             {
-                try serialization.write_serializable_timeline_to_file(
+                try serialization.serializable.write_to_file(
                     allocator,
                     io,
-                    ser_timeline,
+                    .{ .timeline = ser_timeline },
                     path,
-                    state.metadata_mode,
+                    write_options,
                 );
             }
             else
@@ -507,7 +513,7 @@ pub fn main(
                     io,
                     tl_ref,
                     path,
-                    .{ .metadata_mode = state.metadata_mode },
+                    write_options,
                 );
             }
             else

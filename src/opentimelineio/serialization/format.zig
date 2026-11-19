@@ -1,9 +1,11 @@
 //! File formats and read/write options.
 //!
-//! Shared by the adapter and every format codec; depends on nothing else in
-//! the serialization package so codecs never need to import adapter.zig.
+//! Shared by the adapter and every format codec.  Depends only on
+//! bundle_utils.zig, so codecs never need to import adapter.zig.
 
 const std = @import("std");
+
+const bundle_utils = @import("bundle_utils.zig");
 
 /// Supported file formats for read/write operations. Format is auto-detected
 /// from file extension, or can be specified explicitly.
@@ -55,12 +57,12 @@ pub const ReadOptions = struct {
     /// What content to include in the result.
     content_filter: ContentFilter = .all,
 
-    /// Base directory for resolving relative media paths.
-    /// If null, paths are resolved relative to the file being read.
-    media_base_dir: ?[]const u8 = null,
-
-    /// For bundles: extract media files to this directory.
-    /// If null, media paths point into the bundle.
+    /// For bundles: also extract every entry (content, version, media/) to
+    /// this existing directory.
+    ///
+    /// Reads never rewrite media URIs: they are returned exactly as stored,
+    /// relative to the document (for bundles, `media/...` relative to the
+    /// bundle root).
     extract_to_directory: ?[]const u8 = null,
 
     pub const ContentFilter = enum {
@@ -100,21 +102,16 @@ pub const WriteOptions = struct {
     };
 
     pub const BundleOptions = struct {
-        /// Format for the timeline/collection within the bundle
-        content_format: enum { tla, tlb } = .tla,
+        /// Encoding of the timeline/collection inside the bundle
+        content_format: bundle_utils.BundleFormat = .tla,
         /// How to handle media file references
-        media_policy: MediaPolicy = .MissingIfNotFile,
-        /// Base directory for resolving media paths
+        media_policy: bundle_utils.MediaReferencePolicy = .missing_if_not_file,
+        /// Directory that relative media URIs are resolved against when
+        /// locating files to copy into the bundle; usually the directory of
+        /// the source document.  Null means the current working directory.
         media_base_dir: ?[]const u8 = null,
-
-        pub const MediaPolicy = enum {
-            /// Error if a referenced file doesn't exist
-            ErrorIfNotFile,
-            /// Mark as missing if file doesn't exist, continue
-            MissingIfNotFile,
-            /// Treat all media references as missing (don't copy files)
-            AllMissing,
-        };
+        /// Encode the bundle but do not write the file
+        dryrun: bool = false,
     };
 
 };
