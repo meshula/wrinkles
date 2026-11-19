@@ -36,16 +36,16 @@
 //! ## Memory Ownership
 //!
 //! Every value returned by a read function owns all of its memory, including
-//! strings.  Nothing in the result points into the source file, the reader's
-//! buffer, or any buffer used internally while parsing, so the source can be
+//! strings.  Results shall not point into the source file, the reader's
+//! buffer, or any buffer used internally while parsing. The source may be
 //! discarded as soon as the read returns.
 //!
 //! Free a result with its `deinit(allocator)`, passing the same allocator that
-//! was given to the read.  Callers never need to supply an arena.
+//! was given to the read.
 //!
 //! Format implementations must uphold this (e.g. by parsing ziggy with
-//! `.copy_strings = .always`); the "read results own their memory" tests
-//! below enforce it.
+//! `.copy_strings = .always`). The "read results own their memory" tests
+//! below enforce the memory ownership rules.
 //!
 //! ## Examples
 //!
