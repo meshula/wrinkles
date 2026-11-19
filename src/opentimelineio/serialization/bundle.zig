@@ -16,6 +16,7 @@ const zip = std.zip;
 
 const utils = @import("bundle_utils.zig");
 const serialization = @import("ascii.zig");
+const serializable = @import("serializable.zig");
 const binary_serialization_flatbufs = @import("binary.zig");
 const ziggy = @import("ziggy");
 
@@ -93,7 +94,7 @@ pub fn read_from_file(
     io: std.Io,
     filepath: []const u8,
     options: ReadOptions,
-) !serialization.SerializableTimeline
+) !serializable.SerializableTimeline
 {
     // Open the ZIP file
     const file = try std.Io.Dir.cwd().openFile(io,filepath, .{});
@@ -239,7 +240,7 @@ pub fn read_from_file(
             const data_z = try allocator.dupeSentinel(u8, data, 0);
             defer allocator.free(data_z);
             return try ziggy.deserializeLeaky(
-                serialization.SerializableTimeline,
+                serializable.SerializableTimeline,
                 allocator,
                 data_z,
                 &meta,
@@ -334,7 +335,7 @@ const MediaFile = struct {
 pub fn write_to_file(
     allocator: std.mem.Allocator,
     io: std.Io,
-    timeline: serialization.SerializableTimeline,
+    timeline: serializable.SerializableTimeline,
     filepath: []const u8,
     options: WriteOptions,
 ) !void
@@ -513,7 +514,7 @@ pub fn read_collection_from_file(
     io: std.Io,
     filepath: []const u8,
     options: ReadOptions,
-) !serialization.SerializableCollection
+) !serializable.SerializableCollection
 {
     // Open the ZIP file
     const file = try std.Io.Dir.cwd().openFile(io,filepath, .{});
@@ -654,7 +655,7 @@ pub fn read_collection_from_file(
             const data_z = try allocator.dupeSentinel(u8, data, 0);
             defer allocator.free(data_z);
             return try ziggy.deserializeLeaky(
-                serialization.SerializableCollection,
+                serializable.SerializableCollection,
                 allocator,
                 data_z,
                 &meta,
@@ -674,7 +675,7 @@ pub fn read_collection_from_file(
 pub fn write_collection_to_file(
     allocator: std.mem.Allocator,
     io: std.Io,
-    collection: serialization.SerializableCollection,
+    collection: serializable.SerializableCollection,
     filepath: []const u8,
     options: WriteOptions,
 ) !void
@@ -850,7 +851,7 @@ pub fn write_collection_to_file(
 fn collectMediaFromCollection(
     allocator: std.mem.Allocator,
     io: std.Io,
-    collection: *serialization.SerializableCollection,
+    collection: *serializable.SerializableCollection,
     media_files: *std.ArrayList(MediaFile),
     policy: utils.MediaReferencePolicy,
     maybe_base_dir: ?[]const u8,
@@ -877,7 +878,7 @@ fn collectMediaFromCollection(
                 // walk it, and write back any rewritten media references.
                 const tag_name = @tagName(tag);
                 var composable = @unionInit(
-                    serialization.SerializableComposable,
+                    serializable.SerializableComposable,
                     tag_name,
                     item,
                 );
@@ -890,7 +891,7 @@ fn collectMediaFromCollection(
                     maybe_base_dir,
                 );
                 child.* = @unionInit(
-                    serialization.SerializableCollectionItem,
+                    serializable.SerializableCollectionItem,
                     tag_name,
                     @field(composable, tag_name),
                 );
@@ -903,7 +904,7 @@ fn collectMediaFromCollection(
 fn collectMediaFiles(
     allocator: std.mem.Allocator,
     io: std.Io,
-    timeline: *serialization.SerializableTimeline,
+    timeline: *serializable.SerializableTimeline,
     media_files: *std.ArrayList(MediaFile),
     policy: utils.MediaReferencePolicy,
     maybe_base_dir: ?[]const u8,
@@ -928,7 +929,7 @@ fn collectMediaFiles(
 fn collectMediaFromComposable(
     allocator: std.mem.Allocator,
     io: std.Io,
-    composable: *serialization.SerializableComposable,
+    composable: *serializable.SerializableComposable,
     media_files: *std.ArrayList(MediaFile),
     policy: utils.MediaReferencePolicy,
     maybe_base_dir: ?[]const u8,
@@ -1261,7 +1262,7 @@ test "tlz_bundle: write and verify ZIP structure"
     const io = std.testing.io;
 
     // Create a minimal SerializableTimeline
-    const timeline = serialization.SerializableTimeline{
+    const timeline = serializable.SerializableTimeline{
         .schema_version = 1,
         .name = "Test Timeline",
         .children = &.{},
@@ -1332,7 +1333,7 @@ test "tlz_bundle: media bundling with app.png"
 
     var meta: ziggy.Deserializer.Meta = .init;
     const timeline = try ziggy.deserializeLeaky(
-        serialization.SerializableTimeline,
+        serializable.SerializableTimeline,
         allocator,
         source,
         &meta,

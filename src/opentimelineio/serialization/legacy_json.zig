@@ -14,9 +14,10 @@ const interval = opentime.interval;
 const string = @import("string_stuff");
 const topology = @import("topology");
 const sampling = @import("sampling");
-const adapter = @import("adapter.zig");
+const format_m = @import("format.zig");
 
 const ascii = @import("ascii.zig");
+const serializable = @import("serializable.zig");
 
 const SerializableObjectTypes = enum {
     Timeline,
@@ -460,7 +461,7 @@ fn _read_rate(
 inline fn read_children(
     allocator: std.mem.Allocator,
     children: std.json.Value,
-    content_filter: adapter.ReadOptions.ContentFilter,
+    content_filter: format_m.ReadOptions.ContentFilter,
 ) error{
     OutOfMemory,
     NotAnOtioSchemaObject,
@@ -804,7 +805,7 @@ fn read_markers(
 fn read_otio_object(
     allocator: std.mem.Allocator,
     obj: std.json.ObjectMap,
-    content_filter: adapter.ReadOptions.ContentFilter,
+    content_filter: format_m.ReadOptions.ContentFilter,
 ) error{
     OutOfMemory,
     NoSuchSchema,
@@ -1179,7 +1180,7 @@ pub fn read_from_file(
     in_allocator: std.mem.Allocator,
     io: std.Io,
     file_path: string.latin_s8,
-    content_filter: adapter.ReadOptions.ContentFilter,
+    content_filter: format_m.ReadOptions.ContentFilter,
 ) !otio.CompositionItemHandle
 {
     const fi = try std.Io.Dir.cwd().openFile(io, file_path, .{});
@@ -1203,7 +1204,7 @@ pub fn read_from_file(
 pub fn read_from_string(
     in_allocator: std.mem.Allocator,
     json_source: []const u8,
-    content_filter: adapter.ReadOptions.ContentFilter,
+    content_filter: format_m.ReadOptions.ContentFilter,
 ) !otio.CompositionItemHandle
 {
     var arena = std.heap.ArenaAllocator.init(in_allocator);
@@ -1364,8 +1365,8 @@ test "read_from_file with all_except_metadata on OTIO JSON file"
 pub fn read_otio_timeline_from_reader(
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
-    metadata_mode: adapter.ReadOptions.ContentFilter,
-) anyerror!ascii.SerializableTimeline
+    metadata_mode: format_m.ReadOptions.ContentFilter,
+) anyerror!serializable.SerializableTimeline
 {
     if (metadata_mode != .all)
     {
@@ -1392,5 +1393,5 @@ pub fn read_otio_timeline_from_reader(
 
     // Convert the timeline to SerializableTimeline
     const timeline = item.timeline;
-    return try ascii.SerializableTimeline.from(allocator, timeline);
+    return try serializable.SerializableTimeline.from(allocator, timeline);
 }

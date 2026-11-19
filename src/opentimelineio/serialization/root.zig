@@ -15,6 +15,7 @@
 //! - `serializable.write_to_file()` - Accepts SerializableRoot
 
 pub const adapter = @import("adapter.zig");
+const serializable_types = @import("serializable.zig");
 
 // ============================================================================
 // Primary Public API - Returns schema types (CompositionItemHandle)
@@ -53,11 +54,11 @@ pub const SerializableRoot = adapter.SerializableRoot;
 /// Serializable intermediate types
 pub const SerializableTimeline = adapter.serializable.Timeline;
 pub const SerializableCollection = adapter.serializable.Collection;
-pub const SerializableComposable = ascii.SerializableComposable;
-pub const SerializableCollectionItem = ascii.SerializableCollectionItem;
-pub const SerializableBounds = ascii.SerializableBounds;
-pub const MetadataMap = ascii.MetadataMap;
-pub const MetadataValue = ascii.MetadataValue;
+pub const SerializableComposable = serializable_types.SerializableComposable;
+pub const SerializableCollectionItem = serializable_types.SerializableCollectionItem;
+pub const SerializableBounds = serializable_types.SerializableBounds;
+pub const MetadataMap = serializable_types.MetadataMap;
+pub const MetadataValue = serializable_types.MetadataValue;
 
 /// Handle to schema composition items
 pub const CompositionItemHandle = adapter.CompositionItemHandle;
