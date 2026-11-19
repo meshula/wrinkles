@@ -2180,7 +2180,7 @@ fn fb_to_serializable_data_ref(
             const sg = sig_ref.signal_generator_type();
             const signal_gen: ascii.SerializableSignalGenerator = switch (sg) {
                 .SineSignal => |sine| .{ .sine = .{ .frequency_hz = sine.frequency_hz() } },
-                .LinearRampSignal => .{ .linear_ramp = .{} },
+                .LinearRampSignal => .linear_ramp,
                 .NONE => .{ .sine = .{ .frequency_hz = 1000.0 } },
             };
             break :blk .{
@@ -2209,7 +2209,7 @@ fn fb_to_serializable_data_ref(
                     "error",
             },
         },
-        .NullReference, .NONE => .{ .null = .{} },
+        .NullReference, .NONE => .null,
     };
 }
 
@@ -2359,7 +2359,7 @@ fn fb_to_serializable_clip(
         .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else "",
         .bounds_s = if (fb_clip.bounds()) |b| fb_to_serializable_bounds(b) else null,
         .media = if (fb_clip.media()) |m| try fb_to_serializable_media_ref(allocator, m) else .{
-            .data_reference = .{ .null = .{} },
+            .data_reference = .null,
             .bounds_s = null,
             .domain = .time,
             .discrete_partition = null,
@@ -2483,7 +2483,7 @@ fn fb_to_serializable_mapping(
                     };
                 }
             }
-            break :blk .{ .empty = .{} };
+            break :blk .empty;
         },
         .Linear => blk: {
             if (fb_wrapper.linear()) |lin| {
@@ -2501,9 +2501,9 @@ fn fb_to_serializable_mapping(
                     };
                 }
             }
-            break :blk .{ .empty = .{} };
+            break :blk .empty;
         },
-        .Empty => .{ .empty = .{} },
+        .Empty => .empty,
     };
 }
 
@@ -2562,7 +2562,7 @@ fn fb_to_serializable_composable(
         .Clip => .{ .clip = if (fb_wrapper.clip()) |c| try fb_to_serializable_clip(allocator, c) else .{
             .name = "",
             .bounds_s = null,
-            .media = .{ .data_reference = .{ .null = .{} }, .bounds_s = null, .domain = .time, .discrete_partition = null },
+            .media = .{ .data_reference = .null, .bounds_s = null, .domain = .time, .discrete_partition = null },
             .metadata_hash = null,
         } },
         .Gap => .{ .gap = if (fb_wrapper.gap()) |g| try fb_to_serializable_gap(allocator, g) else .{
@@ -3919,9 +3919,9 @@ test "tlb: metadata_offset written correctly when metadata present"
     const allocator = std.testing.allocator;
 
     // Create a simple metadata map
-    var metadata: MetadataMap = .{};
+    var metadata: MetadataMap = .empty;
     defer metadata.fields.deinit(allocator);
-    var inner: MetadataMap = .{};
+    var inner: MetadataMap = .empty;
     defer inner.fields.deinit(allocator);
     try inner.fields.put(allocator, "test_key", .{ .bytes = "test_value" });
     try inner.fields.put(allocator, "number", .{ .integer = 42 });
@@ -3975,9 +3975,9 @@ test "tlb: round-trip with metadata preserved"
     const allocator = std.testing.allocator;
 
     // Create metadata map with various types
-    var metadata: MetadataMap = .{};
+    var metadata: MetadataMap = .empty;
     defer metadata.fields.deinit(allocator);
-    var inner: MetadataMap = .{};
+    var inner: MetadataMap = .empty;
     defer inner.fields.deinit(allocator);
     try inner.fields.put(allocator, "string_val", .{ .bytes = "test string" });
     try inner.fields.put(allocator, "int_val", .{ .integer = 42 });
@@ -4024,9 +4024,9 @@ test "tlb: round-trip without metadata (skip on read)"
     const allocator = std.testing.allocator;
 
     // Create metadata map
-    var metadata: MetadataMap = .{};
+    var metadata: MetadataMap = .empty;
     defer metadata.fields.deinit(allocator);
-    var inner: MetadataMap = .{};
+    var inner: MetadataMap = .empty;
     defer inner.fields.deinit(allocator);
     try inner.fields.put(allocator, "key", .{ .bytes = "value" });
     try metadata.fields.put(allocator, "test_hash", .{ .kv = inner });
@@ -4064,7 +4064,7 @@ test "tlb: empty metadata_map serialization"
     const allocator = std.testing.allocator;
 
     // Create timeline with empty metadata map
-    const empty_map: MetadataMap = .{};
+    const empty_map: MetadataMap = .empty;
 
     const timeline = SerializableTimeline{
         .schema_version = 1,
@@ -4089,9 +4089,9 @@ test "tlb: large metadata handling"
     const allocator = std.testing.allocator;
 
     // Create metadata map with many entries
-    var metadata: MetadataMap = .{};
+    var metadata: MetadataMap = .empty;
     defer metadata.fields.deinit(allocator);
-    var inner: MetadataMap = .{};
+    var inner: MetadataMap = .empty;
     // Note: We need to free the dynamically allocated keys as well as the hashmap
     defer {
         var iter = inner.fields.iterator();
@@ -4138,13 +4138,13 @@ test "tlb: complex nested metadata round-trip"
     const allocator = std.testing.allocator;
 
     // Create metadata with nested structures
-    var metadata: MetadataMap = .{};
+    var metadata: MetadataMap = .empty;
     defer metadata.fields.deinit(allocator);
-    var inner: MetadataMap = .{};
+    var inner: MetadataMap = .empty;
     defer inner.fields.deinit(allocator);
 
     // Add nested KV
-    var nested_kv: MetadataMap = .{};
+    var nested_kv: MetadataMap = .empty;
     defer nested_kv.fields.deinit(allocator);
     try nested_kv.fields.put(allocator, "inner_key", .{ .bytes = "inner_value" });
     try inner.fields.put(allocator, "nested_val", .{ .kv = nested_kv });
@@ -4196,9 +4196,9 @@ test "tlb: metadata offset points to correct boundary"
     const allocator = std.testing.allocator;
 
     // Create timeline with metadata
-    var metadata: MetadataMap = .{};
+    var metadata: MetadataMap = .empty;
     defer metadata.fields.deinit(allocator);
-    var inner: MetadataMap = .{};
+    var inner: MetadataMap = .empty;
     defer inner.fields.deinit(allocator);
     try inner.fields.put(allocator, "key", .{ .bytes = "value" });
     try metadata.fields.put(allocator, "hash", .{ .kv = inner });

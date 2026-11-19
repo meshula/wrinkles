@@ -2,115 +2,115 @@
 .name = "Production Asset Collection",
 .description = "A collection of production assets with metadata for color grading workflow",
 .children = [
-    timeline {
+    .timeline(.{
         .schema_version = 1,
         .name = "Episode 1 - Final Cut",
         .children = [
-            track {
+            .track(.{
                 .name = "V1 - Main Video",
                 .children = [
-                    clip {
+                    .clip(.{
                         .name = "INT_KITCHEN_001A",
-                        .bounds_s = continuous [
-                            0.0,
+                        .bounds_s = .continuous([
+                            0,
                             5.5,
-                        ],
-                        .media = {
-                            .data_reference = uri {
+                        ]),
+                        .media = .{
+                            .data_reference = .uri(.{
                                 .target_uri = "file:///media/ep01/INT_KITCHEN_001A.mov",
-                            },
-                            .bounds_s = continuous [
-                                2.0,
+                            }),
+                            .bounds_s = .continuous([
+                                2,
                                 7.5,
-                            ],
-                            .domain = picture {},
+                            ]),
+                            .domain = .picture,
                         },
                         .metadata_hash = "a1b2c3d4e5f60001",
                         .markers = [
                         ],
-                    },
-                    clip {
+                    }),
+                    .clip(.{
                         .name = "INT_KITCHEN_002B",
-                        .bounds_s = continuous [
-                            0.0,
+                        .bounds_s = .continuous([
+                            0,
                             3.25,
-                        ],
-                        .media = {
-                            .data_reference = uri {
+                        ]),
+                        .media = .{
+                            .data_reference = .uri(.{
                                 .target_uri = "file:///media/ep01/INT_KITCHEN_002B.mov",
-                            },
-                            .bounds_s = continuous [
-                                0.0,
-                                8.0,
-                            ],
-                            .domain = picture {},
+                            }),
+                            .bounds_s = .continuous([
+                                0,
+                                8,
+                            ]),
+                            .domain = .picture,
                         },
                         .metadata_hash = "a1b2c3d4e5f60002",
                         .markers = [
                         ],
-                    },
-                    clip {
+                    }),
+                    .clip(.{
                         .name = "EXT_STREET_005C",
-                        .bounds_s = continuous [
-                            0.0,
-                            12.0,
-                        ],
-                        .media = {
-                            .data_reference = uri {
+                        .bounds_s = .continuous([
+                            0,
+                            12,
+                        ]),
+                        .media = .{
+                            .data_reference = .uri(.{
                                 .target_uri = "file:///media/ep01/EXT_STREET_005C.mov",
-                            },
-                            .bounds_s = continuous [
-                                0.0,
-                                15.0,
-                            ],
-                            .domain = picture {},
+                            }),
+                            .bounds_s = .continuous([
+                                0,
+                                15,
+                            ]),
+                            .domain = .picture,
                         },
                         .metadata_hash = "a1b2c3d4e5f60003",
                         .markers = [
                         ],
-                    },
+                    }),
                 ],
                 .markers = [
                 ],
-            },
-            track {
+            }),
+            .track(.{
                 .name = "A1 - Dialog",
                 .children = [
-                    gap {
+                    .gap(.{
                         .name = "sync_gap",
                         .bounds_s = [
-                            0.0,
+                            0,
                             0.5,
                         ],
                         .markers = [
                         ],
-                    },
-                    clip {
+                    }),
+                    .clip(.{
                         .name = "INT_KITCHEN_001A_audio",
-                        .bounds_s = continuous [
-                            0.0,
+                        .bounds_s = .continuous([
+                            0,
                             8.25,
-                        ],
-                        .media = {
-                            .data_reference = uri {
+                        ]),
+                        .media = .{
+                            .data_reference = .uri(.{
                                 .target_uri = "file:///media/ep01/audio/INT_KITCHEN_001A.wav",
-                            },
-                            .bounds_s = continuous [
-                                2.0,
+                            }),
+                            .bounds_s = .continuous([
+                                2,
                                 10.25,
-                            ],
-                            .domain = audio {},
+                            ]),
+                            .domain = .audio,
                         },
                         .metadata_hash = "b2c3d4e5f6a70001",
                         .markers = [
                         ],
-                    },
+                    }),
                 ],
                 .markers = [
                 ],
-            },
+            }),
         ],
-        .presentation_space_discrete_partitions = {},
+        .presentation_space_discrete_partitions = .{},
         .metadata_map = {
             "a1b2c3d4e5f60001": {
                 "clip_info": {
@@ -124,14 +124,14 @@
                     "input_transform": "ARRI LogC4",
                     "working_space": "ACEScg",
                     "cdl_slope_r": 1.1,
-                    "cdl_slope_g": 1.0,
+                    "cdl_slope_g": 1,
                     "cdl_slope_b": 0.95,
                     "cdl_offset_r": 0.01,
-                    "cdl_offset_g": 0.0,
+                    "cdl_offset_g": 0,
                     "cdl_offset_b": -0.02,
-                    "cdl_power_r": 1.0,
-                    "cdl_power_g": 1.0,
-                    "cdl_power_b": 1.0,
+                    "cdl_power_r": 1,
+                    "cdl_power_g": 1,
+                    "cdl_power_b": 1,
                     "cdl_saturation": 1.05,
                 },
                 "notes": "Hero shot - ensure skin tones match reference",
@@ -179,47 +179,47 @@
         },
         .markers = [
         ],
-    },
-    clip {
+    }),
+    .clip(.{
         .name = "B-Roll: City Establishing",
-        .bounds_s = continuous [
-            0.0,
-            8.0,
-        ],
-        .media = {
-            .data_reference = uri {
+        .bounds_s = .continuous([
+            0,
+            8,
+        ]),
+        .media = .{
+            .data_reference = .uri(.{
                 .target_uri = "file:///media/broll/city_establishing_4k.mov",
-            },
-            .bounds_s = continuous [
-                0.0,
-                30.0,
-            ],
-            .domain = picture {},
+            }),
+            .bounds_s = .continuous([
+                0,
+                30,
+            ]),
+            .domain = .picture,
         },
         .metadata_hash = "c3d4e5f6a7b80001",
         .markers = [
         ],
-    },
-    clip {
+    }),
+    .clip(.{
         .name = "B-Roll: Traffic Timelapse",
-        .bounds_s = continuous [
-            0.0,
-            15.0,
-        ],
-        .media = {
-            .data_reference = uri {
+        .bounds_s = .continuous([
+            0,
+            15,
+        ]),
+        .media = .{
+            .data_reference = .uri(.{
                 .target_uri = "file:///media/broll/traffic_timelapse.mov",
-            },
-            .bounds_s = continuous [
-                0.0,
-                60.0,
-            ],
-            .domain = picture {},
+            }),
+            .bounds_s = .continuous([
+                0,
+                60,
+            ]),
+            .domain = .picture,
         },
         .metadata_hash = "c3d4e5f6a7b80002",
         .markers = [
         ],
-    },
+    }),
 ],
 .metadata_map = {
     "c3d4e5f6a7b80001": {

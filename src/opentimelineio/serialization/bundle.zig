@@ -235,7 +235,7 @@ pub fn read_from_file(
     switch (content_format.?) {
         .tla => {
             // ziggy.deserializeLeaky needs sentinel-terminated string
-            const data_z = try allocator.dupeZ(u8, data);
+            const data_z = try allocator.dupeSentinel(u8, data, 0);
             defer allocator.free(data_z);
             return try ziggy.deserializeLeaky(
                 serialization.SerializableTimeline,
@@ -650,7 +650,7 @@ pub fn read_collection_from_file(
     switch (content_format.?) {
         .tla => {
             // ziggy.deserializeLeaky needs sentinel-terminated string
-            const data_z = try allocator.dupeZ(u8, data);
+            const data_z = try allocator.dupeSentinel(u8, data, 0);
             defer allocator.free(data_z);
             return try ziggy.deserializeLeaky(
                 serialization.SerializableCollection,
@@ -1065,7 +1065,7 @@ fn calculateCrc32(
     data: []const u8,
 ) u32
 {
-    return std.hash.crc.Crc32IsoHdlc.hash(data);
+    return std.hash.Crc32.hash(data);
 }
 
 /// Write a local file header to the output

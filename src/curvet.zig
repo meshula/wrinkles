@@ -316,9 +316,10 @@ pub fn main(
                     ) 
                 },
                 },
-            .fpath = try allocator.dupeZ(
+            .fpath = try allocator.dupeSentinel(
                 u8,
                 "linear [-0.2, 1)",
+                0,
             ),
             .split_hodograph = undefined,
         },
@@ -327,7 +328,7 @@ pub fn main(
                 allocator,
                 built_in_curve_data.upside_down_u
             ),
-            .fpath = try allocator.dupeZ(u8, "upside down u"),
+            .fpath = try allocator.dupeSentinel(u8, "upside down u", 0),
             .split_hodograph = undefined,
         },
     };
@@ -2066,7 +2067,7 @@ fn _parse_args(
             allocator,
             .{ 
                 .curve = .{
-                    .fpath = try allocator.dupeZ(u8, fpath),
+                    .fpath = try allocator.dupeSentinel(u8, fpath, 0),
                     .curve = crv,
                     .split_hodograph = try crv.split_on_critical_points(allocator),
                 }

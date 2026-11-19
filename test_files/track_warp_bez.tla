@@ -1,75 +1,75 @@
 .schema_version = 1,
 .name = "Bezier Curve",
 .children = [
-    track {
+    .track(.{
         .name = "Track-001",
         .children = [
-            warp {
+            .warp(.{
                 .name = "Bezier Curve",
-                .child = track {
+                .child = .track(.{
                     .name = "Track-001",
                     .children = [
-                        clip {
+                        .clip(.{
                             .name = "Clip-001",
-                            .bounds_s = discrete [
+                            .bounds_s = .discrete([
                                 2,
                                 4,
-                            ],
-                            .media = {
-                                .data_reference = uri {
+                            ]),
+                            .media = .{
+                                .data_reference = .uri(.{
                                     .target_uri = "file:///folder/wind-up.mov",
-                                },
-                                .bounds_s = discrete [
+                                }),
+                                .bounds_s = .discrete([
                                     0,
                                     8,
-                                ],
-                                .domain = picture {},
-                                .discrete_partition = {
-                                    .sample_rate_hz = Integer 1,
+                                ]),
+                                .domain = .picture,
+                                .discrete_partition = .{
+                                    .sample_rate_hz = .Integer(1),
                                     .start_index = 0,
                                 },
                             },
                             .markers = [
                             ],
-                        },
-                        clip {
+                        }),
+                        .clip(.{
                             .name = "Clip-002",
-                            .bounds_s = discrete [
+                            .bounds_s = .discrete([
                                 2,
                                 10,
-                            ],
-                            .media = {
-                                .data_reference = uri {
+                            ]),
+                            .media = .{
+                                .data_reference = .uri(.{
                                     .target_uri = "file:///folder/wind-up.mov",
-                                },
-                                .bounds_s = discrete [
+                                }),
+                                .bounds_s = .discrete([
                                     0,
                                     8,
-                                ],
-                                .domain = picture {},
-                                .discrete_partition = {
-                                    .sample_rate_hz = Integer 1,
+                                ]),
+                                .domain = .picture,
+                                .discrete_partition = .{
+                                    .sample_rate_hz = .Integer(1),
                                     .start_index = 0,
                                 },
                             },
                             .markers = [
                             ],
-                        },
+                        }),
                     ],
                     .markers = [
                     ],
-                },
-                .transform = {
+                }),
+                .transform = .{
                     .mappings = [
-                        linear {
+                        .linear(.{
                             .input_bounds_val = [
-                                0.0,
-                                2.0,
+                                0,
+                                2,
                             ],
                             .knots = [
                                 [
-                                    0.0,
-                                    0.0,
+                                    0,
+                                    0,
                                 ],
                                 [
                                     0.00018262863159179688,
@@ -344,20 +344,20 @@
                                     2.999267578125,
                                 ],
                                 [
-                                    2.0,
-                                    3.0,
+                                    2,
+                                    3,
                                 ],
                             ],
-                        },
-                        linear {
+                        }),
+                        .linear(.{
                             .input_bounds_val = [
-                                2.0,
-                                4.0,
+                                2,
+                                4,
                             ],
                             .knots = [
                                 [
-                                    2.0,
-                                    3.0,
+                                    2,
+                                    3,
                                 ],
                                 [
                                     2.0468711853027344,
@@ -632,19 +632,19 @@
                                     0.04669189453125,
                                 ],
                                 [
-                                    4.0,
-                                    0.0,
+                                    4,
+                                    0,
                                 ],
                             ],
-                        },
+                        }),
                     ],
                 },
-            },
+            }),
         ],
         .markers = [
         ],
-    },
+    }),
 ],
-.presentation_space_discrete_partitions = {},
+.presentation_space_discrete_partitions = .{},
 .markers = [
 ],

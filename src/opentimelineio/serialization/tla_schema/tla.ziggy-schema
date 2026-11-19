@@ -1,12 +1,21 @@
 $ = Timeline
 
+/// Ziggy schema (v0.3.0) for TLA timeline files, mirroring the
+/// `Serializable*` types in `serialization/ascii.zig`.
+///
+/// The schema language only has `[]T` slices, so fixed-size arrays are
+/// written as slices: intervals and control points are `[]float` holding
+/// exactly two values, and bezier segments are four control points.
+/// Fields that have a default value in Zig may be omitted and are marked
+/// optional (`?`).
 struct Timeline {
-    schema_version: int,
+    schema_version: ?int,
     name: ?bytes,
     children: []Composable,
     presentation_space_discrete_partitions: DiscretePartitionDomainMap,
-    metadata_map: map[any],
-    markers: []Marker,
+    /// Clip metadata, keyed by `Clip.metadata_hash`.
+    metadata_map: ?{:}any,
+    markers: ?[]Marker,
 }
 
 struct DiscretePartitionDomainMap {
@@ -16,40 +25,52 @@ struct DiscretePartitionDomainMap {
 
 struct Marker {
     name: ?bytes,
-    marked_range: [2]Float,
+    /// [start, end] in seconds.
+    marked_range: []float,
     color: bytes,
     comment: ?bytes,
 }
 
-// ContinuousInterval = [start, end] in seconds
-// ControlPoint = [in, out] for curve knots
-// Bounds union uses [2]Float for continuous, [2]int for discrete
 union Bounds {
-    .continuous: [2]Float,
-    .discrete: [2]int,
+    /// [start, end] in seconds.
+    continuous: []float,
+    /// [start, end] sample indices.
+    discrete: []int,
+}
+
+union Composable {
+    clip: Clip,
+    gap: Gap,
+    track: Track,
+    stack: Stack,
+    warp: Warp,
+    transition: Transition,
 }
 
 struct Stack {
     name: ?bytes,
+    bounds_s: ?Bounds,
     children: []Composable,
-    markers: []Marker,
+    markers: ?[]Marker,
 }
 
 struct Track {
     name: ?bytes,
+    bounds_s: ?Bounds,
     children: []Composable,
-    markers: []Marker,
+    markers: ?[]Marker,
 }
 
 struct Gap {
     name: ?bytes,
-    bounds_s: [2]Float,
-    markers: []Marker,
+    /// [start, end] in seconds.
+    bounds_s: []float,
+    markers: ?[]Marker,
 }
 
 struct Warp {
     name: ?bytes,
-    child: *Composable,
+    child: Composable,
     transform: Topology,
 }
 
@@ -57,26 +78,19 @@ struct Transition {
     name: ?bytes,
     container: Stack,
     kind: bytes,
-    bounds_s: ?[2]Float,
-}
-
-// Composable union fields are structs (not pointers)
-// but children arrays contain pointers to break circular dependency
-union Composable {
-    .track: Track,
-    .clip: Clip,
-    .gap: Gap,
-    .warp: Warp,
-    .transition: Transition,
-    .stack: Stack,
+    /// [start, end] in seconds.
+    bounds_s: ?[]float,
 }
 
 struct Clip {
     name: ?bytes,
     bounds_s: ?Bounds,
     media: MediaReference,
+    /// Key into `Timeline.metadata_map` (default metadata mode).
     metadata_hash: ?bytes,
-    markers: []Marker,
+    /// Inline metadata (written with `otiocat --inline-metadata`).
+    metadata: ?{:}any,
+    markers: ?[]Marker,
 }
 
 struct MediaReference {
@@ -84,15 +98,14 @@ struct MediaReference {
     bounds_s: ?Bounds,
     domain: Domain,
     discrete_partition: ?SampleIndexGenerator,
-    interpolating: ?MediaInterpolationType,
+    interpolating: ?ResamplingBehavior,
 }
 
-// Ziggy requires union fields to be struct types (not void)
 union MediaDataReference {
-    .uri: URIReference,
-    .signal: SignalReference,
-    .image_sequence: ImageSequenceReference,
-    .null: struct {},
+    uri: URIReference,
+    signal: SignalReference,
+    image_sequence: ImageSequenceReference,
+    null,
 }
 
 struct URIReference {
@@ -101,90 +114,83 @@ struct URIReference {
 
 struct ImageSequenceReference {
     target_url_base: bytes,
-    name_prefix: bytes,
-    name_suffix: bytes,
-    start_frame: int,
-    frame_step: int,
-    frame_zero_padding: int,
-    rate: Float,
-    missing_frame_policy: bytes,
+    name_prefix: ?bytes,
+    name_suffix: ?bytes,
+    frame_zero_padding: ?int,
+    missing_frame_policy: ?bytes,
 }
 
 struct SignalReference {
     signal_generator: SignalGenerator,
 }
 
-// Ziggy requires union fields to be struct types
 union SignalGenerator {
-    .sine: struct {
-        frequency_hz: Float,
-    },
-    .linear_ramp: struct {},
+    sine: Sine,
+    linear_ramp,
+
+    struct Sine {
+        frequency_hz: float,
+    }
 }
 
 struct SampleIndexGenerator {
     sample_rate_hz: RateSpecifier,
-    start_index: int,
+    start_index: ?int,
 }
 
-// RateSpecifier: Int holds a single integer, Rational holds { .num, .den }
 union RateSpecifier {
-    .Integer: int,
-    .Rational: struct {
+    Integer: int,
+    Rational: Rational,
+
+    struct Rational {
         num: int,
         den: int,
-    },
+    }
 }
 
-// Ziggy requires union fields to be struct types
 union Domain {
-    .time: struct {},
-    .picture: struct {},
-    .audio: struct {},
-    .metadata: struct {},
-    .other: struct {
+    time,
+    picture,
+    audio,
+    metadata,
+    other: Other,
+
+    struct Other {
         name: bytes,
-    },
+    }
+}
+
+union ResamplingBehavior {
+    /// Payload-less union: serialized as an enum literal, e.g. `.interpolate`.
+    interpolate,
+    snap,
+    default_from_domain,
 }
 
 struct Topology {
     mappings: []Mapping,
 }
 
-// Ziggy requires union fields to be struct types
 union Mapping {
-    .affine: MappingAffine,
-    .linear: MappingLinear,
-    .empty: struct {},
+    affine: MappingAffine,
+    linear: MappingLinear,
+    empty,
 }
 
 struct MappingAffine {
-    input_bounds_val: [2]Float,
+    /// [start, end] of the input domain.
+    input_bounds_val: []float,
     input_to_output_xform: AffineTransform1D,
 }
 
 struct MappingLinear {
-    input_bounds_val: [2]Float,
-    knots: [][2]Float,
+    /// [start, end] of the input domain.
+    input_bounds_val: []float,
+    /// Knots as [input, output] pairs.
+    knots: [][]float,
 }
 
 struct AffineTransform1D {
-    offset: Float,
-    scale: Float,
-}
-
-enum MediaInterpolationType {
-    interpolate,
-    snap,
-    default_from_domain,
-}
-
-// Curve library types
-// BezierSegment = [4][2]Float = [p0, p1, p2, p3] where each point is [in, out]
-struct BezierCurve {
-    segments: [][4][2]Float,
-}
-
-struct LinearCurve {
-    knots: [][2]Float,
+    offset: float,
+    scale: float,
 }

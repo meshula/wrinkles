@@ -1,0 +1,20 @@
+
+struct Collection {
+    schema_version: ?int,
+    name: ?bytes,
+    description: ?bytes,
+    /// Items grouped by the collection, with no temporal relationship.
+    children: []CollectionItem,
+    /// Clip metadata, keyed by `Clip.metadata_hash`.
+    metadata_map: ?{:}any,
+}
+
+union CollectionItem {
+    timeline: Timeline,
+    track: Track,
+    stack: Stack,
+    clip: Clip,
+    gap: Gap,
+    warp: Warp,
+    transition: Transition,
+}

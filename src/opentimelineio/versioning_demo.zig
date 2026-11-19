@@ -160,7 +160,7 @@ test "versioning demo: serialize V3 to ziggy"
         .extra_field = 100,
     };
 
-    var buffer = std.ArrayList(u8).init(allocator);
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
 
     // Serialize to Ziggy format
@@ -170,10 +170,10 @@ test "versioning demo: serialize V3 to ziggy"
             .whitespace = .space_4,
             .emit_null_fields = true,
         },
-        buffer.writer()
+        &buffer.writer,
     );
 
-    const result = buffer.items;
+    const result = buffer.written();
 
     // Check that serialized data contains expected fields
     try std.testing.expect(std.mem.indexOf(u8, result, "schema_name") != null);
@@ -194,21 +194,22 @@ test "versioning demo: round-trip serialization"
     };
 
     // Serialize
-    var buffer = std.ArrayList(u8).init(allocator);
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
 
     try ziggy.serialize(
         original,
         .{ .whitespace = .space_4, },
-        buffer.writer()
+        &buffer.writer,
     );
 
     // Add null terminator for ziggy
-    try buffer.append(0);
-    const source: [:0]const u8 = buffer.items[0 .. buffer.items.len - 1 :0];
+    try buffer.writer.writeByte(0);
+    const written = buffer.written();
+    const source: [:0]const u8 = written[0 .. written.len - 1 :0];
 
     // Deserialize
-    var meta: ziggy.Deserializer.Meta = undefined;
+    var meta: ziggy.Deserializer.Meta = .init;
     const loaded = try ziggy.deserializeLeaky(
         SimpleItemV3,
         allocator,
@@ -236,18 +237,19 @@ test "versioning integration: automatic upgrade with registry"
     };
 
     // Serialize V1
-    var buffer = std.ArrayList(u8).init(allocator);
+    var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
 
     try ziggy.serialize(
         v1_item,
         .{ .whitespace = .space_4, },
-        buffer.writer()
+        &buffer.writer,
     );
 
     // Add null terminator
-    try buffer.append(0);
-    const source: [:0]const u8 = buffer.items[0 .. buffer.items.len - 1 :0];
+    try buffer.writer.writeByte(0);
+    const written = buffer.written();
+    const source: [:0]const u8 = written[0 .. written.len - 1 :0];
 
     // Register upgrade functions in global registry
     try versioning.register_upgrade_global(
@@ -266,7 +268,7 @@ test "versioning integration: automatic upgrade with registry"
     // Deserialize - should detect V1 and attempt upgrade
     // Note: In this demo, the upgrade functions don't actually transform data
     // This test just verifies the upgrade infrastructure is called
-    var meta: ziggy.Deserializer.Meta = undefined;
+    var meta: ziggy.Deserializer.Meta = .init;
     const loaded = try ziggy.deserializeLeaky(
         SimpleItemV1,
         allocator,

@@ -250,7 +250,7 @@ pub fn main(
     const io = init.io;
 
     // Use the debug allocator in debug builds, otherwise use smp
-    const parent_allocator = if (builtin.mode == .Debug) alloc: {
+    const parent_allocator = if (builtin.mode == .debug) alloc: {
         var da = std.heap.DebugAllocator(.{}){};
         break :alloc da.allocator();
     } else std.heap.smp_allocator;

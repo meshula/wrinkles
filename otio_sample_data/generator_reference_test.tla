@@ -2,6 +2,6 @@
 .name = "transition_test",
 .children = [
 ],
-.presentation_space_discrete_partitions = {},
+.presentation_space_discrete_partitions = .{},
 .markers = [
 ],

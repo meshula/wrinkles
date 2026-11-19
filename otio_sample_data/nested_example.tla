@@ -1,154 +1,154 @@
 .schema_version = 1,
 .name = "My Timeline",
 .children = [
-    track {
+    .track(.{
         .name = "Top Level Track",
         .children = [
-            clip {
+            .clip(.{
                 .name = "Normal Clip 1",
-                .bounds_s = discrete [
+                .bounds_s = .discrete([
                     135,
                     373,
-                ],
-                .media = {
-                    .data_reference = null {},
-                    .domain = picture {},
-                    .discrete_partition = {
-                        .sample_rate_hz = Integer 24,
+                ]),
+                .media = .{
+                    .data_reference = .null,
+                    .domain = .picture,
+                    .discrete_partition = .{
+                        .sample_rate_hz = .Integer(24),
                         .start_index = 0,
                     },
                 },
                 .markers = [
                 ],
-            },
-            stack {
+            }),
+            .stack(.{
                 .name = "Nested Stack 1",
                 .children = [
-                    clip {
+                    .clip(.{
                         .name = "Clip Inside A Stack 1",
-                        .bounds_s = discrete [
+                        .bounds_s = .discrete([
                             373,
                             410,
-                        ],
-                        .media = {
-                            .data_reference = null {},
-                            .domain = picture {},
-                            .discrete_partition = {
-                                .sample_rate_hz = Integer 24,
+                        ]),
+                        .media = .{
+                            .data_reference = .null,
+                            .domain = .picture,
+                            .discrete_partition = .{
+                                .sample_rate_hz = .Integer(24),
                                 .start_index = 0,
                             },
                         },
                         .markers = [
                         ],
-                    },
+                    }),
                 ],
                 .markers = [
                 ],
-            },
-            clip {
+            }),
+            .clip(.{
                 .name = "Normal Clip 2",
-                .bounds_s = discrete [
+                .bounds_s = .discrete([
                     101,
                     134,
-                ],
-                .media = {
-                    .data_reference = null {},
-                    .domain = picture {},
-                    .discrete_partition = {
-                        .sample_rate_hz = Integer 24,
+                ]),
+                .media = .{
+                    .data_reference = .null,
+                    .domain = .picture,
+                    .discrete_partition = .{
+                        .sample_rate_hz = .Integer(24),
                         .start_index = 0,
                     },
                 },
                 .markers = [
                 ],
-            },
-            stack {
+            }),
+            .stack(.{
                 .name = "Nested Stack 2 (with effects)",
                 .children = [
-                    clip {
+                    .clip(.{
                         .name = "Clip Inside A Stack 2",
-                        .bounds_s = discrete [
+                        .bounds_s = .discrete([
                             429,
                             453,
-                        ],
-                        .media = {
-                            .data_reference = null {},
-                            .domain = picture {},
-                            .discrete_partition = {
-                                .sample_rate_hz = Integer 24,
+                        ]),
+                        .media = .{
+                            .data_reference = .null,
+                            .domain = .picture,
+                            .discrete_partition = .{
+                                .sample_rate_hz = .Integer(24),
                                 .start_index = 0,
                             },
                         },
                         .markers = [
                         ],
-                    },
+                    }),
                 ],
                 .markers = [
                 ],
-            },
-            clip {
+            }),
+            .clip(.{
                 .name = "Normal Clip 3",
-                .bounds_s = discrete [
+                .bounds_s = .discrete([
                     179,
                     242,
-                ],
-                .media = {
-                    .data_reference = null {},
-                    .domain = picture {},
-                    .discrete_partition = {
-                        .sample_rate_hz = Integer 24,
+                ]),
+                .media = .{
+                    .data_reference = .null,
+                    .domain = .picture,
+                    .discrete_partition = .{
+                        .sample_rate_hz = .Integer(24),
                         .start_index = 0,
                     },
                 },
                 .markers = [
                 ],
-            },
-            track {
+            }),
+            .track(.{
                 .name = "Nested Track",
                 .children = [
-                    clip {
+                    .clip(.{
                         .name = "Clip Inside A Track",
-                        .bounds_s = discrete [
+                        .bounds_s = .discrete([
                             471,
                             472,
-                        ],
-                        .media = {
-                            .data_reference = null {},
-                            .domain = picture {},
-                            .discrete_partition = {
-                                .sample_rate_hz = Integer 24,
+                        ]),
+                        .media = .{
+                            .data_reference = .null,
+                            .domain = .picture,
+                            .discrete_partition = .{
+                                .sample_rate_hz = .Integer(24),
                                 .start_index = 0,
                             },
                         },
                         .markers = [
                         ],
-                    },
+                    }),
                 ],
                 .markers = [
                 ],
-            },
-            clip {
+            }),
+            .clip(.{
                 .name = "Normal Clip 4",
-                .bounds_s = discrete [
+                .bounds_s = .discrete([
                     135,
                     373,
-                ],
-                .media = {
-                    .data_reference = null {},
-                    .domain = picture {},
-                    .discrete_partition = {
-                        .sample_rate_hz = Integer 24,
+                ]),
+                .media = .{
+                    .data_reference = .null,
+                    .domain = .picture,
+                    .discrete_partition = .{
+                        .sample_rate_hz = .Integer(24),
                         .start_index = 0,
                     },
                 },
                 .markers = [
                 ],
-            },
+            }),
         ],
         .markers = [
         ],
-    },
+    }),
 ],
-.presentation_space_discrete_partitions = {},
+.presentation_space_discrete_partitions = .{},
 .markers = [
 ],

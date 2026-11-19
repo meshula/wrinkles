@@ -342,6 +342,59 @@ pub fn module_with_tests_and_artifact(
     return mod;
 }
 
+/// Schema update step: regenerate tlca.ziggy-schema from tla.ziggy-schema
+/// and tlca_collection.ziggy-schema.part (see generate_tlca_schema.zig).
+///
+/// The generated file is checked into the tree; a unit test in ascii.zig
+/// fails if it is out of date.
+fn update_tlca_schema(
+    b: *std.Build,
+    options: Options,
+) void
+{
+    const schema_dir = "src/opentimelineio/serialization/tla_schema/";
+
+    const update_step = b.step(
+        "update_tlca_schema",
+        (
+            "Regenerate tlca.ziggy-schema from tla.ziggy-schema.  Run after "
+            ++ "changing tla.ziggy-schema or "
+            ++ "tlca_collection.ziggy-schema.part."
+        ),
+    );
+
+    const generator = b.addExecutable(
+        .{
+            .name = "generate-tlca-schema",
+            .root_module = b.createModule(
+                .{
+                    .root_source_file = b.path(
+                        schema_dir ++ "generate_tlca_schema.zig"
+                    ),
+                    .target = options.target,
+                    .optimize = options.optimize,
+                }
+            ),
+        }
+    );
+
+    const run_generator = b.addRunArtifact(generator);
+    const generated = run_generator.captureStdOut(
+        .{ .basename = "tlca.ziggy-schema" }
+    );
+
+    const copy_to_source = b.addUpdateSourceFiles();
+    copy_to_source.step.name = (
+        "UpdateSourceFiles (copy tlca.ziggy-schema -> "
+        ++ schema_dir ++ ")"
+    );
+    copy_to_source.addCopyFileToSource(
+        generated,
+        schema_dir ++ "tlca.ziggy-schema",
+    );
+    update_step.dependOn(&copy_to_source.step);
+}
+
 /// Schema update step: regenerate tlb.zig from tlb.fbs (Schema)
 /// Requires: flatc (FlatBuffers compiler) to be installed and on PATH
 /// Note that both the tlb.fbs and the resulting tlb.zig are checked into the
@@ -910,6 +963,8 @@ pub fn build(
         dep_flatbuffers,
         options,
     );
+
+    update_tlca_schema(b, options);
 
     const string_stuff = module_with_tests_and_artifact(
         "string_stuff",

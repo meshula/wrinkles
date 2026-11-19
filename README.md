@@ -39,6 +39,20 @@
                   `OpenTimelineIO`
 ```
 
+```
+                  `opentime 2.0`-.
+                     |           |
+`treecode`        `sampling`   `curve`            
+      |              |        /
+      |           `Topology`-'
+      |              |
+      |           `ProjectionOperator`
+       \             |
+        `---------`TemporalProjectionBuilder`
+                     |
+                  `OpenTimelineIO 2.0`
+```
+
 Additionally there are tools for visualizing curves, transformations, and the
 temporal hierarchies of editorial documents.
 
@@ -458,4 +472,37 @@ didn't impact the deisgn or problems we were specifically solving.
 
 * USD + OTIO (where clips point at USD files, render out a playblast)
 * Wrinkles MCP
+
+## TODO 9/21/2026
+
+* [ ] Review/rebuild the serialization library
+* [ ] specification
+* [ ] Look at the example programs and potentially clean them up
+    * [ ] add a discrete output to otio_hierarchy_view
+    * [ ] name programs with - instead of _
+* [ ] projecting into an attribute space
+    * [ ] serialization
+    * [ ] api
+
+## Structure
+
+* opentime v2 - everything but the graph
+    * ordinate
+    * interval
+    * predicates
+    * sampling
+    * curve
+* wrinkles - a graph and transformation across the graph
+    * treecode
+    * topology
+    * ProjectionOperator
+    * TemporalProjectionBuilder
+    * **RealTimeProjectionBuilder**
+* opentimelineIO v2 - read a file and turn it into a graph and then math on it
+    * document schema
+    * `wrinkles` json schema (?)
+    * serialization
+        * upconversion from otio_json
+        * file bundles
+    * tooling (otio-cat, otio-hierarchy-view, )
 

@@ -1,35 +1,35 @@
 .schema_version = 1,
 .name = "Stress Test - Heavy Metadata",
 .children = [
-    track {
+    .track(.{
         .name = "Track-001",
         .children = [
-            clip {
+            .clip(.{
                 .name = "Clip-With-Metadata",
-                .bounds_s = continuous [
-                    0.0,
-                    100.0,
-                ],
-                .media = {
-                    .data_reference = uri {
+                .bounds_s = .continuous([
+                    0,
+                    100,
+                ]),
+                .media = .{
+                    .data_reference = .uri(.{
                         .target_uri = "file:///media/heavy_metadata_clip.mov",
-                    },
-                    .bounds_s = continuous [
-                        0.0,
-                        100.0,
-                    ],
-                    .domain = picture {},
+                    }),
+                    .bounds_s = .continuous([
+                        0,
+                        100,
+                    ]),
+                    .domain = .picture,
                 },
                 .metadata_hash = "6af6072e677d9019",
                 .markers = [
                 ],
-            },
+            }),
         ],
         .markers = [
         ],
-    },
+    }),
 ],
-.presentation_space_discrete_partitions = {},
+.presentation_space_discrete_partitions = .{},
 .metadata_map = {
     "6af6072e677d9019": {
         "metadata_key_000000": "This is a longer string value for metadata key number 0 with some extra padding to make it larger",

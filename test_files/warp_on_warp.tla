@@ -1,71 +1,71 @@
 .schema_version = 1,
 .name = "-1 Aff",
 .children = [
-    track {
+    .track(.{
         .name = "Track-001",
         .children = [
-            warp {
+            .warp(.{
                 .name = "-1 Aff",
-                .child = warp {
+                .child = .warp(.{
                     .name = "2x Aff",
-                    .child = clip {
+                    .child = .clip(.{
                         .name = "Clip-001",
-                        .bounds_s = discrete [
+                        .bounds_s = .discrete([
                             0,
                             1,
-                        ],
-                        .media = {
-                            .data_reference = uri {
+                        ]),
+                        .media = .{
+                            .data_reference = .uri(.{
                                 .target_uri = "file:///folder/titles.mov",
-                            },
-                            .bounds_s = discrete [
+                            }),
+                            .bounds_s = .discrete([
                                 1,
                                 2,
-                            ],
-                            .domain = picture {},
-                            .discrete_partition = {
-                                .sample_rate_hz = Integer 1,
+                            ]),
+                            .domain = .picture,
+                            .discrete_partition = .{
+                                .sample_rate_hz = .Integer(1),
                                 .start_index = 0,
                             },
                         },
                         .markers = [
                         ],
-                    },
-                    .transform = {
+                    }),
+                    .transform = .{
                         .mappings = [
-                            affine {
+                            .affine(.{
                                 .input_bounds_val = [
                                     -inf,
                                     inf,
                                 ],
-                                .input_to_output_xform = {
-                                    .offset = 0.0,
-                                    .scale = 2.0,
+                                .input_to_output_xform = .{
+                                    .offset = 0,
+                                    .scale = 2,
                                 },
-                            },
+                            }),
                         ],
                     },
-                },
-                .transform = {
+                }),
+                .transform = .{
                     .mappings = [
-                        affine {
+                        .affine(.{
                             .input_bounds_val = [
                                 -inf,
                                 inf,
                             ],
-                            .input_to_output_xform = {
-                                .offset = 0.0,
-                                .scale = -1.0,
+                            .input_to_output_xform = .{
+                                .offset = 0,
+                                .scale = -1,
                             },
-                        },
+                        }),
                     ],
                 },
-            },
+            }),
         ],
         .markers = [
         ],
-    },
+    }),
 ],
-.presentation_space_discrete_partitions = {},
+.presentation_space_discrete_partitions = .{},
 .markers = [
 ],

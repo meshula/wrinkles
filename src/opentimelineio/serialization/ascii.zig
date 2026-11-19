@@ -171,10 +171,10 @@ pub const SerializableSampleIndexGenerator = struct {
 
 /// Serializable variant of Domain
 pub const SerializableDomain = union(enum) {
-    time: struct {},
-    picture: struct {},
-    audio: struct {},
-    metadata: struct {},
+    time,
+    picture,
+    audio,
+    metadata,
     other: struct { name: []const u8 },
 
     pub fn from(
@@ -183,10 +183,10 @@ pub const SerializableDomain = union(enum) {
     ) !SerializableDomain 
     {
         return switch (domain) {
-            .time => .{ .time = .{} },
-            .picture => .{ .picture = .{} },
-            .audio => .{ .audio = .{} },
-            .metadata => .{ .metadata = .{} },
+            .time => .time,
+            .picture => .picture,
+            .audio => .audio,
+            .metadata => .metadata,
             .other => |s| .{
                 .other = .{
                     .name = try allocator.dupe(u8, s),
@@ -213,7 +213,7 @@ pub const SerializableMediaDataReference = union(enum) {
     uri: SerializableURIReference,
     signal: SerializableSignalReference,
     image_sequence: SerializableImageSequenceReference,
-    null: struct {},
+    null,
 
     pub fn from(
         allocator: std.mem.Allocator,
@@ -308,7 +308,7 @@ pub const SerializableImageSequenceReference = struct {
 
 pub const SerializableSignalGenerator = union(enum) {
     sine: struct { frequency_hz: f64 },
-    linear_ramp: struct {},
+    linear_ramp,
 
     pub fn from(
         gen: sampling.SignalGenerator,
@@ -320,7 +320,7 @@ pub const SerializableSignalGenerator = union(enum) {
                     .frequency_hz = @floatFromInt(gen.frequency_hz),
                 }
             },
-            .ramp => .{ .linear_ramp = .{} },
+            .ramp => .linear_ramp,
         };
     }
 };
@@ -548,7 +548,7 @@ pub const SerializableMarker = struct {
 pub const SerializableMapping = union(enum) {
     affine: SerializableMappingAffine,
     linear: SerializableMappingLinear,
-    empty: struct {},
+    empty,
 
     pub fn from(
         allocator: std.mem.Allocator,
@@ -582,7 +582,7 @@ pub const SerializableMapping = union(enum) {
                     },
                 };
             },
-            .empty => .{ .empty = .{} },
+            .empty => .empty,
         };
     }
 
@@ -927,7 +927,7 @@ pub const SerializableTimeline = struct {
     ) !SerializableTimeline
     {
         // Create metadata map and context for accumulating clip metadata
-        var metadata_map: MetadataMap = .{};
+        var metadata_map: MetadataMap = .empty;
         var meta_ctx = MetadataContext{
             .allocator = allocator,
             .metadata_map = &metadata_map,
@@ -1009,26 +1009,78 @@ pub const SerializableTimeline = struct {
     }
 };
 
+/// A placeholder that consumes one complete ziggy value from the token stream
+/// and discards it without allocating or building any data.
+///
+/// Used in place of fields that should be ignored during deserialization
+/// (for example `metadata_map` when reading with `.all_except_metadata`).
+/// Brackets are counted rather than matched, so a malformed document inside
+/// the skipped value is not detected.
+pub const SkippedValue = struct {
+    pub const ziggy_options: ziggy.Options(@This()) = .{
+        .deserialize = skip,
+        .roles = .any,
+    };
+
+    fn skip(
+        d: *const ziggy.Deserializer,
+        first: ziggy.Tokenizer.Token,
+        _: bool,
+    ) ziggy.Deserializer.Error!SkippedValue
+    {
+        var depth: usize = 0;
+        var tok = first;
+        while (true)
+        {
+            switch (tok.tag) {
+                .dotlb, .lb, .lsb, .union_case => depth += 1,
+                .rb, .rsb, .rp => {
+                    if (depth == 0)
+                    {
+                        return d.unexpected(tok);
+                    }
+                    depth -= 1;
+                },
+                .eof, .eod, .invalid, .invalid_control => {
+                    return d.unexpected(tok);
+                },
+                else => {},
+            }
+
+            if (depth == 0)
+            {
+                // a multiline string is a run of consecutive `\\` lines
+                if (tok.tag == .bytes_line)
+                {
+                    while (d.peek() == .bytes_line)
+                    {
+                        _ = try d.next();
+                    }
+                }
+                return .{};
+            }
+
+            tok = try d.next();
+        }
+    }
+};
+
 /// Variant of SerializableTimeline that skips metadata_map during parsing.
 /// Used when content_filter == .all_except_metadata.
-/// This uses ziggy's skip_fields feature to completely skip parsing the
-/// metadata_map field, providing significant performance gains for large files.
+///
+/// `metadata_map` is a `SkippedValue`, which consumes the value's tokens
+/// without building it, providing significant performance gains for large
+/// files.  (ziggy's `skip_fields` is not used: it rejects documents that
+/// contain the skipped field.)
 pub const SerializableTimelineNoMetadata = struct {
     pub const schema_name: []const u8 = "Timeline";
-
-    /// Tell ziggy parser to skip the metadata_map field entirely
-    const Self = @This();
-    pub const ziggy_options = struct {
-        pub const skip_fields: []const std.meta.FieldEnum(Self) = &.{.metadata_map};
-    };
 
     schema_version: u32 = versioning.current_version("Timeline"),
     name: []const u8 = "",
     children: []SerializableComposable,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
-    /// This field will be skipped during parsing (always null when using this
-    /// type)
-    metadata_map: ?MetadataMap = null,
+    /// Consumed and discarded during parsing.
+    metadata_map: SkippedValue = .{},
     markers: []SerializableMarker = &.{},
 
     pub fn deinit(
@@ -1052,7 +1104,7 @@ pub const SerializableTimelineNoMetadata = struct {
         }
         allocator.free(self.markers);
 
-        // metadata_map is always null when using this type
+        // metadata_map is a SkippedValue and owns no memory
     }
 
     /// Convert to SerializableTimeline for use with existing code
@@ -1349,7 +1401,7 @@ pub const MetadataContext = struct {
                 return .{ .array = result };
             },
             .object => |obj| {
-                var result_map: MetadataMap = .{};
+                var result_map: MetadataMap = .empty;
                 var iter = obj.iterator();
                 while (iter.next()) 
                     |entry| 
@@ -2328,7 +2380,7 @@ pub fn collection_to_serializable(
 ) !SerializableCollection
 {
     // Create metadata context for accumulating clip metadata
-    var metadata_map: MetadataMap = .{};
+    var metadata_map: MetadataMap = .empty;
     var meta_ctx = MetadataContext{
         .allocator = allocator,
         .metadata_map = &metadata_map,
@@ -2592,8 +2644,8 @@ fn serialize_timeline(
 /// version if needed (requires registered upgrade functions).
 ///
 /// If content_filter is .all_except_metadata, the metadata_map
-/// field will be completely skipped during parsing using ziggy's skip_fields
-/// feature. This provides significant performance gains for large files with
+/// field's tokens are consumed without being parsed (see `SkippedValue`).
+/// This provides significant performance gains for large files with
 /// extensive metadata.
 pub fn deserialize_timeline(
     allocator: std.mem.Allocator,
@@ -2608,7 +2660,9 @@ pub fn deserialize_timeline(
             allocator,
             source,
             &meta,
-            .{},
+            // the result is freed with deinit(), so strings must be owned
+            // copies rather than slices into `source`
+            .{ .copy_strings = .always },
         ),
         .all_except_metadata => s_t: {
             // Use the no-metadata variant that skips parsing metadata_map entirely
@@ -2617,7 +2671,7 @@ pub fn deserialize_timeline(
                 allocator,
                 source,
                 &meta,
-                .{},
+                .{ .copy_strings = .always },
             );
 
             // convert back to regular SerializableTimeline
@@ -2722,7 +2776,7 @@ fn otio_json_to_serializable_timeline(
     defer composition_handle.deinit(allocator);
 
     // Create metadata map and context for accumulating clip metadata
-    var metadata_map: MetadataMap = .{};
+    var metadata_map: MetadataMap = .empty;
     var meta_ctx = MetadataContext{
         .allocator = allocator,
         .metadata_map = &metadata_map,
@@ -3423,6 +3477,637 @@ test "timeline serialization: tla round-trip"
         @as(usize, 0),
         loaded_timeline.tracks.children.len,
     );
+}
+
+test "timeline serialization: all_except_metadata skips metadata_map"
+{
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    // metadata_map exercises every kind of nesting SkippedValue has to
+    // balance, and `markers` comes after it (in the document and in the type)
+    const source: [:0]const u8 =
+        \\.schema_version = 1,
+        \\.name = "WithMetadata",
+        \\.children = [],
+        \\.presentation_space_discrete_partitions = .{},
+        \\.metadata_map = {
+        \\    "46ce2bb4fbd1c246": {
+        \\        "nested": { "a": [1, 2.5, inf, -inf, nan, null, true] },
+        \\        "struct_like": .{ .x = "y", .z = [] },
+        \\        "tagged": .some_tag(.{ .v = [{}, [], .x(1)] }),
+        \\        "enum": .plain_enum,
+        \\        "text": "brackets in strings: } ] ) {",
+        \\        "lines":
+        \\            \\line one }
+        \\            \\line two
+        \\        ,
+        \\    },
+        \\},
+        \\.markers = [
+        \\    .{
+        \\        .name = "m1",
+        \\        .marked_range = [0, 1],
+        \\        .color = "red",
+        \\    },
+        \\],
+        \\
+    ;
+
+    var meta: ziggy.Deserializer.Meta = .init;
+    const no_md = try ziggy.deserializeLeaky(
+        SerializableTimelineNoMetadata,
+        allocator,
+        source,
+        &meta,
+        .{},
+    );
+    try std.testing.expectEqualStrings("WithMetadata", no_md.name);
+    try std.testing.expectEqual(@as(usize, 1), no_md.markers.len);
+    try std.testing.expectEqualStrings("m1", no_md.markers[0].name);
+    try std.testing.expect(
+        no_md.to_serializable_timeline().metadata_map == null
+    );
+
+    // the full parse of the same document still sees the metadata
+    const full = try ziggy.deserializeLeaky(
+        SerializableTimeline,
+        allocator,
+        source,
+        &meta,
+        .{},
+    );
+    try std.testing.expectEqual(
+        @as(usize, 1),
+        full.metadata_map.?.fields.count(),
+    );
+    try std.testing.expectEqual(@as(usize, 1), full.markers.len);
+}
+
+/// Ziggy schema describing the TLA format (see `tla_schema/`).
+const TLA_SCHEMA: [:0]const u8 = @embedFile("tla_schema/tla.ziggy-schema");
+
+/// Checked-in TLCA schema, generated from `TLA_SCHEMA`.
+const TLCA_SCHEMA: [:0]const u8 = @embedFile("tla_schema/tlca.ziggy-schema");
+
+/// Validate a document against a ziggy schema, printing every mismatch.
+fn expect_matches_schema(
+    allocator: std.mem.Allocator,
+    schema_name: []const u8,
+    schema_src: [:0]const u8,
+    source: [:0]const u8,
+) !void
+{
+    const schema_ast = try ziggy.schema.Ast.init(allocator, schema_src);
+    defer schema_ast.deinit(allocator);
+    for (schema_ast.errors)
+        |err|
+    {
+        std.debug.print(
+            "{s}: offset {d}: {f}\n",
+            .{ schema_name, err.main_location.start, err.tag },
+        );
+    }
+    if (schema_ast.errors.len > 0)
+    {
+        return error.InvalidSchema;
+    }
+
+    const doc_ast = try ziggy.Ast.init(allocator, source, .{});
+    defer doc_ast.deinit(allocator);
+    if (doc_ast.errors.len > 0)
+    {
+        return error.DocumentSyntaxError;
+    }
+
+    const mismatches = try schema_ast.validate(
+        allocator,
+        schema_src,
+        doc_ast,
+        source,
+    );
+    defer allocator.free(mismatches);
+    for (mismatches)
+        |mismatch|
+    {
+        const start = mismatch.main_location.start;
+        const line = std.mem.count(u8, source[0..start], "\n") + 1;
+        const line_start = (
+            if (std.mem.lastIndexOfScalar(u8, source[0..start], '\n'))
+                |nl| nl + 1
+            else 0
+        );
+        const line_end = (
+            std.mem.indexOfScalarPos(u8, source, start, '\n')
+            orelse source.len
+        );
+        std.debug.print(
+            "{s} mismatch at line {d}: {f}\n    {s}\n",
+            .{
+                schema_name,
+                line,
+                mismatch.tag,
+                source[line_start..line_end],
+            },
+        );
+    }
+    if (mismatches.len > 0)
+    {
+        return error.SchemaMismatch;
+    }
+}
+
+/// Serialize `value` (a `SerializableTimeline` or `SerializableCollection`)
+/// in every metadata mode and validate each against the matching schema.
+/// Returns the hash_reference and inline_metadata outputs concatenated, for
+/// coverage checks.
+fn expect_all_modes_match_schema(
+    allocator: std.mem.Allocator,
+    value: anytype,
+) ![]const u8
+{
+    const is_collection = @TypeOf(value) == SerializableCollection;
+    const schema_name = (
+        if (is_collection) "tlca.ziggy-schema" else "tla.ziggy-schema"
+    );
+    const schema_src = if (is_collection) TLCA_SCHEMA else TLA_SCHEMA;
+
+    var all: std.Io.Writer.Allocating = .init(allocator);
+    errdefer all.deinit();
+
+    for (std.meta.tags(adapter.WriteOptions.MetadataMode))
+        |mode|
+    {
+        var buf: std.Io.Writer.Allocating = .init(allocator);
+        defer buf.deinit();
+        if (is_collection)
+        {
+            try write_collection_to_writer(
+                allocator,
+                value,
+                .tlca,
+                mode,
+                &buf.writer,
+            );
+        }
+        else
+        {
+            try write_serializable_to_writer(
+                allocator,
+                value,
+                .tla,
+                mode,
+                &buf.writer,
+            );
+        }
+        try buf.writer.writeByte(0);
+        const written = buf.written();
+        const source: [:0]const u8 = written[0 .. written.len - 1 :0];
+
+        expect_matches_schema(
+            allocator,
+            schema_name,
+            schema_src,
+            source,
+        ) catch |err| {
+            std.debug.print("(metadata mode: {t})\n", .{ mode });
+            return err;
+        };
+
+        if (mode != .no_metadata)
+        {
+            try all.writer.writeAll(source);
+        }
+    }
+
+    return try all.toOwnedSlice();
+}
+
+/// True if `text` contains `name` not followed by an identifier character.
+fn contains_ident(
+    text: []const u8,
+    name: []const u8,
+) bool
+{
+    var pos: usize = 0;
+    while (std.mem.indexOfPos(u8, text, pos, name))
+        |idx|
+    {
+        const end = idx + name.len;
+        if (end == text.len)
+        {
+            return true;
+        }
+        switch (text[end]) {
+            'a'...'z', 'A'...'Z', '0'...'9', '_' => {},
+            else => return true,
+        }
+        pos = end;
+    }
+    return false;
+}
+
+/// Expect every field (struct) or tag (union) of `T` to appear in `text`,
+/// so the schema coverage sample can't silently miss new fields/variants.
+fn expect_all_names_serialized(
+    comptime T: type,
+    text: []const u8,
+) !void
+{
+    const is_struct = @typeInfo(T) == .@"struct";
+    const field_names = switch (@typeInfo(T)) {
+        .@"struct" => |info| info.field_names,
+        .@"union" => |info| info.field_names,
+        else => @compileError("expected a struct or union"),
+    };
+    inline for (field_names)
+        |field_name|
+    {
+        const needle = (
+            if (is_struct) "." ++ field_name ++ " =" else "." ++ field_name
+        );
+        if (!contains_ident(text, needle))
+        {
+            std.debug.print(
+                "{s}.{s} is not covered by the schema coverage sample\n",
+                .{ @typeName(T), field_name },
+            );
+            return error.SchemaSampleIncomplete;
+        }
+    }
+}
+
+/// A timeline that uses every serializable type, field and union variant,
+/// for validating the schemas.  Allocate with an arena.
+fn schema_coverage_timeline(
+    allocator: std.mem.Allocator,
+) !SerializableTimeline
+{
+    const markers = try allocator.dupe(
+        SerializableMarker,
+        &.{
+            .{
+                .name = "m",
+                .marked_range = .{ 0, 1 },
+                .color = "red",
+                .comment = "note",
+            },
+        },
+    );
+    const rate_24: SerializableSampleIndexGenerator = .{
+        .sample_rate_hz = .{ .Integer = 24 },
+        .start_index = 1,
+    };
+    const rate_ntsc: SerializableSampleIndexGenerator = .{
+        .sample_rate_hz = .{ .Rational = .{ .num = 24000, .den = 1001 } },
+        .start_index = 0,
+    };
+
+    // one clip per media data reference / domain variant
+    const media_variants = [_]SerializableMediaReference{
+        .{
+            .data_reference = .{ .uri = .{ .target_uri = "file:///a.mov" } },
+            .bounds_s = .{ .continuous = .{ 0, 10 } },
+            .domain = .picture,
+            .discrete_partition = rate_24,
+            .interpolating = .snap,
+        },
+        .{
+            .data_reference = .{
+                .signal = .{
+                    .signal_generator = .{ .sine = .{ .frequency_hz = 440 } },
+                },
+            },
+            .bounds_s = .{ .discrete = .{ 0, 48000 } },
+            .domain = .audio,
+        },
+        .{
+            .data_reference = .{
+                .signal = .{ .signal_generator = .linear_ramp },
+            },
+            .domain = .time,
+        },
+        .{
+            .data_reference = .{
+                .image_sequence = .{
+                    .target_url_base = "file:///seq/",
+                    .name_prefix = "shot.",
+                    .name_suffix = ".exr",
+                    .frame_zero_padding = 4,
+                    .missing_frame_policy = "hold",
+                },
+            },
+            .domain = .metadata,
+        },
+        .{
+            .data_reference = .null,
+            .domain = .{ .other = .{ .name = "custom" } },
+        },
+    };
+
+    var metadata_map: MetadataMap = .empty;
+    var clip_metadata: MetadataMap = .empty;
+    try clip_metadata.fields.put(allocator, "scene", .{ .bytes = "001" });
+    try metadata_map.fields.put(allocator, "0123456789abcdef", .{ .kv = clip_metadata });
+
+    var clips: std.ArrayList(SerializableComposable) = .empty;
+    for (media_variants, 0..)
+        |media, i|
+    {
+        try clips.append(
+            allocator,
+            .{
+                .clip = .{
+                    .name = "clip",
+                    .bounds_s = .{ .discrete = .{ 0, 24 } },
+                    .media = media,
+                    .metadata_hash = (
+                        if (i == 0) "0123456789abcdef" else null
+                    ),
+                    .markers = markers,
+                },
+            },
+        );
+    }
+
+    try clips.append(
+        allocator,
+        .{
+            .gap = .{
+                .name = "gap",
+                .bounds_s = .{ 0, std.math.inf(f64) },
+                .markers = markers,
+            },
+        },
+    );
+
+    const warp_children = [_]SerializableMapping{
+        .{
+            .affine = .{
+                .input_bounds_val = .{ 0, 1 },
+                .input_to_output_xform = .{ .offset = 0.5, .scale = 2 },
+            },
+        },
+        .{
+            .linear = .{
+                .input_bounds_val = .{ 1, 2 },
+                .knots = try allocator.dupe(
+                    SerializableControlPoint,
+                    &.{ .{ 1, 3 }, .{ 2, 4 } },
+                ),
+            },
+        },
+        .empty,
+    };
+    const warped = try allocator.create(SerializableComposable);
+    warped.* = clips.items[0];
+    try clips.append(
+        allocator,
+        .{
+            .warp = .{
+                .name = "warp",
+                .child = warped,
+                .transform = .{
+                    .mappings = try allocator.dupe(
+                        SerializableMapping,
+                        &warp_children,
+                    ),
+                },
+            },
+        },
+    );
+
+    try clips.append(
+        allocator,
+        .{
+            .transition = .{
+                .name = "transition",
+                .container = .{
+                    .name = "transition container",
+                    .bounds_s = .{ .continuous = .{ 0, 1 } },
+                    .children = try allocator.dupe(
+                        SerializableComposable,
+                        clips.items[0..1],
+                    ),
+                    .markers = markers,
+                },
+                .kind = "dissolve",
+                .bounds_s = .{ 0, 1 },
+            },
+        },
+    );
+
+    const track: SerializableComposable = .{
+        .track = .{
+            .name = "track",
+            .bounds_s = .{ .continuous = .{ 0, 100 } },
+            .children = clips.items,
+            .markers = markers,
+        },
+    };
+    const stack: SerializableComposable = .{
+        .stack = .{
+            .name = "stack",
+            .bounds_s = .{ .discrete = .{ 0, 100 } },
+            .children = try allocator.dupe(SerializableComposable, &.{ track }),
+            .markers = markers,
+        },
+    };
+
+    return .{
+        .name = "schema coverage",
+        .children = try allocator.dupe(SerializableComposable, &.{ stack }),
+        .presentation_space_discrete_partitions = .{
+            .picture = rate_ntsc,
+            .audio = rate_24,
+        },
+        .metadata_map = metadata_map,
+        .markers = markers,
+    };
+}
+
+test "tla schema: every serializable type and variant matches the schema"
+{
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const tl = try schema_coverage_timeline(allocator);
+    const text = try expect_all_modes_match_schema(allocator, tl);
+
+    // the sample above has to keep exercising everything the serializer
+    // can write
+    inline for (.{
+        SerializableTimeline,
+        SerializableDiscretePartitionDomainMap,
+        SerializableMarker,
+        SerializableComposable,
+        SerializableClip,
+        SerializableGap,
+        SerializableTrack,
+        SerializableStack,
+        SerializableWarp,
+        SerializableTransition,
+        SerializableTopology,
+        SerializableMapping,
+        SerializableMappingAffine,
+        SerializableMappingLinear,
+        SerializableAffineTransform1D,
+        SerializableBounds,
+        SerializableMediaReference,
+        SerializableMediaDataReference,
+        SerializableURIReference,
+        SerializableSignalReference,
+        SerializableSignalGenerator,
+        SerializableImageSequenceReference,
+        SerializableDomain,
+        SerializableSampleIndexGenerator,
+        SerializableRateSpecifier,
+        SerializableClipInlineMetadata,
+    })
+        |T|
+    {
+        try expect_all_names_serialized(T, text);
+    }
+}
+
+test "tla schema: fixtures match the schema when re-serialized"
+{
+    const io = std.testing.io;
+
+    const fixtures = [_][]const u8{
+        "test_files/just_clip_ntsc.tla",
+        "test_files/just_clip_with_metadata.tla",
+        "test_files/just_transition.tla",
+        "test_files/just_warp.tla",
+        "test_files/just_warp_bez.tla",
+        "test_files/just_warp_linear.tla",
+        "test_files/simple_cut_with_markers.tla",
+        "test_files/simple_cut_with_media.tla",
+        "test_files/simple_cut_with_metadata.tla",
+        "test_files/simple_image_sequence.tla",
+        "test_files/single_discrete_clip.tla",
+        "test_files/warp_on_warp.tla",
+        "otio_sample_data/generator_reference_test.tla",
+        "otio_sample_data/mixed_tracks.tla",
+        "otio_sample_data/nested_example.tla",
+        "otio_sample_data/transition.tla",
+    };
+
+    for (fixtures)
+        |path|
+    {
+        var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+        defer arena.deinit();
+        const allocator = arena.allocator();
+
+        const tl = read_from_file(allocator, io, path) catch |err| {
+            std.debug.print("unable to read {s}: {t}\n", .{ path, err });
+            return err;
+        };
+        _ = expect_all_modes_match_schema(allocator, tl) catch |err| {
+            std.debug.print("(fixture: {s})\n", .{ path });
+            return err;
+        };
+    }
+}
+
+test "tlca schema: checked-in file is up to date with the generator"
+{
+    const generator = @import("tla_schema/generate_tlca_schema.zig");
+    std.testing.expectEqualStrings(
+        generator.TLCA_SCHEMA,
+        TLCA_SCHEMA,
+    ) catch |err| {
+        std.debug.print(
+            "tlca.ziggy-schema is stale: run `zig build update_tlca_schema`\n",
+            .{},
+        );
+        return err;
+    };
+}
+
+test "tlca schema: every collection item kind matches the schema"
+{
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const tl = try schema_coverage_timeline(allocator);
+
+    // timeline -> stack -> track -> {clips, gap, warp, transition}
+    const stack = tl.children[0].stack;
+    const track = stack.children[0].track;
+
+    var items: std.ArrayList(SerializableCollectionItem) = .empty;
+    try items.append(allocator, .{ .timeline = tl });
+    try items.append(allocator, .{ .stack = stack });
+    try items.append(allocator, .{ .track = track });
+    var seen_clip = false;
+    for (track.children)
+        |child|
+    {
+        switch (child) {
+            .clip => |clip| {
+                if (seen_clip)
+                {
+                    continue;
+                }
+                seen_clip = true;
+                try items.append(allocator, .{ .clip = clip });
+            },
+            .gap => |gap| try items.append(allocator, .{ .gap = gap }),
+            .warp => |warp| try items.append(allocator, .{ .warp = warp }),
+            .transition => |tr| try items.append(
+                allocator,
+                .{ .transition = tr },
+            ),
+            .track, .stack => {},
+        }
+    }
+
+    const collection: SerializableCollection = .{
+        .name = "schema coverage",
+        .description = "every collection item kind",
+        .children = items.items,
+        .metadata_map = tl.metadata_map,
+    };
+
+    const text = try expect_all_modes_match_schema(allocator, collection);
+    try expect_all_names_serialized(SerializableCollection, text);
+    try expect_all_names_serialized(SerializableCollectionItem, text);
+}
+
+test "tlca schema: fixtures match the schema when re-serialized"
+{
+    const io = std.testing.io;
+
+    const fixtures = [_][]const u8{
+        "test_files/collection_with_metadata.tlca",
+        "test_files/sample_collection.tlca",
+    };
+
+    for (fixtures)
+        |path|
+    {
+        var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+        defer arena.deinit();
+        const allocator = arena.allocator();
+
+        const collection = read_collection_from_file(
+            allocator,
+            io,
+            path,
+        ) catch |err| {
+            std.debug.print("unable to read {s}: {t}\n", .{ path, err });
+            return err;
+        };
+        _ = expect_all_modes_match_schema(allocator, collection) catch |err| {
+            std.debug.print("(fixture: {s})\n", .{ path });
+            return err;
+        };
+    }
 }
 
 // ----------------------------------------------------------------------------

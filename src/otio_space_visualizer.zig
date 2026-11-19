@@ -2377,7 +2377,7 @@ fn cleanup (
 
     STATE.allocator.free(STATE.otio_src_json);
 
-    if (IS_WASM == false and builtin.mode == .Debug)
+    if (IS_WASM == false and builtin.mode == .debug)
     {
         const result = STATE.debug_allocator.deinit();
         if (result == .leak) 
