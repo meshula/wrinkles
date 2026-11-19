@@ -4,6 +4,7 @@
 //! Infers discrete partitions.
 
 const std = @import("std");
+const test_output = @import("test_output");
 const expectEqual = std.testing.expectEqual;
 
 const otio = @import("../root.zig");
@@ -1228,6 +1229,10 @@ test "read_from_file test (simple)"
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
+
     const root = "simple_cut";
     const otio_fpath = root ++ ".otio";
     const dot_fpath = root ++ ".dot";
@@ -1276,7 +1281,7 @@ test "read_from_file test (simple)"
     try tl_pres_projection_builder.tree.write_dot_graph(
         allocator,
         io,
-        "/var/tmp/" ++ dot_fpath,
+        try artifacts.file_path(&path_buf, dot_fpath),
         "read_from_file_test",
         .{},
     );

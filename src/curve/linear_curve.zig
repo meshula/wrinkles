@@ -702,11 +702,16 @@ pub fn LinearOf(
             allocator: std.mem.Allocator,
         ) ![]const u8
         {
-            var str = std.ArrayList(u8).init(allocator);
+            var writer: std.Io.Writer.Allocating = .init(allocator);
+            errdefer writer.deinit();
 
-            try std.json.stringify(self, .{}, str.writer());
+            try std.json.Stringify.value(
+                self,
+                .{},
+                &writer.writer,
+            );
 
-            return str.toOwnedSlice();
+            return try writer.toOwnedSlice();
         }
 
         /// split this curve into monotonic curves over output.  Splits
@@ -826,7 +831,24 @@ test "Linear: extents"
     );
 }
 
-test "Linear: proj_ident" 
+test "Linear: debug_json_str"
+{
+    const allocator = std.testing.allocator;
+
+    const crv = Linear{
+        .knots = &.{
+            .init(.{ .in = 0, .out = 0, }),
+            .init(.{ .in = 100, .out = 100, }),
+        },
+    };
+
+    const blob = try crv.debug_json_str(allocator);
+    defer allocator.free(blob);
+
+    try std.testing.expect(std.mem.startsWith(u8, blob, "{\"knots\":["));
+}
+
+test "Linear: proj_ident"
 {
     const allocator = std.testing.allocator;
 

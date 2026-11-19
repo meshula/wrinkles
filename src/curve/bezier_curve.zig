@@ -40,6 +40,7 @@
 //! Includes functions that operate on `Dual_CP` for implicit differentation.
 
 const std = @import("std");
+const test_output = @import("test_output");
 
 const opentime = @import("opentime");
 
@@ -2160,7 +2161,14 @@ test "json writer: curve"
         },
     };
 
-    const fpath = "/var/tmp/test.curve.json";
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
+    const fpath = try test_output.tmp_file_path(
+        &tmp,
+        &path_buf,
+        "test.curve.json",
+    );
 
     try write_json_file_curve(
         allocator,

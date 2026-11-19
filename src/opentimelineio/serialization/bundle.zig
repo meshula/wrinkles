@@ -11,6 +11,7 @@
 //! - media/: Directory containing media files (optional)
 
 const std = @import("std");
+const test_output = @import("test_output");
 const zip = std.zip;
 
 const utils = @import("bundle_utils.zig");
@@ -1269,10 +1270,16 @@ test "tlz_bundle: write and verify ZIP structure"
     };
 
     // Write to temp file
-    const test_path = "/tmp/test_tlz_write.tlz";
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
+    const test_path = try test_output.tmp_file_path(
+        &tmp,
+        &path_buf,
+        "test_tlz_write.tlz",
+    );
     try write_to_file(allocator, io, timeline, test_path, .{});
 
-    defer std.Io.Dir.cwd().deleteFile(io, test_path) catch {};
 
     // Verify file exists and has valid ZIP structure
     const file = try std.Io.Dir.cwd().openFile(io, test_path, .{});
@@ -1332,8 +1339,15 @@ test "tlz_bundle: media bundling with app.png"
         .{},
     );
 
-    // Write to /var/tmp with media bundling
-    const test_path = "/var/tmp/test_media_bundle.tlz";
+    // Write with media bundling
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
+    const test_path = try test_output.tmp_file_path(
+        &tmp,
+        &path_buf,
+        "test_media_bundle.tlz",
+    );
     try write_to_file(
         allocator,
         io,
@@ -1348,7 +1362,6 @@ test "tlz_bundle: media bundling with app.png"
         },
     );
 
-    defer std.Io.Dir.cwd().deleteFile(io, test_path) catch {};
 
     // Verify the bundle was created
     const bundle_file = try std.Io.Dir.cwd().openFile(io, test_path, .{});

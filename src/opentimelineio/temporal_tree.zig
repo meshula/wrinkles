@@ -8,6 +8,7 @@
 //!    `references.SpaceReference`
 
 const std = @import("std");
+const test_output = @import("test_output");
 
 const build_options = @import("build_options");
 const treecode = @import("treecode");
@@ -436,6 +437,10 @@ test "TestWalkingIterator: clip"
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
+
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_CTI_1_10;
 
@@ -454,7 +459,7 @@ test "TestWalkingIterator: clip"
     try tree.write_dot_graph(
         allocator,
         io,
-        "/var/tmp/walk.dot",
+        try artifacts.file_path(&path_buf, "walk.dot"),
         "walk",
         .{},
     );
@@ -467,6 +472,10 @@ test "TestWalkingIterator: track with clip w/ destination"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
+
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
 
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_CTI_1_10;
@@ -498,7 +507,7 @@ test "TestWalkingIterator: track with clip w/ destination"
     try tree.write_dot_graph(
         allocator,
         io,
-        "/var/tmp/walk.dot",
+        try artifacts.file_path(&path_buf, "walk.dot"),
         "walk",
         .{},
    );
@@ -732,6 +741,10 @@ test "path_code: tree test"
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
+
     var clips: [11]schema.Clip = undefined;
     var clip_ptrs: [11]references.CompositionItemHandle = undefined;
 
@@ -766,7 +779,7 @@ test "path_code: tree test"
     try tree.write_dot_graph(
         allocator,
         io,
-        "/var/tmp/graph_test_output.dot",
+        try artifacts.file_path(&path_buf, "graph_test_output.dot"),
         "graph_test",
         .{},
     );
@@ -784,7 +797,7 @@ test "path_code: tree test"
     try tree.write_dot_graph(
         allocator,
         io,
-        "/var/tmp/current.dot",
+        try artifacts.file_path(&path_buf, "current.dot"),
         "current",
         .{},
     );

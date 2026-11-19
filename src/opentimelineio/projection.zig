@@ -31,6 +31,7 @@
 //! `[]sampling.sample_index_t` (a sample index array).
 
 const std = @import("std");
+const test_output = @import("test_output");
 
 const build_options = @import("build_options");
 
@@ -1339,6 +1340,10 @@ test "otio projection: track with single clip"
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
+
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = test_data.T_INT_1_TO_9;
     const media_discrete_info = (
@@ -1378,7 +1383,7 @@ test "otio projection: track with single clip"
     try tr_pres_projection_builder.tree.write_dot_graph(
         allocator,
         io,
-        "/var/tmp/sampling_test.dot",
+        try artifacts.file_path(&path_buf, "sampling_test.dot"),
         "sampling_test",
         .{},
     );
@@ -1518,6 +1523,10 @@ test "otio projection: track with single clip with transform"
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
+
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = test_data.T_INT_1_TO_9;
     const media_discrete_info = (
@@ -1588,7 +1597,7 @@ test "otio projection: track with single clip with transform"
     try tr_pres_projection_builder.tree.write_dot_graph(
         allocator,
         io,
-        "/var/tmp/sampling_test.dot",
+        try artifacts.file_path(&path_buf, "sampling_test.dot"),
         "sampling_test",
         .{},
     );
@@ -1710,7 +1719,7 @@ test "otio projection: track with single clip with transform"
             try tl_pres_projection_builder.tree.write_dot_graph(
                 allocator,
                 io,
-                "/var/tmp/discrete_to_continuous_test.dot",
+                try artifacts.file_path(&path_buf, "discrete_to_continuous_test.dot"),
                 "discrete_to_continuous_test",
                 .{},
             );

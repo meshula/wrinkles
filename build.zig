@@ -871,17 +871,19 @@ pub fn build(
             write_test_wavs,
         );
 
+        // Unset by default: tests write artifacts to a temporary directory
+        // that is removed afterwards (see src/test_output.zig).
         const test_data_out_dir = b.option(
             []const u8,
             "test_data_out_dir",
-            "Directory to write test data out to "
-            ++ "(temporary wavs, pngs from graph renderings, etc.)."
+            "Directory to write test artifacts to and keep for inspection "
+            ++ "(wavs, dot graphs/pngs, curve json).  Default: a temporary "
+            ++ "directory that is removed after each test."
             ,
-            // @TODO: should probably not be /var/tmp/ for portability
-        ) orelse "/var/tmp";
+        );
 
         build_options.addOption(
-            []const u8,
+            ?[]const u8,
             "test_data_out_dir",
             test_data_out_dir,
         );
@@ -915,6 +917,18 @@ pub fn build(
     // stuff.  Bafflingly, without this you get "this is in multiple files"
     // error.
     const build_options_mod = build_options.createModule();
+
+    // Shared output-location helpers for unit tests that write files.
+    const test_output_mod = b.createModule(
+        .{
+            .root_source_file = b.path("src/test_output.zig"),
+            .target = options.target,
+            .optimize = options.optimize,
+            .imports = &.{
+                .{ .name = "build_options", .module = build_options_mod },
+            },
+        },
+    );
 
     //
     // submodules and dependencies
@@ -1042,6 +1056,7 @@ pub fn build(
                 .options = options,
                 .fpath = "src/treecode/root.zig",
                 .deps = &.{
+                    .{ .name = "test_output", .module = test_output_mod },
                     .{ .name = "build_options", .module = build_options_mod},
                 },
                 },
@@ -1097,6 +1112,7 @@ pub fn build(
                 .options = options,
                 .fpath = "src/curve/root.zig",
                 .deps = &.{
+                    .{ .name = "test_output", .module = test_output_mod },
                     .{ .name = "spline_gym", .module = spline_gym.root_module },
                     .{ .name = "string_stuff", .module = string_stuff },
                     .{ .name = "opentime", .module = opentime },
@@ -1167,6 +1183,7 @@ pub fn build(
                 .options = options,
                 .fpath = "src/sampling.zig",
                 .deps = &.{
+                    .{ .name = "test_output", .module = test_output_mod },
                     .{
                         .name = "libsamplerate",
                         .module = libsamplerate.root_module,
@@ -1191,6 +1208,7 @@ pub fn build(
                 .options = options,
                 .fpath = "src/opentimelineio/root.zig",
                 .deps = &.{
+                    .{ .name = "test_output", .module = test_output_mod },
                     .{ .name = "string_stuff", .module = string_stuff },
                     .{ .name = "opentime", .module = opentime },
                     .{ .name = "curve", .module = curve },

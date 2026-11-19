@@ -23,7 +23,7 @@ const build_options = @import("build_options");
 // configuration
 const RESAMPLE_DEBUG_LOGGING = false;
 const WRITE_TEST_FILES = build_options.write_sampling_test_wave_files;
-const TMPDIR = build_options.test_data_out_dir;
+const test_output = @import("test_output");
 
 /// type of a sample value, ie the amplitude in a sample in an audio buffer
 pub const sample_value_t  = f32;
@@ -1278,6 +1278,9 @@ test "sampling: resample from 48khz to 44"
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+
     const sine_signal_48kz_100 = SignalGenerator{
         .frequency_hz = 100,
         .amplitude = 1,
@@ -1297,7 +1300,7 @@ test "sampling: resample from 48khz to 44"
         try sine_samples_48khz_100.write_file_prefix(
             allocator,
             io,
-            TMPDIR,
+            artifacts.dir_path(),
             "resample_test_input.",
             sine_signal_48kz_100,
         );
@@ -1314,7 +1317,7 @@ test "sampling: resample from 48khz to 44"
         try sine_samples_44khz.write_file_prefix(
             allocator,
             io,
-            TMPDIR,
+            artifacts.dir_path(),
             "resample_test_output.",
             sine_signal_48kz_100,
         );
@@ -1337,6 +1340,10 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
+
     const samples_48 = SignalGenerator{
         .frequency_hz = 100,
         .amplitude = 1,
@@ -1355,7 +1362,7 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
         try s48.write_file_prefix(
             allocator,
             io,
-            TMPDIR,
+            artifacts.dir_path(),
             "transform_test_input.",
             samples_48,
         );
@@ -1398,10 +1405,11 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
         .segments = &transform_curve_segments,
     };
     if (WRITE_TEST_FILES) {
-        try curve.write_json_file_curve(
+        try curve.bezier.write_json_file_curve(
             allocator,
+            io,
             transform_curve,
-            "/var/tmp/ours_transform_curve.curve.json"
+            try artifacts.file_path(&path_buf, "ours_transform_curve.curve.json"),
         );
     }
 
@@ -1425,7 +1433,7 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
         try samples_48_transformd.write_file_prefix(
             allocator,
             io,
-            TMPDIR,
+            artifacts.dir_path(),
             "transform_test_transformd_pre_resample.",
             samples_48,
         );
@@ -1443,7 +1451,7 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
         try samples_44.write_file_prefix(
             allocator,
             io,
-            TMPDIR,
+            artifacts.dir_path(),
             "transform_test_output.",
             samples_48,
         );
@@ -1480,6 +1488,10 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
+
     const samples_48 = SignalGenerator{
         .frequency_hz = 100,
         .amplitude = 1,
@@ -1513,10 +1525,11 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
         .segments = &cubic_transform_curve_segments
     };
     if (WRITE_TEST_FILES) {
-        try curve.write_json_file_curve(
+        try curve.bezier.write_json_file_curve(
             allocator,
+            io,
             cubic_transform_curve,
-            "/var/tmp/ours_transform_24hz.linear.json"
+            try artifacts.file_path(&path_buf, "ours_transform_24hz.linear.json"),
         );
     }
 
@@ -1542,7 +1555,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
         try samples_48_transformd_cubic.write_file_prefix(
             allocator,
             io,
-            TMPDIR,
+            artifacts.dir_path(),
             "transform_cubic_test_transformd_pre_resample.",
             samples_48,
         );
@@ -1595,15 +1608,17 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     defer input_to_output_lin_cc.deinit(allocator);
 
     if (WRITE_TEST_FILES) {
-        try curve.write_json_file_curve(
+        try curve.bezier.write_json_file_curve(
             allocator,
+            io,
             transform_24hz_lin,
-            "/var/tmp/ours_transform_24hz.linear.json"
+            try artifacts.file_path(&path_buf, "ours_transform_24hz.linear.json"),
         );
-        try curve.write_json_file_curve(
+        try curve.bezier.write_json_file_curve(
             allocator,
+            io,
             cubic_transform_curve,
-            "/var/tmp/ours_transform_acceleration.curve.json"
+            try artifacts.file_path(&path_buf, "ours_transform_acceleration.curve.json"),
         );
     }
 
@@ -1620,7 +1635,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
         try samples_48_transformd.write_file_prefix(
             allocator,
             io,
-            TMPDIR,
+            artifacts.dir_path(),
             "transform_cubic_test_transformd_linearized24hz_pre_resample.",
             samples_48,
         );
@@ -1639,7 +1654,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
         try samples_44.write_file_prefix(
             allocator,
             io,
-            TMPDIR,
+            artifacts.dir_path(),
             "transform_cubic_test_transformd_linearized24hz_resampled.",
             samples_48,
         );
@@ -1667,6 +1682,11 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
 test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
 
     const ramp_signal = SignalGenerator{
         .frequency_hz = 1,
@@ -1684,7 +1704,8 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
     defer ramp_samples.deinit(allocator);
     if (WRITE_TEST_FILES) {
         try ramp_samples.write_file(
-            "/var/tmp/ramp_2s_1hz_signal_48000hz_sampling.wav"
+            io,
+            try artifacts.file_path(&path_buf, "ramp_2s_1hz_signal_48000hz_sampling.wav"),
         );
     }
 
@@ -1702,6 +1723,9 @@ test "sampling: serialize a 24hz ramp to disk, to visualize ramp output"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
+
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
 
     const ramp_signal = SignalGenerator{
         .frequency_hz = 24,
@@ -1722,7 +1746,7 @@ test "sampling: serialize a 24hz ramp to disk, to visualize ramp output"
         try ramp_samples.write_file_prefix(
             allocator,
             io,
-            TMPDIR,
+            artifacts.dir_path(),
             "24hz_signal.",
             ramp_signal,
         );
@@ -2301,6 +2325,11 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
 test "sampling: wav.zig generator test" 
 {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
 
     const samples_48 = SignalGenerator{
         .frequency_hz = 100,
@@ -2318,7 +2347,10 @@ test "sampling: wav.zig generator test"
     defer s48.deinit(allocator);
 
     if (WRITE_TEST_FILES) {
-        try s48.write_file("/var/tmp/ours_givemesine.wav");
+        try s48.write_file(
+            io,
+            try artifacts.file_path(&path_buf, "ours_givemesine.wav"),
+        );
     }
 }
 

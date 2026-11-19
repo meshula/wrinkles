@@ -2,6 +2,7 @@
 //! `treecode.Treecode`.
 
 const std = @import("std");
+const test_output = @import("test_output");
 const build_options = @import("build_options");
 const builtin = @import("builtin");
 
@@ -285,7 +286,8 @@ pub fn BinaryTree(
         }
 
         /// Serialize this `BinaryTree` to dot and then use graphviz to convert
-        /// that dot to a png.  Will create /var/tmp/`png_filepath`.dot.
+        /// that dot to a png.  Writes the dot source to `png_filepath` and
+        /// renders it to `png_filepath`.png.
         ///
         /// If graphviz is disabled in the build, will still write the .dot
         /// file, but will return before attempting to call dot on it to
@@ -586,6 +588,10 @@ test "BinaryTree: build w/ dummy node type and test path"
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
+
     //
     // Builds Tree:
     //
@@ -794,7 +800,7 @@ test "BinaryTree: build w/ dummy node type and test path"
     try tree.write_dot_graph(
         allocator,
         io,
-        "/var/tmp/binary_tree_test.dot",
+        try artifacts.file_path(&path_buf, "binary_tree_test.dot"),
        "Binary_Tree_Test", 
        .{
            .label_style = .treecode,

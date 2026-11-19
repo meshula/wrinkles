@@ -1,6 +1,7 @@
 //! Demonstration of new features in this lib via unit tests
 
 const std = @import("std");
+const test_output = @import("test_output");
 
 const otio = @import("root.zig");
 
@@ -311,6 +312,9 @@ test "libsamplerate w/ high level test -- resample only"
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+
     var cl1 = otio.Clip {
         .name = "Spaghetti.mov",
         .media = .{
@@ -428,7 +432,7 @@ test "libsamplerate w/ high level test -- resample only"
     try media_samples.write_file_prefix(
         allocator,
         io,
-        "/var/tmp",
+        artifacts.dir_path(),
         "highlevel_libsamplerate_test_clip_media.",
         cl1.media.data_reference.signal.signal_generator,
     );
@@ -452,7 +456,7 @@ test "libsamplerate w/ high level test -- resample only"
     try cl_media_samples_for_tr_pres.write_file_prefix(
         allocator,
         io,
-        "/var/tmp/",
+        artifacts.dir_path(),
         "highlevel_libsamplerate_test_track_presentation.resampled_only.",
         null,
     );
@@ -464,6 +468,10 @@ test "libsamplerate w/ high level test.retime.interpolating"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
+
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
 
     var cl1 = otio.Clip {
         .name = "Clip w/ media ref pointing at a Sine Signal",
@@ -545,7 +553,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     try proj_topo_from_tl_pres.tree.write_dot_graph(
         allocator,
         io,
-        "/var/tmp/track_clip_warp.dot",
+        try artifacts.file_path(&path_buf, "track_clip_warp.dot"),
         "track_clip_warp",
         .{},
     );
@@ -576,7 +584,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     try media.write_file_prefix(
         allocator,
         io,
-        "/var/tmp",
+        artifacts.dir_path(),
         "highlevel_libsamplerate_test_clip_media.",
         cl1.media.data_reference.signal.signal_generator,
     );
@@ -608,7 +616,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     try result.write_file_prefix(
         allocator, 
         io,
-        "/var/tmp/",
+        artifacts.dir_path(),
         "highlevel_libsamplerate_test_track_presentation.retimed.",
         null,
     );
@@ -625,6 +633,9 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
+
+    var artifacts = try test_output.ArtifactDir.init(io);
+    defer artifacts.deinit();
 
     var cl1 = otio.Clip {
         .name = "Sine Wave",
@@ -725,7 +736,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     try media.write_file_prefix(
         allocator,
         io,
-        "/var/tmp",
+        artifacts.dir_path(),
         "highlevel_libsamplerate_test_clip_media.",
         cl1.media.data_reference.signal.signal_generator,
     );
@@ -758,7 +769,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     try indices_tr_pres.write_file_prefix(
         allocator, 
         io,
-        "/var/tmp/",
+        artifacts.dir_path(),
         "highlevel_libsamplerate_test_track_presentation.retimed.",
         null,
  

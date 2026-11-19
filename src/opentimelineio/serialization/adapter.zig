@@ -72,6 +72,7 @@ const bundle = @import("bundle.zig");
 const legacy_json = @import("legacy_json.zig");
 const references = @import("../references.zig");
 const versioning = @import("versioning.zig");
+const test_output = @import("test_output");
 
 // ============================================================================
 // Public Types
@@ -1202,13 +1203,10 @@ fn tmp_path(
     file_name: []const u8,
 ) ![]u8
 {
-    return std.fs.path.join(
-        allocator,
-        &.{
-            std.testing.TmpDir.parent_dir_path,
-            &tmp.sub_path,
-            file_name,
-        },
+    var path_buf: [test_output.MAX_PATH_BYTES]u8 = undefined;
+    return allocator.dupe(
+        u8,
+        try test_output.tmp_file_path(&tmp, &path_buf, file_name),
     );
 }
 
