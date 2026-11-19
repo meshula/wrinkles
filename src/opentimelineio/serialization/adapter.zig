@@ -1,13 +1,14 @@
-//! High level adapter interface which interprets file types and dispatches to
-//! format implementations.
+//! Format dispatch for wrinkles timeline files.
 //!
-//! ## Overview
+//! The public API is re-exported from root.zig; see there for an overview.
+//! This module implements it:
 //!
-//! This module provides a unified serialization API for wrinkles timeline files.
-//! The main entry points are:
-//!
-//! * `read_from_file()` / `write_to_file()` - File-based operations with auto-detection
-//! * `read_from_reader()` / `write_to_writer()` - Stream-based operations with explicit format
+//! * `read_root` / `write_root` read and write a `SerializableRoot` on a
+//!   stream, dispatching to the format's codec.
+//! * `read_root_from_file` / `write_root_to_file` add file handling and
+//!   bundles (.tlz/.tlcz), which are containers handled by bundle.zig.
+//! * `read_from_*` / `write_to_*` and the `serializable` namespace are thin
+//!   wrappers over those four.
 //!
 //! ## Supported File Formats
 //!
@@ -21,14 +22,16 @@
 //! | .tlcz     | Collection Bundle | ✓ | ✓ |
 //! | .otio     | Legacy OTIO v1 JSON | ✓ | - |
 //!
-//! ## API Layers
+//! ## Codecs
 //!
-//! **Top-level API** (this module):
-//! Returns `CompositionItemHandle` (schema types) for direct use with projection builders.
+//! Each codec module (ascii.zig, binary.zig, legacy_json.zig) exposes an
+//! optional `TimelineCodec` and/or `CollectionCodec`, each with `read`
+//! and/or `write`.  Read-only formats simply have no `write`.  Signatures,
+//! and agreement with the `FormatDescriptor` flags, are checked at compile
+//! time (see "Codec dispatch" below).
 //!
-//! **Serializable submodule** (`serializable`):
-//! Returns `SerializableRoot` for cases where you need to preserve/manipulate
-//! the serializable representation (e.g., metadata hash maps).
+//! Every read applies `ReadOptions.content_filter` and upgrades the result
+//! to `versioning.CURRENT_SCHEMA_VERSION` (`SerializableRoot.finalize`).
 //!
 //! ## Memory Ownership
 //!
@@ -47,20 +50,33 @@
 //! ## Examples
 //!
 //! ```zig
-//! // Simple read/write with auto-detection
-//! const handle = try read_from_file(allocator, "timeline.tla", .{});
+//! // Read a timeline (format from the extension) and write it as binary
+//! var handle = try read_from_file(allocator, io, "timeline.tla", .{});
 //! defer handle.deinit(allocator);
-//! try write_to_file(allocator, handle, "output.tlb", .{});
+//! try write_to_file(allocator, io, handle, "output.tlb", .{});
 //!
-//! // Reading with options
-//! const handle = try read_from_file(allocator, "timeline.otio", .{
-//!     .content_filter = .all_except_metadata,
-//! });
+//! // Skip metadata while reading
+//! var fast = try read_from_file(
+//!     allocator,
+//!     io,
+//!     "timeline.otio",
+//!     .{ .content_filter = .all_except_metadata },
+//! );
+//! defer fast.deinit(allocator);
 //!
-//! // Writing with format override
-//! try write_to_file(allocator, handle, "output.dat", .{
-//!     .format = .tla,  // Override extension-based detection
-//! });
+//! // Override extension-based detection
+//! try write_to_file(
+//!     allocator,
+//!     io,
+//!     handle,
+//!     "output.dat",
+//!     .{ .format = .tla },
+//! );
+//!
+//! // Keep the serializable form (metadata hash maps etc.)
+//! var root = try serializable.read_from_file(allocator, io, "in.tlz", .{});
+//! defer root.deinit(allocator);
+//! try serializable.write_to_writer(allocator, root, writer, .tla, .{});
 //! ```
 
 const std = @import("std");

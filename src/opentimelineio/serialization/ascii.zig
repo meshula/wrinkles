@@ -6,9 +6,9 @@
 //! (`*InlineMetadata`, `*NoMetadata`, `*StrippedMetadata`) used for the
 //! metadata output modes and for skipping metadata while parsing.
 //!
-//! Usage:
-//!   serialize_timeline() - Write Timeline to tla format
-//!   deserialize_timeline() - Read tla format back to Timeline
+//! Codec interface (see adapter.zig):
+//!   `TimelineCodec.read` / `.write`   - .tla
+//!   `CollectionCodec.read` / `.write` - .tlca
 
 const std = @import("std");
 

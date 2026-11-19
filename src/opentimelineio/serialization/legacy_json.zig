@@ -2,6 +2,10 @@
 //!
 //! Omits support for Effects, Transitions since that format has diverged.
 //! Infers discrete partitions.
+//!
+//! Codec interface (see adapter.zig): `TimelineCodec.read` only (.otio is
+//! read-only).  Non-timeline root objects are wrapped in a timeline, and the
+//! result is schema version 0, upgraded by the adapter.
 
 const std = @import("std");
 const test_output = @import("test_output");

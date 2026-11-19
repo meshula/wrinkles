@@ -9,6 +9,12 @@
 //! - version.txt: Format version string
 //! - content.tlca or content.tlcb: Collection data
 //! - media/: Directory containing media files (optional)
+//!
+//! Bundles are containers, not codecs: `read_root_from_file` and
+//! `write_root_to_file` handle the ZIP archive and media, and encode or
+//! decode the content entry through `adapter.read_root` / `write_root`.
+//! When writing, relative media URIs are resolved against
+//! `BundleOptions.media_base_dir`; the caller's data is not modified.
 
 const std = @import("std");
 const test_output = @import("test_output");
