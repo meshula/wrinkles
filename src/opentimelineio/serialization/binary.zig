@@ -1693,11 +1693,12 @@ fn fb_to_serializable_composable(
 /// This is the preferred method when you need to preserve metadata through
 /// the binary format.
 pub fn serialize_from_serializable_timeline(
-    ser_timeline: SerializableTimeline,
+    doc: serializable.Document(SerializableTimeline),
     allocator: Allocator,
     writer: anytype,
 ) !void
 {
+    const ser_timeline = doc.content;
     const enable_timing = build_options.enable_tlb_timing;
     var last_ts: u64 = if (enable_timing) std.c.mach_absolute_time() else 0;
 
@@ -1742,7 +1743,7 @@ pub fn serialize_from_serializable_timeline(
 
     // Build Timeline root WITHOUT metadata_map (it will be stored separately)
     const timeline_ref = try timeline_builder.writeTable(tlb.Timeline, .{
-        .schema_version = ser_timeline.schema_version,
+        .schema_version = doc.schema_version,
         .name = ser_timeline.name,
         .children = children,
         .presentation_space_discrete_partitions = discrete_partitions,
@@ -1819,7 +1820,7 @@ pub fn deserialize_to_serializable_timeline(
     allocator: Allocator,
     data: []const u8,
     content_filter: format_m.ReadOptions.ContentFilter,
-) !SerializableTimeline
+) !serializable.Document(SerializableTimeline)
 {
     const header = try read_header(data);
 
@@ -1896,10 +1897,12 @@ pub fn deserialize_to_serializable_timeline(
 
     return .{
         .schema_version = fb_timeline.schema_version(),
-        .name = if (fb_timeline.name()) |n| try allocator.dupe(u8, n) else "",
-        .children = try children.toOwnedSlice(allocator),
-        .presentation_space_discrete_partitions = discrete_partitions,
-        .metadata_map = metadata_map,
+        .content = .{
+            .name = if (fb_timeline.name()) |n| try allocator.dupe(u8, n) else "",
+            .children = try children.toOwnedSlice(allocator),
+            .presentation_space_discrete_partitions = discrete_partitions,
+            .metadata_map = metadata_map,
+        },
     };
 }
 
@@ -1976,8 +1979,8 @@ fn serializable_collection_item_to_fb(
             // Convert markers
             const markers_fb = try serializable_markers_to_fb(builder, tl.markers);
 
+            // The version lives on the document root only.
             const timeline_ref = try builder.writeTable(tlb.Timeline, .{
-                .schema_version = tl.schema_version,
                 .name = tl.name,
                 .children = children,
                 .presentation_space_discrete_partitions = discrete_partitions,
@@ -2170,8 +2173,8 @@ fn fb_to_serializable_collection_item(
             const markers = try fb_to_serializable_markers(allocator, fb_tl.markers());
 
             break :blk .{
+                // Any version on a nested timeline is ignored.
                 .timeline = .{
-                    .schema_version = fb_tl.schema_version(),
                     .name = if (fb_tl.name()) |n| try allocator.dupe(u8, n) else "",
                     .children = try children.toOwnedSlice(allocator),
                     .presentation_space_discrete_partitions = discrete_partitions,
@@ -2314,11 +2317,12 @@ fn fb_to_serializable_collection_item(
 
 /// Serialize a SerializableCollection to FlatBuffers format (.tlcb).
 pub fn serialize_collection(
-    collection: serializable.SerializableCollection,
+    doc: serializable.Document(serializable.SerializableCollection),
     allocator: Allocator,
     writer: anytype,
 ) !void
 {
+    const collection = doc.content;
     // Use arena allocator for all temporary allocations during serialization
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
@@ -2347,7 +2351,7 @@ pub fn serialize_collection(
 
     // Build Collection root
     const collection_ref = try builder.writeTable(tlb.Collection, .{
-        .schema_version = collection.schema_version,
+        .schema_version = doc.schema_version,
         .name = collection.name,
         .description = collection.description,
         .children = children,
@@ -2368,7 +2372,7 @@ pub fn serialize_collection(
 pub fn deserialize_collection(
     allocator: Allocator,
     data: []const u8,
-) !serializable.SerializableCollection
+) !serializable.Document(serializable.SerializableCollection)
 {
     _ = try read_collection_header(data);
 
@@ -2406,10 +2410,12 @@ pub fn deserialize_collection(
 
     return .{
         .schema_version = fb_collection.schema_version(),
-        .name = if (fb_collection.name()) |n| try allocator.dupe(u8, n) else "",
-        .description = if (fb_collection.description()) |d| try allocator.dupe(u8, d) else "",
-        .children = try children.toOwnedSlice(allocator),
-        .metadata_map = metadata_map,
+        .content = .{
+            .name = if (fb_collection.name()) |n| try allocator.dupe(u8, n) else "",
+            .description = if (fb_collection.description()) |d| try allocator.dupe(u8, d) else "",
+            .children = try children.toOwnedSlice(allocator),
+            .metadata_map = metadata_map,
+        },
     };
 }
 
@@ -2518,7 +2524,6 @@ test "tlb: metadata_offset written correctly when metadata present"
 
     // Create timeline with metadata
     const timeline = SerializableTimeline{
-        .schema_version = 1,
         .name = "Test Timeline",
         .children = &.{},
         .metadata_map = metadata,
@@ -2528,7 +2533,7 @@ test "tlb: metadata_offset written correctly when metadata present"
     // Serialize
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
 
     // Read header and verify metadata_offset is non-zero
     const header = try read_header(buffer.written());
@@ -2542,7 +2547,6 @@ test "tlb: metadata_offset is 0 when no metadata"
 
     // Create timeline without metadata
     const timeline = SerializableTimeline{
-        .schema_version = 1,
         .name = "No Metadata Timeline",
         .children = &.{},
         .metadata_map = null,
@@ -2552,7 +2556,7 @@ test "tlb: metadata_offset is 0 when no metadata"
     // Serialize
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
 
     // Read header and verify metadata_offset is 0
     const header = try read_header(buffer.written());
@@ -2576,7 +2580,6 @@ test "tlb: round-trip with metadata preserved"
 
     // Create timeline with metadata
     const timeline = SerializableTimeline{
-        .schema_version = 1,
         .name = "Test Timeline",
         .children = &.{},
         .metadata_map = metadata,
@@ -2586,10 +2589,10 @@ test "tlb: round-trip with metadata preserved"
     // Serialize
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
 
     // Deserialize with metadata
-    var deserialized = try deserialize_to_serializable_timeline(
+    var deserialized = try test_decode_tlb(
         allocator,
         buffer.written(),
         .all,
@@ -2622,7 +2625,6 @@ test "tlb: round-trip without metadata (skip on read)"
 
     // Create timeline with metadata
     const timeline = SerializableTimeline{
-        .schema_version = 1,
         .name = "Test Timeline",
         .children = &.{},
         .metadata_map = metadata,
@@ -2632,10 +2634,10 @@ test "tlb: round-trip without metadata (skip on read)"
     // Serialize with metadata
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
 
     // Deserialize WITHOUT metadata
-    var deserialized = try deserialize_to_serializable_timeline(
+    var deserialized = try test_decode_tlb(
         allocator,
         buffer.written(),
         .all_except_metadata,
@@ -2656,7 +2658,6 @@ test "tlb: empty metadata_map serialization"
     const empty_map: MetadataMap = .empty;
 
     const timeline = SerializableTimeline{
-        .schema_version = 1,
         .name = "Empty Metadata",
         .children = &.{},
         .metadata_map = empty_map,
@@ -2666,7 +2667,7 @@ test "tlb: empty metadata_map serialization"
     // Serialize
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
 
     // Empty metadata map should result in metadata_offset = 0 (treated as no metadata)
     const header = try read_header(buffer.written());
@@ -2701,7 +2702,6 @@ test "tlb: large metadata handling"
     try metadata.fields.put(allocator, "large_hash", .{ .kv = inner });
 
     const timeline = SerializableTimeline{
-        .schema_version = 1,
         .name = "Large Metadata",
         .children = &.{},
         .metadata_map = metadata,
@@ -2711,10 +2711,10 @@ test "tlb: large metadata handling"
     // Serialize
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
 
     // Round-trip verification
-    var result = try deserialize_to_serializable_timeline(allocator, buffer.written(), .all);
+    var result = try test_decode_tlb(allocator, buffer.written(), .all);
     defer result.deinit(allocator);
 
     try std.testing.expect(result.metadata_map != null);
@@ -2749,7 +2749,6 @@ test "tlb: complex nested metadata round-trip"
     try metadata.fields.put(allocator, "complex_hash", .{ .kv = inner });
 
     const timeline = SerializableTimeline{
-        .schema_version = 1,
         .name = "Complex Metadata",
         .children = &.{},
         .metadata_map = metadata,
@@ -2759,9 +2758,9 @@ test "tlb: complex nested metadata round-trip"
     // Serialize and round-trip
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
 
-    var result = try deserialize_to_serializable_timeline(allocator, buffer.written(), .all);
+    var result = try test_decode_tlb(allocator, buffer.written(), .all);
     defer result.deinit(allocator);
 
     // Verify nested structure
@@ -2793,7 +2792,6 @@ test "tlb: metadata offset points to correct boundary"
     try metadata.fields.put(allocator, "hash", .{ .kv = inner });
 
     const timeline = SerializableTimeline{
-        .schema_version = 1,
         .name = "Test",
         .children = &.{},
         .metadata_map = metadata,
@@ -2803,7 +2801,7 @@ test "tlb: metadata offset points to correct boundary"
     // Serialize
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(timeline, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
 
     const header = try read_header(buffer.written());
 
@@ -2843,7 +2841,12 @@ fn test_tla_text(
 {
     var out: std.Io.Writer.Allocating = .init(allocator);
     errdefer out.deinit();
-    try ascii.TimelineCodec.write(allocator, timeline, &out.writer, .{});
+    try ascii.TimelineCodec.write(
+        allocator,
+        .{ .schema_version = 1, .content = timeline },
+        &out.writer,
+        .{},
+    );
     return try out.toOwnedSlice();
 }
 
@@ -2862,7 +2865,22 @@ fn test_read_tla_file(
     );
     defer allocator.free(bytes);
     var reader: std.Io.Reader = .fixed(bytes);
-    return try ascii.TimelineCodec.read(allocator, &reader, .{});
+    return (try ascii.TimelineCodec.read(allocator, &reader, .{})).content;
+}
+
+/// Test helper: decode TLB bytes to just the timeline content.
+fn test_decode_tlb(
+    allocator: Allocator,
+    data: []const u8,
+    content_filter: format_m.ReadOptions.ContentFilter,
+) !SerializableTimeline
+{
+    const doc = try deserialize_to_serializable_timeline(
+        allocator,
+        data,
+        content_filter,
+    );
+    return doc.content;
 }
 
 /// Helper to run a single roundtrip test given file paths
@@ -2901,7 +2919,7 @@ fn run_roundtrip_test_from_paths(
     };
     defer allocator.free(tlb_content);
 
-    var timeline_from_tlb = try deserialize_to_serializable_timeline(
+    var timeline_from_tlb = try test_decode_tlb(
         allocator,
         tlb_content,
         .all,
@@ -3080,7 +3098,7 @@ test "binary: deserialize just_warp.tlb and deinit (leak test)"
     defer allocator.free(tlb_content);
 
     // Deserialize to SerializableTimeline
-    var timeline = try deserialize_to_serializable_timeline(
+    var timeline = try test_decode_tlb(
         allocator,
         tlb_content,
         .all,
@@ -3231,13 +3249,13 @@ test "roundtrip: production_test_files (optional)"
 // Codec interface (see adapter.zig)
 // ----------------------------------------------------------------------------
 
-/// TLB: timeline root in FlatBuffers.
+/// TLB: timeline document in FlatBuffers.
 pub const TimelineCodec = struct {
     pub fn read(
         allocator: Allocator,
         reader: *std.Io.Reader,
         options: format_m.ReadOptions,
-    ) !serializable.SerializableTimeline
+    ) !serializable.Document(serializable.SerializableTimeline)
     {
         const buffer = try reader.allocRemaining(allocator, .unlimited);
         defer allocator.free(buffer);
@@ -3251,24 +3269,24 @@ pub const TimelineCodec = struct {
 
     pub fn write(
         allocator: Allocator,
-        data: serializable.SerializableTimeline,
+        doc: serializable.Document(serializable.SerializableTimeline),
         writer: *std.Io.Writer,
         options: format_m.WriteOptions,
     ) !void
     {
         // TLB always stores metadata by hash reference.
         _ = options;
-        try serialize_from_serializable_timeline(data, allocator, writer);
+        try serialize_from_serializable_timeline(doc, allocator, writer);
     }
 };
 
-/// TLCB: collection root in FlatBuffers.
+/// TLCB: collection document in FlatBuffers.
 pub const CollectionCodec = struct {
     pub fn read(
         allocator: Allocator,
         reader: *std.Io.Reader,
         options: format_m.ReadOptions,
-    ) !serializable.SerializableCollection
+    ) !serializable.Document(serializable.SerializableCollection)
     {
         // all_except_metadata is applied by the adapter after decoding.
         _ = options;
@@ -3280,13 +3298,13 @@ pub const CollectionCodec = struct {
 
     pub fn write(
         allocator: Allocator,
-        data: serializable.SerializableCollection,
+        doc: serializable.Document(serializable.SerializableCollection),
         writer: *std.Io.Writer,
         options: format_m.WriteOptions,
     ) !void
     {
         // TLCB always stores metadata by hash reference.
         _ = options;
-        try serialize_collection(data, allocator, writer);
+        try serialize_collection(doc, allocator, writer);
     }
 };

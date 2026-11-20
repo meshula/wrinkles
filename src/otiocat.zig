@@ -570,12 +570,12 @@ fn expect_roundtrip_through(
     defer roundtrip.deinit(allocator);
 
     try std.testing.expectEqualStrings(
-        original.timeline.name,
-        roundtrip.timeline.name,
+        original.content.timeline.name,
+        roundtrip.content.timeline.name,
     );
     try std.testing.expectEqual(
-        original.timeline.children.len,
-        roundtrip.timeline.children.len,
+        original.content.timeline.children.len,
+        roundtrip.content.timeline.children.len,
     );
 }
 

@@ -187,15 +187,14 @@ fn read_transform(
                 }
             }
 
-            const result = topology.Topology {
-                .mappings = &.{ 
-                    topology.MappingCurveLinearMonotonic.init_knots(
-                        try buffer.toOwnedSlice(allocator),
-                    ).mapping(),
-                },
-            };
-
-            return result;
+            // Copies the knots (the buffer is freed above) and heap-allocates
+            // the mappings slice.  (This used to return `&.{ ... }`, a
+            // pointer to a stack temporary, which read back as garbage in
+            // optimized builds.)
+            return try topology.Topology.init_linear_knots(
+                allocator,
+                buffer.items,
+            );
         },
         .BezierCurve1D => {
             var buffer: std.ArrayList(curve.ControlPoint) = .empty;
@@ -326,17 +325,29 @@ fn read_ordinate_from_rt(
     }
 }
 
+/// The integer frame rate of a RationalTime object, or null if it has none.
+/// OTIO writes rates as JSON floats (`24.0`) as often as integers (`24`);
+/// both are accepted when the value is a positive whole number.
 fn read_rate(
     maybe_obj:?std.json.ObjectMap
 ) ?u32
 {
-    if (maybe_obj)
-        |o|
-    {
-        return _read_maybe(u32, o, "rate") orelse null;
-    }
-
-    return null;
+    const obj = maybe_obj orelse return null;
+    const value = obj.get("rate") orelse return null;
+    const max_rate: f64 = @floatFromInt(std.math.maxInt(u32));
+    return switch (value) {
+        .integer => |i| (
+            if (i > 0 and i <= std.math.maxInt(u32)) @as(u32, @intCast(i))
+            else null
+        ),
+        .float => |f| (
+            if (f > 0 and f <= max_rate and @floor(f) == f)
+                @as(u32, @intFromFloat(f))
+            else
+                null
+        ),
+        else => null,
+    };
 }
 
 fn read_time_range(
@@ -1373,6 +1384,10 @@ test "read_from_file with all_except_metadata on OTIO JSON file"
 /// Schema version of data converted from OTIO JSON.
 const OTIO_JSON_VERSION: u32 = 0;
 
+/// Name of the track created when a non-timeline OTIO root (e.g. a bare
+/// Clip) is wrapped in a timeline.
+const WRAPPER_TRACK_NAME = "Track-001";
+
 fn wrap_in_timeline(
     allocator: std.mem.Allocator,
     composable: serializable.SerializableComposable,
@@ -1388,7 +1403,7 @@ fn wrap_in_timeline(
     track_children[0] = composable;
 
     const ser_track = serializable.SerializableTrack{
-        .name = try allocator.dupe(u8, "Wrapper Track for "),
+        .name = try allocator.dupe(u8, WRAPPER_TRACK_NAME),
         .children = track_children,
     };
 
@@ -1435,7 +1450,7 @@ fn otio_json_to_serializable_timeline(
     };
 
     // Convert to serializable.SerializableTimeline based on root object type
-    var intermediate_tl: serializable.SerializableTimeline = switch (composition_handle) {
+    const intermediate_tl: serializable.SerializableTimeline = switch (composition_handle) {
         .timeline => |tl| try serializable.SerializableTimeline.from(
             allocator,
             tl,
@@ -1499,10 +1514,6 @@ fn otio_json_to_serializable_timeline(
         .collection => return error.UnsupportedRootObject,
     };
 
-    // OTIO JSON is schema version 0; readers upgrade it via
-    // serializable.finalize_timeline.
-    intermediate_tl.schema_version = OTIO_JSON_VERSION;
-
     return intermediate_tl;
 }
 
@@ -1513,7 +1524,7 @@ pub const TimelineCodec = struct {
         allocator: std.mem.Allocator,
         reader: *std.Io.Reader,
         options: format_m.ReadOptions,
-    ) !serializable.SerializableTimeline
+    ) !serializable.Document(serializable.SerializableTimeline)
     {
         // all_except_metadata is applied by the adapter after conversion.
         _ = options;
@@ -1521,6 +1532,59 @@ pub const TimelineCodec = struct {
         const source = try reader.allocRemaining(allocator, .unlimited);
         defer allocator.free(source);
 
-        return try otio_json_to_serializable_timeline(allocator, source);
+        // OTIO JSON is schema version 0; the adapter upgrades it.
+        return .{
+            .schema_version = OTIO_JSON_VERSION,
+            .content = try otio_json_to_serializable_timeline(allocator, source),
+        };
     }
 };
+
+/// Test helper: import an OTIO file through the codec.
+fn test_import(
+    allocator: std.mem.Allocator,
+    path: []const u8,
+) !serializable.SerializableTimeline
+{
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(
+        std.testing.io,
+        path,
+        allocator,
+        .unlimited,
+    );
+    defer allocator.free(bytes);
+    var reader: std.Io.Reader = .fixed(bytes);
+    const doc = try TimelineCodec.read(allocator, &reader, .{});
+    return doc.content;
+}
+
+test "legacy_json: whole-number float rates infer discrete partitions"
+{
+    const allocator = std.testing.allocator;
+
+    // OTIO writes `"rate": 24.0`; that must be treated like `"rate": 24`.
+    var timeline = try test_import(
+        allocator,
+        "test_files/simple_cut_with_markers.otio",
+    );
+    defer timeline.deinit(allocator);
+
+    const clip = timeline.children[0].track.children[0].clip;
+    try std.testing.expect(clip.bounds_s.? == .discrete);
+    try std.testing.expect(clip.media.discrete_partition != null);
+}
+
+test "legacy_json: a bare root object is wrapped in Track-001"
+{
+    const allocator = std.testing.allocator;
+
+    var timeline = try test_import(allocator, "test_files/just_clip.otio");
+    defer timeline.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 1), timeline.children.len);
+    try std.testing.expectEqualStrings(
+        WRAPPER_TRACK_NAME,
+        timeline.children[0].track.name,
+    );
+    try std.testing.expect(timeline.children[0].track.children[0] == .clip);
+}

@@ -279,7 +279,7 @@ pub fn write_root_to_file(
             .policy = bundle_opts.media_policy,
             .maybe_base_dir = bundle_opts.media_base_dir,
         };
-        switch (working) {
+        switch (working.content) {
             .timeline => |*tl| try collector.walk_timeline(tl),
             .collection => |*coll| try collector.walk_collection(coll),
         }
@@ -860,7 +860,6 @@ test "tlz_bundle: write and verify ZIP structure"
 
     // Create a minimal SerializableTimeline
     const timeline = serializable.SerializableTimeline{
-        .schema_version = 1,
         .name = "Test Timeline",
         .children = &.{},
         .presentation_space_discrete_partitions = .{},
@@ -879,7 +878,7 @@ test "tlz_bundle: write and verify ZIP structure"
     try write_root_to_file(
         allocator,
         io,
-        .{ .timeline = timeline },
+        .{ .content = .{ .timeline = timeline } },
         test_path,
         .tlz,
         .{},
@@ -948,7 +947,7 @@ test "tlz_bundle: media bundling with app.png"
 
     const original_uri = try allocator.dupe(
         u8,
-        first_clip_uri(root.timeline.children).?,
+        first_clip_uri(root.content.timeline.children).?,
     );
     defer allocator.free(original_uri);
 
@@ -979,7 +978,7 @@ test "tlz_bundle: media bundling with app.png"
     // The caller's data is unchanged by bundling.
     try std.testing.expectEqualStrings(
         original_uri,
-        first_clip_uri(root.timeline.children).?,
+        first_clip_uri(root.content.timeline.children).?,
     );
 
     // Verify ZIP structure
@@ -998,7 +997,7 @@ test "tlz_bundle: media bundling with app.png"
     var bundled = try read_root_from_file(allocator, io, test_path, .tlz, .{});
     defer bundled.deinit(allocator);
 
-    const bundled_uri = first_clip_uri(bundled.timeline.children).?;
+    const bundled_uri = first_clip_uri(bundled.content.timeline.children).?;
     try std.testing.expect(
         std.mem.startsWith(u8, bundled_uri, utils.BUNDLE_DIR_NAME ++ "/")
     );

@@ -10,7 +10,7 @@
 
 const std = @import("std");
 
-const TLA_ROOT = "$ = Timeline\n";
+const TLA_ROOT = "$ = TimelineDocument\n";
 const TLCA_ROOT = "$ = Collection\n";
 
 /// The generated TLCA schema.

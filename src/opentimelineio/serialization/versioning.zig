@@ -6,8 +6,9 @@
 //!
 //! This module provides:
 //! - `CURRENT_SCHEMA_VERSION`, the version this library reads and writes
-//! - Comptime tables of single-version upgrade and downgrade steps for each
-//!   root type, checked for completeness at compile time
+//! - `DocumentUpgrades` / `DocumentDowngrades`: comptime tables of
+//!   single-version steps on the whole document (`SerializableRoot`),
+//!   checked for completeness at compile time
 //! - `upgrade_with` / `downgrade_with`, which walk those tables
 
 const std = @import("std");
@@ -29,7 +30,7 @@ pub const CURRENT_SCHEMA_VERSION: u32 = 1;
 // Every step is explicit: a step either names a transform function or is
 // marked `.none` to say the data needs no changes.  Upgrade tables are
 // checked at compile time to contain exactly one step for every version from
-// the oldest readable version of that root type up to the current version, so
+// the oldest readable version up to the current version, so
 // forgetting a step fails the build instead of silently relabelling data.
 //
 // Data with a schema version newer than the current version is unreadable:
@@ -37,9 +38,9 @@ pub const CURRENT_SCHEMA_VERSION: u32 = 1;
 //
 // To add a schema version:
 // 1. Bump `CURRENT_SCHEMA_VERSION`.
-// 2. Add the `N-1 -> N` step to every root type's upgrade table (a
-//    transform, or `.none`).
-// 3. Optionally add the `N -> N-1` step to the downgrade tables.
+// 2. Add the `N-1 -> N` step to `DocumentUpgrades` (a transform, or
+//    `.none`); a transform handles each root kind it affects.
+// 3. Optionally add the `N -> N-1` step to `DocumentDowngrades`.
 
 /// Errors produced when moving data between schema versions.
 pub const VersionError = error{
@@ -383,170 +384,135 @@ pub fn downgrade_targets(
 }
 
 const serializable = @import("serializable.zig");
-const SerializableTimeline = serializable.SerializableTimeline;
-const SerializableCollection = serializable.SerializableCollection;
+const SerializableRoot = serializable.SerializableRoot;
 
-/// Oldest timeline schema version that can be read.  v0 is OTIO-JSON-shaped
-/// data produced by the legacy importer.
+/// Oldest timeline document version that can be read.  v0 is
+/// OTIO-JSON-shaped data produced by the legacy importer.
 pub const OLDEST_TIMELINE_VERSION: u32 = 0;
 
-/// Oldest collection schema version that can be read.  Collections were
+/// Oldest collection document version that can be read.  Collections were
 /// introduced in v1.
 pub const OLDEST_COLLECTION_VERSION: u32 = 1;
 
-/// Timeline upgrade steps, from `OLDEST_TIMELINE_VERSION` to current.
-pub const TimelineUpgrades = TransformTable(
-    SerializableTimeline,
+/// v0 -> v1: fill in transition containers missing from OTIO-JSON-shaped
+/// timelines.  (No v0 collections exist; `SerializableRoot.finalize` rejects
+/// them before the table runs.)
+fn upgrade_document_v0_to_v1(
+    allocator: Allocator,
+    root: *SerializableRoot,
+) anyerror!void
+{
+    switch (root.content) {
+        .timeline => |*timeline| try serializable.fix_v0_transitions(
+            allocator,
+            timeline,
+        ),
+        .collection => return VersionError.UpgradeNotSupported,
+    }
+}
+
+/// Document upgrade steps.  Each step handles every root kind it applies
+/// to; the version lives on the root.
+pub const DocumentUpgrades = TransformTable(
+    SerializableRoot,
     .upgrade,
     &.{
         .{
-            // Fills in transition containers missing from v0 data.
             .from = 0,
             .to = 1,
-            .change = .{
-                .transform = serializable.upgrade_timeline_v0_to_v1,
-            },
+            .change = .{ .transform = upgrade_document_v0_to_v1 },
         },
     },
 );
 
-/// Timeline downgrade steps.  None are registered yet.
-pub const TimelineDowngrades = TransformTable(
-    SerializableTimeline,
-    .downgrade,
-    &.{},
-);
-
-/// Collection upgrade steps, from `OLDEST_COLLECTION_VERSION` to current.
-pub const CollectionUpgrades = TransformTable(
-    SerializableCollection,
-    .upgrade,
-    &.{},
-);
-
-/// Collection downgrade steps.  None are registered yet.
-pub const CollectionDowngrades = TransformTable(
-    SerializableCollection,
+/// Document downgrade steps.  None are registered yet.
+pub const DocumentDowngrades = TransformTable(
+    SerializableRoot,
     .downgrade,
     &.{},
 );
 
 comptime {
-    const checks = .{
-        .{ "TimelineUpgrades", upgrade_table_problem(
-            TimelineUpgrades,
-            OLDEST_TIMELINE_VERSION,
-            CURRENT_SCHEMA_VERSION,
-        ) },
-        .{ "TimelineDowngrades", downgrade_table_problem(
-            TimelineDowngrades,
-            CURRENT_SCHEMA_VERSION,
-        ) },
-        .{ "CollectionUpgrades", upgrade_table_problem(
-            CollectionUpgrades,
-            OLDEST_COLLECTION_VERSION,
-            CURRENT_SCHEMA_VERSION,
-        ) },
-        .{ "CollectionDowngrades", downgrade_table_problem(
-            CollectionDowngrades,
-            CURRENT_SCHEMA_VERSION,
-        ) },
-    };
-    for (checks)
-        |check|
+    const oldest = @min(OLDEST_TIMELINE_VERSION, OLDEST_COLLECTION_VERSION);
+    if (upgrade_table_problem(DocumentUpgrades, oldest, CURRENT_SCHEMA_VERSION))
+        |problem|
     {
-        if (check[1])
-            |problem|
-        {
-            @compileError(check[0] ++ ": " ++ problem);
-        }
+        @compileError("DocumentUpgrades: " ++ problem);
+    }
+    if (downgrade_table_problem(DocumentDowngrades, CURRENT_SCHEMA_VERSION))
+        |problem|
+    {
+        @compileError("DocumentDowngrades: " ++ problem);
     }
 }
 
-/// Schema versions a timeline can be written as, newest first.
-pub const TIMELINE_WRITE_VERSIONS = downgrade_targets(
-    TimelineDowngrades,
-    CURRENT_SCHEMA_VERSION,
+/// Keep only versions at or above `oldest` (comptime).
+fn at_least(
+    comptime versions: []const u32,
+    comptime oldest: u32,
+) []const u32
+{
+    comptime {
+        var result: []const u32 = &.{};
+        for (versions)
+            |version|
+        {
+            if (version >= oldest)
+            {
+                result = result ++ &[_]u32{version};
+            }
+        }
+        const final = result[0..result.len].*;
+        return &final;
+    }
+}
+
+/// Schema versions a timeline document can be written as, newest first.
+pub const TIMELINE_WRITE_VERSIONS = at_least(
+    downgrade_targets(DocumentDowngrades, CURRENT_SCHEMA_VERSION),
+    OLDEST_TIMELINE_VERSION,
 );
 
-/// Schema versions a collection can be written as, newest first.
-pub const COLLECTION_WRITE_VERSIONS = downgrade_targets(
-    CollectionDowngrades,
-    CURRENT_SCHEMA_VERSION,
+/// Schema versions a collection document can be written as, newest first.
+pub const COLLECTION_WRITE_VERSIONS = at_least(
+    downgrade_targets(DocumentDowngrades, CURRENT_SCHEMA_VERSION),
+    OLDEST_COLLECTION_VERSION,
 );
-
-/// Upgrade a SerializableTimeline to `to_version`.
-pub fn upgrade_timeline(
-    allocator: Allocator,
-    data: *SerializableTimeline,
-    to_version: u32,
-) !void
-{
-    try upgrade_with(TimelineUpgrades, allocator, data, to_version);
-}
-
-/// Downgrade a SerializableTimeline to `to_version`.
-pub fn downgrade_timeline(
-    allocator: Allocator,
-    data: *SerializableTimeline,
-    to_version: u32,
-) !void
-{
-    try downgrade_with(TimelineDowngrades, allocator, data, to_version);
-}
-
-/// Upgrade a SerializableCollection to `to_version`.
-pub fn upgrade_collection(
-    allocator: Allocator,
-    data: *SerializableCollection,
-    to_version: u32,
-) !void
-{
-    try upgrade_with(CollectionUpgrades, allocator, data, to_version);
-}
-
-/// Downgrade a SerializableCollection to `to_version`.
-pub fn downgrade_collection(
-    allocator: Allocator,
-    data: *SerializableCollection,
-    to_version: u32,
-) !void
-{
-    try downgrade_with(CollectionDowngrades, allocator, data, to_version);
-}
 
 // ----------------------------------------------------------------------------
 // Tests
 // ----------------------------------------------------------------------------
 
-test "versioning: upgrade_timeline is a no-op at the current version"
+test "versioning: DocumentUpgrades is a no-op at the current version"
 {
     const allocator = std.testing.allocator;
 
-    var tl = serializable.SerializableTimeline{
-        .name = "",
-        .children = &.{},
-        .presentation_space_discrete_partitions = .{},
+    var root: SerializableRoot = .{
+        .content = .{
+            .timeline = .{
+                .name = "",
+                .children = &.{},
+                .presentation_space_discrete_partitions = .{},
+            },
+        },
     };
 
-    try upgrade_timeline(allocator, &tl, CURRENT_SCHEMA_VERSION);
-    try std.testing.expectEqual(CURRENT_SCHEMA_VERSION, tl.schema_version);
+    try upgrade_with(DocumentUpgrades, allocator, &root, CURRENT_SCHEMA_VERSION);
+    try std.testing.expectEqual(CURRENT_SCHEMA_VERSION, root.schema_version);
 }
 
-test "versioning: upgrade_timeline rejects data newer than supported"
+test "versioning: DocumentUpgrades rejects data newer than supported"
 {
     const allocator = std.testing.allocator;
 
-    var tl = serializable.SerializableTimeline{
+    var root: SerializableRoot = .{
         .schema_version = CURRENT_SCHEMA_VERSION + 1,
-        .name = "",
-        .children = &.{},
-        .presentation_space_discrete_partitions = .{},
+        .content = .{ .collection = .{ .children = &.{} } },
     };
 
     try std.testing.expectError(
         VersionError.SchemaVersionNewerThanSupported,
-        upgrade_timeline(allocator, &tl, CURRENT_SCHEMA_VERSION),
+        upgrade_with(DocumentUpgrades, allocator, &root, CURRENT_SCHEMA_VERSION),
     );
 }
 
@@ -864,35 +830,23 @@ test "versioning: data older than the oldest readable version is rejected"
     try std.testing.expectEqual(@as(u32, 4), oldest.schema_version);
 }
 
-test "versioning: collection tables"
+test "versioning: write versions respect the oldest version per root kind"
 {
-    const allocator = std.testing.allocator;
-
-    var current: SerializableCollection = .{ .children = &.{} };
-    try std.testing.expectEqual(CURRENT_SCHEMA_VERSION, current.schema_version);
-    try upgrade_collection(allocator, &current, CURRENT_SCHEMA_VERSION);
-    try std.testing.expectEqual(CURRENT_SCHEMA_VERSION, current.schema_version);
-
-    var newer: SerializableCollection = .{
-        .schema_version = CURRENT_SCHEMA_VERSION + 1,
-        .children = &.{},
-    };
-    try std.testing.expectError(
-        VersionError.SchemaVersionNewerThanSupported,
-        upgrade_collection(allocator, &newer, CURRENT_SCHEMA_VERSION),
-    );
-
-    if (OLDEST_COLLECTION_VERSION > 0)
+    for (COLLECTION_WRITE_VERSIONS)
+        |version|
     {
-        var too_old: SerializableCollection = .{
-            .schema_version = OLDEST_COLLECTION_VERSION - 1,
-            .children = &.{},
-        };
-        try std.testing.expectError(
-            VersionError.UpgradeNotSupported,
-            upgrade_collection(allocator, &too_old, CURRENT_SCHEMA_VERSION),
-        );
+        try std.testing.expect(version >= OLDEST_COLLECTION_VERSION);
     }
+    for (TIMELINE_WRITE_VERSIONS)
+        |version|
+    {
+        try std.testing.expect(version >= OLDEST_TIMELINE_VERSION);
+    }
+    try std.testing.expectEqualSlices(
+        u32,
+        &.{ 3, 2 },
+        comptime at_least(&.{ 3, 2, 1, 0 }, 2),
+    );
 }
 
 test "versioning: downgrade_targets lists reachable versions newest first"

@@ -6,12 +6,12 @@
         "presentation": {
             "picture": {
                 "OTIO_SCHEMA": "DiscreteSpacePartition.1",
-                "sample_rate_hz": { "Int": 24 },
+                "sample_rate_hz": { "Integer": 24 },
                 "start_index": 100
             },
             "audio": {
                 "OTIO_SCHEMA": "DiscreteSpacePartition.1",
-                "sample_rate_hz": { "Int": 100 },
+                "sample_rate_hz": { "Integer": 100 },
                 "start_index": 0
             }
         }

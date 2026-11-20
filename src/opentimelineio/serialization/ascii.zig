@@ -282,12 +282,76 @@ pub const SerializableTransitionNoMetadata = struct {
     bounds_s: ?SerializableContinuousInterval = null,
 };
 
+/// TLA file layout of a timeline document: the in-memory
+/// `SerializableTimeline` fields plus the document's schema version.
+/// Timelines nested in collections are plain `SerializableTimeline`, which
+/// has no version field (a nested version is an unknown-field error).
+pub const TlaTimeline = struct {
+    pub const schema_name: []const u8 = "Timeline";
+
+    /// The document's schema version (required).
+    schema_version: u32,
+    name: []const u8 = "",
+    children: []SerializableComposable,
+    presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
+    metadata_map: ?MetadataMap = null,
+    markers: []SerializableMarker = &.{},
+
+    /// Document layout for `timeline` at `schema_version`.
+    fn from(
+        timeline: SerializableTimeline,
+        schema_version: u32,
+    ) TlaTimeline
+    {
+        return .{
+            .schema_version = schema_version,
+            .name = timeline.name,
+            .children = timeline.children,
+            .presentation_space_discrete_partitions = (
+                timeline.presentation_space_discrete_partitions
+            ),
+            .metadata_map = timeline.metadata_map,
+            .markers = timeline.markers,
+        };
+    }
+
+    /// The in-memory timeline; takes ownership of every field.
+    fn to_serializable(
+        self: @This(),
+    ) SerializableTimeline
+    {
+        return .{
+            .name = self.name,
+            .children = self.children,
+            .presentation_space_discrete_partitions = (
+                self.presentation_space_discrete_partitions
+            ),
+            .metadata_map = self.metadata_map,
+            .markers = self.markers,
+        };
+    }
+};
+
+/// TLCA file layout of a collection document: the in-memory
+/// `SerializableCollection` fields plus the document's schema version.
+const TlaCollection = struct {
+    pub const schema_name: []const u8 = "Collection";
+
+    /// The document's schema version (required).
+    schema_version: u32,
+    name: []const u8 = "",
+    description: []const u8 = "",
+    children: []SerializableCollectionItem,
+    metadata_map: ?MetadataMap = null,
+};
+
 /// Timeline variant for inline metadata output (no metadata_map, metadata
 /// inline on clips)
 pub const SerializableTimelineInlineMetadata = struct {
     pub const schema_name: []const u8 = "Timeline";
 
-    schema_version: u32 = versioning.CURRENT_SCHEMA_VERSION,
+    /// Set on the document root only; ignored on nested timelines.
+    schema_version: ?u32 = null,
     name: []const u8 = "",
     children: []SerializableComposableInlineMetadata,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
@@ -298,7 +362,8 @@ pub const SerializableTimelineInlineMetadata = struct {
 pub const SerializableTimelineStrippedMetadata = struct {
     pub const schema_name: []const u8 = "Timeline";
 
-    schema_version: u32 = versioning.CURRENT_SCHEMA_VERSION,
+    /// Set on the document root only; ignored on nested timelines.
+    schema_version: ?u32 = null,
     name: []const u8 = "",
     children: []SerializableComposableNoMetadata,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
@@ -310,7 +375,8 @@ pub const SerializableTimelineStrippedMetadata = struct {
 pub const SerializableCollectionInlineMetadata = struct {
     pub const schema_name: []const u8 = "Collection";
 
-    schema_version: u32 = versioning.CURRENT_SCHEMA_VERSION,
+    /// Set on the document root only; ignored on nested timelines.
+    schema_version: ?u32 = null,
     name: []const u8 = "",
     description: []const u8 = "",
     children: []SerializableCollectionItemInlineMetadata,
@@ -321,7 +387,8 @@ pub const SerializableCollectionInlineMetadata = struct {
 pub const SerializableCollectionStrippedMetadata = struct {
     pub const schema_name: []const u8 = "Collection";
 
-    schema_version: u32 = versioning.CURRENT_SCHEMA_VERSION,
+    /// Set on the document root only; ignored on nested timelines.
+    schema_version: ?u32 = null,
     name: []const u8 = "",
     description: []const u8 = "",
     children: []SerializableCollectionItemNoMetadata,
@@ -461,7 +528,6 @@ fn convert_to_inline_metadata(
     }
 
     return .{
-        .schema_version = timeline.schema_version,
         .name = timeline.name,
         .children = inline_children,
         .presentation_space_discrete_partitions = timeline.presentation_space_discrete_partitions,
@@ -602,7 +668,6 @@ fn strip_metadata(
     }
 
     return .{
-        .schema_version = timeline.schema_version,
         .name = timeline.name,
         .children = stripped_children,
         .presentation_space_discrete_partitions = timeline.presentation_space_discrete_partitions,
@@ -724,20 +789,20 @@ fn test_encode(
     errdefer out.deinit();
     try Codec.write(
         allocator,
-        data,
+        .{ .schema_version = versioning.CURRENT_SCHEMA_VERSION, .content = data },
         &out.writer,
         .{ .metadata_mode = metadata_mode },
     );
     return try out.toOwnedSlice();
 }
 
-/// The value type a codec namespace reads.
+/// The content type (timeline or collection) a codec namespace reads.
 fn CodecData(
     comptime Codec: type,
 ) type
 {
     const ret = @typeInfo(@TypeOf(Codec.read)).@"fn".return_type.?;
-    return @typeInfo(ret).error_union.payload;
+    return @FieldType(@typeInfo(ret).error_union.payload, "content");
 }
 
 /// Test helper: decode `bytes` with a codec namespace.
@@ -748,7 +813,7 @@ fn test_decode(
 ) !CodecData(Codec)
 {
     var reader: std.Io.Reader = .fixed(bytes);
-    return try Codec.read(allocator, &reader, .{});
+    return (try Codec.read(allocator, &reader, .{})).content;
 }
 
 /// Test helper: decode the file at `path` with a codec namespace.
@@ -873,7 +938,7 @@ test "timeline serialization: all_except_metadata skips metadata_map"
 
     // the full parse of the same document still sees the metadata
     const full = try ziggy.deserializeLeaky(
-        SerializableTimeline,
+        TlaTimeline,
         allocator,
         source,
         &meta,
@@ -985,7 +1050,10 @@ fn expect_all_modes_match_schema(
         const Codec = if (is_collection) CollectionCodec else TimelineCodec;
         try Codec.write(
             allocator,
-            value,
+            .{
+                .schema_version = versioning.CURRENT_SCHEMA_VERSION,
+                .content = value,
+            },
             &buf.writer,
             .{ .metadata_mode = mode },
         );
@@ -1447,16 +1515,16 @@ test "tlca schema: fixtures match the schema when re-serialized"
 /// Write SerializableTimeline to TLA format with the specified metadata mode.
 fn write_tla_with_metadata_mode(
     allocator: std.mem.Allocator,
-    intermediate_tl: SerializableTimeline,
+    doc: serializable.Document(SerializableTimeline),
     metadata_mode: format_m.WriteOptions.MetadataMode,
     writer: anytype,
 ) !void
 {
+    const intermediate_tl = doc.content;
     switch (metadata_mode) {
         .hash_reference => {
-            // Default behavior - output SerializableTimeline directly
             try ziggy.serialize(
-                intermediate_tl,
+                TlaTimeline.from(intermediate_tl, doc.schema_version),
                 .{
                     .whitespace = .space_4,
                     .emit_null_fields = false,
@@ -1466,7 +1534,8 @@ fn write_tla_with_metadata_mode(
         },
         .no_metadata => {
             // Strip all metadata
-            const stripped = try strip_metadata(allocator, intermediate_tl);
+            var stripped = try strip_metadata(allocator, intermediate_tl);
+            stripped.schema_version = doc.schema_version;
             try ziggy.serialize(
                 stripped,
                 .{
@@ -1478,10 +1547,11 @@ fn write_tla_with_metadata_mode(
         },
         .inline_metadata => {
             // Convert to inline metadata format
-            const inline_timeline = try convert_to_inline_metadata(
+            var inline_timeline = try convert_to_inline_metadata(
                 allocator,
                 intermediate_tl,
             );
+            inline_timeline.schema_version = doc.schema_version;
             try ziggy.serialize(
                 inline_timeline,
                 .{
@@ -1498,16 +1568,25 @@ fn write_tla_with_metadata_mode(
 /// Write SerializableCollection to TLCA format with the specified metadata mode.
 fn write_tlca_with_metadata_mode(
     allocator: std.mem.Allocator,
-    collection: SerializableCollection,
+    doc: serializable.Document(SerializableCollection),
     metadata_mode: format_m.WriteOptions.MetadataMode,
     writer: anytype,
 ) !void
 {
+    const collection = doc.content;
     switch (metadata_mode) {
         .hash_reference => {
-            // Default behavior - output SerializableCollection directly
+            // Nested timelines are SerializableTimeline, which has no
+            // version field, so only the root carries one.
+            const layout: TlaCollection = .{
+                .schema_version = doc.schema_version,
+                .name = collection.name,
+                .description = collection.description,
+                .children = collection.children,
+                .metadata_map = collection.metadata_map,
+            };
             try ziggy.serialize(
-                collection,
+                layout,
                 .{
                     .whitespace = .space_4,
                     .emit_null_fields = false,
@@ -1517,7 +1596,8 @@ fn write_tlca_with_metadata_mode(
         },
         .no_metadata => {
             // Strip all metadata from collection
-            const stripped = try strip_collection_metadata(allocator, collection);
+            var stripped = try strip_collection_metadata(allocator, collection);
+            stripped.schema_version = doc.schema_version;
             try ziggy.serialize(
                 stripped,
                 .{
@@ -1529,10 +1609,11 @@ fn write_tlca_with_metadata_mode(
         },
         .inline_metadata => {
             // Convert to inline metadata format
-            const inline_collection = try convert_collection_to_inline_metadata(
+            var inline_collection = try convert_collection_to_inline_metadata(
                 allocator,
                 collection,
             );
+            inline_collection.schema_version = doc.schema_version;
             try ziggy.serialize(
                 inline_collection,
                 .{
@@ -1565,7 +1646,6 @@ fn strip_collection_metadata(
     }
 
     return .{
-        .schema_version = collection.schema_version,
         .name = collection.name,
         .description = collection.description,
         .children = stripped_children,
@@ -1592,7 +1672,6 @@ fn convert_collection_item_to_no_metadata(
             }
             break :blk .{
                 .timeline = .{
-                    .schema_version = tl.schema_version,
                     .name = tl.name,
                     .children = stripped_children,
                     .presentation_space_discrete_partitions = tl.presentation_space_discrete_partitions,
@@ -1707,7 +1786,6 @@ fn convert_collection_to_inline_metadata(
     }
 
     return .{
-        .schema_version = collection.schema_version,
         .name = collection.name,
         .description = collection.description,
         .children = inline_children,
@@ -1740,7 +1818,6 @@ fn convert_collection_item_to_inline_metadata(
             }
             break :blk .{
                 .timeline = .{
-                    .schema_version = tl.schema_version,
                     .name = tl.name,
                     .children = inline_children,
                     .presentation_space_discrete_partitions = tl.presentation_space_discrete_partitions,
@@ -1874,7 +1951,6 @@ test "collection serialization: tlca round-trip"
         },
     };
     const original = SerializableCollection{
-        .schema_version = 1,
         .name = "Test Collection",
         .description = "A test collection",
         .children = &children,
@@ -1916,7 +1992,6 @@ test "collection serialization: tlcb round-trip"
         },
     };
     const original = SerializableCollection{
-        .schema_version = 1,
         .name = "Binary Test Collection",
         .description = "A binary test collection",
         .children = &children,
@@ -1951,7 +2026,6 @@ test "collection serialization: tlca to tlcb cross-format"
     var children = [_]SerializableCollectionItem{
         .{
             .timeline = .{
-                .schema_version = 1,
                 .name = "Embedded Timeline",
                 .children = &[_]SerializableComposable{},
                 .presentation_space_discrete_partitions = .{},
@@ -1961,7 +2035,6 @@ test "collection serialization: tlca to tlcb cross-format"
         },
     };
     const original = SerializableCollection{
-        .schema_version = 1,
         .name = "Cross-Format Collection",
         .description = "",
         .children = &children,
@@ -2004,173 +2077,118 @@ test "collection serialization: tlca to tlcb cross-format"
 // Codec interface (see adapter.zig)
 // ----------------------------------------------------------------------------
 
-/// Parse a ziggy document of type `T` from `reader`.  Strings are copied, so
-/// the result owns all of its memory and is freed with its `deinit`.
+/// Parse a ziggy document of type `T` from `reader`.  The result owns all
+/// of its memory and is freed with its `deinit`.
 ///
-/// On error (including OutOfMemory) the partially parsed result is leaked,
-/// as with any `ziggy.deserializeLeaky` failure.
+/// Parsing happens in a scratch arena, so a rejected document (e.g. one
+/// missing a required field) leaks nothing; the result is then deep-copied
+/// into `allocator`.  The copy also takes ownership of the strings ziggy
+/// leaves pointing into the source, even with `.copy_strings = .always`
+/// (dictionary keys, union tags and enum names in metadata).
 fn parse_ziggy(
     comptime T: type,
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
 ) !T
 {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const scratch = arena.allocator();
+
     const source = try reader.allocRemainingAlignedSentinel(
-        allocator,
+        scratch,
         .unlimited,
         .@"1",
         0,
     );
-    defer allocator.free(source);
 
     var meta: ziggy.Deserializer.Meta = .init;
-    var result = try ziggy.deserializeLeaky(
-        T,
-        allocator,
-        source,
-        &meta,
-        .{ .copy_strings = .always },
-    );
-
-    // Must run before `source` is freed.
-    try own_metadata_strings(allocator, &result);
-    return result;
+    const parsed = try ziggy.deserializeLeaky(T, scratch, source, &meta, .{});
+    return try serializable.deep_clone(T, allocator, parsed);
 }
 
-/// ziggy's dynamic values keep dictionary keys, union tags and enum names as
-/// slices into the parse source, even with `.copy_strings = .always`.
-/// Replace them with owned copies throughout every metadata map in `data`.
-fn own_metadata_strings(
-    allocator: std.mem.Allocator,
-    data: anytype,
-) !void
-{
-    const T = @TypeOf(data.*);
-    if (@hasField(T, "metadata_map")
-        and @FieldType(T, "metadata_map") == ?MetadataMap)
-    {
-        if (data.metadata_map)
-            |*mm|
-        {
-            try own_metadata_map_strings(allocator, mm);
-        }
-    }
-    if (T == SerializableCollection)
-    {
-        for (data.children)
-            |*child|
-        {
-            switch (child.*) {
-                .timeline => |*tl| try own_metadata_strings(allocator, tl),
-                else => {},
-            }
-        }
-    }
-}
-
-fn own_metadata_map_strings(
-    allocator: std.mem.Allocator,
-    mm: *MetadataMap,
-) error{OutOfMemory}!void
-{
-    // Replacing a key with an equal copy keeps the hash map valid.
-    for (mm.fields.keys())
-        |*key|
-    {
-        key.* = try allocator.dupe(u8, key.*);
-    }
-    for (mm.fields.values())
-        |*value|
-    {
-        try own_metadata_value_strings(allocator, value);
-    }
-}
-
-fn own_metadata_value_strings(
-    allocator: std.mem.Allocator,
-    value: *MetadataValue,
-) error{OutOfMemory}!void
-{
-    switch (value.*) {
-        .kv => |*kv| try own_metadata_map_strings(allocator, kv),
-        .array => |arr| {
-            for (@constCast(arr))
-                |*item|
-            {
-                try own_metadata_value_strings(allocator, item);
-            }
-        },
-        .@"union" => |*u| {
-            u.tag = try allocator.dupe(u8, u.tag);
-            try own_metadata_value_strings(allocator, u.value);
-        },
-        .@"enum" => |*e| e.* = try allocator.dupe(u8, e.*),
-        .bytes, .integer, .float, .bool, .null => {},
-    }
-}
-
-/// TLA: timeline root in ziggy text.
+/// TLA: timeline document in ziggy text.
 pub const TimelineCodec = struct {
     pub fn read(
         allocator: std.mem.Allocator,
         reader: *std.Io.Reader,
         options: format_m.ReadOptions,
-    ) !SerializableTimeline
+    ) !serializable.Document(SerializableTimeline)
     {
-        return switch (options.content_filter) {
-            .all => try parse_ziggy(SerializableTimeline, allocator, reader),
+        switch (options.content_filter) {
+            .all => {
+                const layout = try parse_ziggy(TlaTimeline, allocator, reader);
+                return .{
+                    .schema_version = layout.schema_version,
+                    .content = layout.to_serializable(),
+                };
+            },
             // Skips the metadata_map tokens without building values.
-            .all_except_metadata => (
-                try parse_ziggy(
+            .all_except_metadata => {
+                const layout = try parse_ziggy(
                     SerializableTimelineNoMetadata,
                     allocator,
                     reader,
-                )
-            ).to_serializable_timeline(),
-        };
+                );
+                return .{
+                    .schema_version = layout.schema_version,
+                    .content = layout.to_serializable_timeline(),
+                };
+            },
+        }
     }
 
     pub fn write(
         allocator: std.mem.Allocator,
-        data: SerializableTimeline,
+        doc: serializable.Document(SerializableTimeline),
         writer: *std.Io.Writer,
         options: format_m.WriteOptions,
     ) !void
     {
         try write_tla_with_metadata_mode(
             allocator,
-            data,
+            doc,
             options.metadata_mode,
             writer,
         );
     }
 };
 
-/// TLCA: collection root in ziggy text.
+/// TLCA: collection document in ziggy text.
 pub const CollectionCodec = struct {
     pub fn read(
         allocator: std.mem.Allocator,
         reader: *std.Io.Reader,
         options: format_m.ReadOptions,
-    ) !SerializableCollection
+    ) !serializable.Document(SerializableCollection)
     {
         // all_except_metadata is applied by the adapter after parsing.
         _ = options;
-        return try parse_ziggy(SerializableCollection, allocator, reader);
+        const layout = try parse_ziggy(TlaCollection, allocator, reader);
+        return .{
+            .schema_version = layout.schema_version,
+            .content = .{
+                .name = layout.name,
+                .description = layout.description,
+                .children = layout.children,
+                .metadata_map = layout.metadata_map,
+            },
+        };
     }
 
     pub fn write(
         allocator: std.mem.Allocator,
-        data: SerializableCollection,
+        doc: serializable.Document(SerializableCollection),
         writer: *std.Io.Writer,
         options: format_m.WriteOptions,
     ) !void
     {
         try write_tlca_with_metadata_mode(
             allocator,
-            data,
+            doc,
             options.metadata_mode,
             writer,
         );
     }
 };
+

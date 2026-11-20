@@ -1,6 +1,7 @@
 
 struct Collection {
-    schema_version: ?int,
+    /// The file's schema version.
+    schema_version: int,
     name: ?bytes,
     description: ?bytes,
     /// Items grouped by the collection, with no temporal relationship.

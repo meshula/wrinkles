@@ -3,7 +3,6 @@
 .description = "A collection of production assets with metadata for color grading workflow",
 .children = [
     .timeline(.{
-        .schema_version = 1,
         .name = "Episode 1 - Final Cut",
         .children = [
             .track(.{

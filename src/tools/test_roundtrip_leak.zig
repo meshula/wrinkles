@@ -11,18 +11,17 @@ fn testRoundtrip(
 ) !bool
 {
     // Parse TLA using the serializable API
-    const ser_tl = try serialization.serializable.read_from_file(
+    var from_tla = try serialization.serializable.read_from_file(
         allocator,
         io,
         tla_path,
         .{},
     );
-
-    var timeline_from_tla = switch (ser_tl) {
-        .timeline => |t| t,
-        .collection => return error.UnexpectedCollection,
-    };
-    defer timeline_from_tla.deinit(allocator);
+    defer from_tla.deinit(allocator);
+    if (!from_tla.is_timeline())
+    {
+        return error.UnexpectedCollection;
+    }
 
     // Serialize TLA to string using an allocating writer
     var tla_buffer = std.Io.Writer.Allocating.init(allocator);
@@ -30,7 +29,7 @@ fn testRoundtrip(
 
     try serialization.serializable.write_to_writer(
         allocator,
-        .{ .timeline = timeline_from_tla },
+        from_tla,
         &tla_buffer.writer,
         .tla,
         .{},
@@ -47,14 +46,16 @@ fn testRoundtrip(
     );
     defer allocator.free(tlb_content);
 
-    var timeline_from_tlb = (
-        try serialization.binary.deserialize_to_serializable_timeline(
-            allocator,
-            tlb_content,
-            .all,
-        )
+    const tlb_doc = try serialization.binary.deserialize_to_serializable_timeline(
+        allocator,
+        tlb_content,
+        .all,
     );
-    defer timeline_from_tlb.deinit(allocator);
+    var from_tlb: serialization.serializable.Root = .{
+        .schema_version = tlb_doc.schema_version,
+        .content = .{ .timeline = tlb_doc.content },
+    };
+    defer from_tlb.deinit(allocator);
 
     // Serialize TLB to string using an allocating writer
     var tlb_buffer = std.Io.Writer.Allocating.init(allocator);
@@ -62,7 +63,7 @@ fn testRoundtrip(
 
     try serialization.serializable.write_to_writer(
         allocator,
-        .{ .timeline = timeline_from_tlb },
+        from_tlb,
         &tlb_buffer.writer,
         .tla,
         .{},

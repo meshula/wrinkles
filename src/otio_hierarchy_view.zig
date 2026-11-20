@@ -114,7 +114,7 @@ fn read_to_serializable_timeline(
         filepath,
         .{},
     );
-    switch (root) {
+    switch (root.content) {
         .timeline => |tl| return tl,
         .collection => {
             root.deinit(allocator);
@@ -137,7 +137,7 @@ fn read_to_serializable_collection(
         filepath,
         .{},
     );
-    switch (root) {
+    switch (root.content) {
         .collection => |coll| return coll,
         .timeline => {
             root.deinit(allocator);

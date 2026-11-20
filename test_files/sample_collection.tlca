@@ -3,7 +3,6 @@
 .description = "A sample collection containing a timeline and a standalone clip",
 .children = [
     .timeline(.{
-        .schema_version = 1,
         .name = "Main Timeline",
         .children = [
             .track(.{

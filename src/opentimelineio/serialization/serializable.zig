@@ -878,7 +878,6 @@ fn deinit_metadata_map(
 pub const SerializableTimeline = struct {
     pub const schema_name: []const u8 = "Timeline";
 
-    schema_version: u32 = versioning.CURRENT_SCHEMA_VERSION,
     name: []const u8 = "",
     children: []SerializableComposable,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
@@ -1011,7 +1010,6 @@ pub const SerializableCollectionItem = union(enum) {
 pub const SerializableCollection = struct {
     pub const schema_name: []const u8 = "Collection";
 
-    schema_version: u32 = versioning.CURRENT_SCHEMA_VERSION,
     name: []const u8 = "",
     description: []const u8 = "",
     children: []SerializableCollectionItem,
@@ -1595,68 +1593,147 @@ fn fix_transitions_in_composable(
     }
 }
 
-/// Upgrade SerializableTimeline from version 0 (OTIO JSON source) to version 1
-///
-/// Changes from v0 to v1:
-/// - Set schema_version field to 1
-/// - Fix transitions: ensure container and kind fields are present
-pub fn upgrade_timeline_v0_to_v1(
+/// The v0 -> v1 change for timelines (v0 is OTIO-JSON-shaped data): fill in
+/// transition containers and kinds.  Called from `versioning.DocumentUpgrades`,
+/// which owns the version number.
+pub fn fix_v0_transitions(
     allocator: std.mem.Allocator,
     timeline: *SerializableTimeline,
 ) !void
 {
-    if (timeline.schema_version != 0)
-    {
-        return error.InvalidVersionForUpgrade;
-    }
-
-    // Fix all transitions in the timeline recursively
-    for (timeline.children) 
-        |*child| 
+    for (timeline.children)
+        |*child|
     {
         try fix_transitions_in_composable(allocator, child);
     }
-
-    // Update version number
-    timeline.schema_version = 1;
 }
 
-/// Bring a freshly read timeline up to the current schema version, applying
-/// the transforms registered in `versioning.TimelineUpgrades`.
-///
-/// Every read path calls this before returning, so callers always receive
-/// data at the current schema version regardless of the source format.
-/// Returns `error.SchemaVersionNewerThanSupported` for data newer than this
-/// library; such data must be downgraded by the newer library first.
-pub fn finalize_timeline(
-    allocator: std.mem.Allocator,
-    timeline: *SerializableTimeline,
-) !void
-{
-    try versioning.upgrade_timeline(
-        allocator,
-        timeline,
-        versioning.CURRENT_SCHEMA_VERSION,
-    );
-}
+/// A serialized document: one schema version for the whole file, and its
+/// root content (a timeline or a collection).
+pub const SerializableRoot = struct {
+    schema_version: u32 = versioning.CURRENT_SCHEMA_VERSION,
+    content: Content,
 
-/// Bring a freshly read collection up to the current schema version,
-/// applying the transforms registered in `versioning.CollectionUpgrades`.
-///
-/// Like `finalize_timeline`, every collection read path calls this before
-/// returning.  Returns `error.SchemaVersionNewerThanSupported` for data newer
-/// than this library and `error.UpgradeNotSupported` for collections older
-/// than `versioning.OLDEST_COLLECTION_VERSION`.
-pub fn finalize_collection(
-    allocator: std.mem.Allocator,
-    collection: *SerializableCollection,
-) !void
+    pub const Content = union(enum) {
+        timeline: SerializableTimeline,
+        collection: SerializableCollection,
+    };
+
+    /// Free all memory associated with this root.
+    pub fn deinit(
+        self: *@This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        switch (self.content) {
+            .timeline => |*t| t.deinit(allocator),
+            .collection => |*c| c.deinit(allocator),
+        }
+    }
+
+    pub fn is_timeline(
+        self: @This(),
+    ) bool
+    {
+        return self.content == .timeline;
+    }
+
+    pub fn is_collection(
+        self: @This(),
+    ) bool
+    {
+        return self.content == .collection;
+    }
+
+    /// Deep copy that owns all of its memory; free it with `deinit`.
+    pub fn clone(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !SerializableRoot
+    {
+        return try deep_clone(SerializableRoot, allocator, self);
+    }
+
+    /// Convert a schema handle (timeline or collection) to a root at the
+    /// current schema version.  Allocates memory; caller owns the result.
+    pub fn from_schema_handle(
+        allocator: std.mem.Allocator,
+        handle: schema.references.CompositionItemHandle,
+    ) !SerializableRoot
+    {
+        return .{
+            .content = switch (handle) {
+                .timeline => |t| .{
+                    .timeline = try SerializableTimeline.from(allocator, t),
+                },
+                .collection => |c| .{
+                    .collection = try collection_to_serializable(
+                        allocator,
+                        c,
+                    ),
+                },
+                else => return error.ExpectedTimelineOrCollection,
+            },
+        };
+    }
+
+    /// Convert the content to a schema handle.  Allocates memory; caller owns
+    /// the result.
+    pub fn to_schema_handle(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !schema.references.CompositionItemHandle
+    {
+        return switch (self.content) {
+            .timeline => |t| .{
+                .timeline = try serializable_to_timeline(allocator, t),
+            },
+            .collection => |c| .{
+                .collection = try serializable_to_collection(allocator, c),
+            },
+        };
+    }
+
+    /// Bring a freshly read root up to the current schema version, applying
+    /// the steps in `versioning.DocumentUpgrades`.  Every read path calls
+    /// this, so callers always receive current data regardless of source.
+    ///
+    /// `error.SchemaVersionNewerThanSupported` for data newer than this
+    /// library (the newer library must downgrade it first);
+    /// `error.UpgradeNotSupported` for data older than the oldest readable
+    /// version of its root kind.
+    pub fn finalize(
+        self: *@This(),
+        allocator: std.mem.Allocator,
+    ) !void
+    {
+        const oldest: u32 = switch (self.content) {
+            .timeline => versioning.OLDEST_TIMELINE_VERSION,
+            .collection => versioning.OLDEST_COLLECTION_VERSION,
+        };
+        if (self.schema_version < oldest)
+        {
+            return error.UpgradeNotSupported;
+        }
+        try versioning.upgrade_with(
+            versioning.DocumentUpgrades,
+            allocator,
+            self,
+            versioning.CURRENT_SCHEMA_VERSION,
+        );
+    }
+};
+
+/// What a codec reads and writes: the document's schema version and one
+/// kind of root content.
+pub fn Document(
+    comptime Content: type,
+) type
 {
-    try versioning.upgrade_collection(
-        allocator,
-        collection,
-        versioning.CURRENT_SCHEMA_VERSION,
-    );
+    return struct {
+        schema_version: u32,
+        content: Content,
+    };
 }
 
 /// Deep-copy a serializable value of type `T` so the copy owns all of its
@@ -2390,7 +2467,6 @@ pub fn collection_to_serializable(
     }
 
     return .{
-        .schema_version = 1,
         .name = try allocator.dupe(u8, collection.name),
         .description = try allocator.dupe(u8, collection.description),
         .children = ser_children,
@@ -2753,31 +2829,57 @@ test "gap serialization: round-trip"
     try std.testing.expectEqual(7.5, gap_ptr.bounds_s.end.as(f64));
 }
 
-test "serializable: finalize_timeline upgrades to the current schema version"
+test "serializable: SerializableRoot.finalize upgrades and enforces the oldest version"
 {
     const allocator = std.testing.allocator;
 
-    var v0: SerializableTimeline = .{
+    // A v0 timeline is upgraded to the current version.
+    var v0: SerializableRoot = .{
         .schema_version = 0,
-        .name = "",
-        .children = &.{},
-        .presentation_space_discrete_partitions = .{},
+        .content = .{
+            .timeline = .{
+                .name = "",
+                .children = &.{},
+                .presentation_space_discrete_partitions = .{},
+            },
+        },
     };
-    try finalize_timeline(allocator, &v0);
+    try v0.finalize(allocator);
     try std.testing.expectEqual(
         versioning.CURRENT_SCHEMA_VERSION,
         v0.schema_version,
     );
 
-    // Already-current data is left untouched.
-    var current: SerializableTimeline = .{
-        .name = "",
-        .children = &.{},
-        .presentation_space_discrete_partitions = .{},
+    // Current data is left untouched.
+    var current: SerializableRoot = .{
+        .content = .{ .collection = .{ .children = &.{} } },
     };
-    try finalize_timeline(allocator, &current);
+    try current.finalize(allocator);
     try std.testing.expectEqual(
         versioning.CURRENT_SCHEMA_VERSION,
         current.schema_version,
+    );
+
+    // Collections did not exist before OLDEST_COLLECTION_VERSION.
+    if (versioning.OLDEST_COLLECTION_VERSION > 0)
+    {
+        var too_old: SerializableRoot = .{
+            .schema_version = versioning.OLDEST_COLLECTION_VERSION - 1,
+            .content = .{ .collection = .{ .children = &.{} } },
+        };
+        try std.testing.expectError(
+            error.UpgradeNotSupported,
+            too_old.finalize(allocator),
+        );
+    }
+
+    // Newer than this library: unreadable.
+    var newer: SerializableRoot = .{
+        .schema_version = versioning.CURRENT_SCHEMA_VERSION + 1,
+        .content = .{ .collection = .{ .children = &.{} } },
+    };
+    try std.testing.expectError(
+        error.SchemaVersionNewerThanSupported,
+        newer.finalize(allocator),
     );
 }

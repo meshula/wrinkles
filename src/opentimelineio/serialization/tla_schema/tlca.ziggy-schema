@@ -11,8 +11,19 @@ $ = Collection
 /// exactly two values, and bezier segments are four control points.
 /// Fields that have a default value in Zig may be omitted and are marked
 /// optional (`?`).
+struct TimelineDocument {
+    /// The file's schema version; only the document root carries one.
+    schema_version: int,
+    name: ?bytes,
+    children: []Composable,
+    presentation_space_discrete_partitions: DiscretePartitionDomainMap,
+    /// Clip metadata, keyed by `Clip.metadata_hash`.
+    metadata_map: ?{:}any,
+    markers: ?[]Marker,
+}
+
 struct Timeline {
-    schema_version: ?int,
+    /// Timelines nested in a collection have no schema version of their own.
     name: ?bytes,
     children: []Composable,
     presentation_space_discrete_partitions: DiscretePartitionDomainMap,
@@ -199,7 +210,8 @@ struct AffineTransform1D {
 }
 
 struct Collection {
-    schema_version: ?int,
+    /// The file's schema version.
+    schema_version: int,
     name: ?bytes,
     description: ?bytes,
     /// Items grouped by the collection, with no temporal relationship.
