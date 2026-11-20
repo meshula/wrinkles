@@ -218,134 +218,27 @@ pub fn descriptor(
 // Serializable root
 // ============================================================================
 
-/// Union of serializable root types (timeline or collection).
-pub const SerializableRoot = union(enum) {
-    timeline: serializable_types.SerializableTimeline,
-    collection: serializable_types.SerializableCollection,
+/// A serialized document: schema version plus timeline or collection
+/// content (see serializable.zig).
+pub const SerializableRoot = serializable_types.SerializableRoot;
 
-    /// Free all memory associated with this root.
-    pub fn deinit(
-        self: *@This(),
-        allocator: std.mem.Allocator,
-    ) void
+/// Apply the read-side content filter and bring `root` up to the current
+/// schema version.  Every read path calls this.
+fn finish_read(
+    root: *SerializableRoot,
+    allocator: std.mem.Allocator,
+    options: ReadOptions,
+) !void
+{
+    if (options.content_filter == .all_except_metadata)
     {
-        switch (self.*) {
-            .timeline => |*t| t.deinit(allocator),
-            .collection => |*c| c.deinit(allocator),
+        switch (root.content) {
+            .timeline => |*t| t.drop_metadata(allocator),
+            .collection => |*c| c.drop_metadata(allocator),
         }
     }
-
-    pub fn is_timeline(
-        self: @This(),
-    ) bool
-    {
-        return self == .timeline;
-    }
-
-    /// The root's schema version.
-    pub fn schema_version(
-        self: @This(),
-    ) u32
-    {
-        return switch (self) {
-            .timeline => |t| t.schema_version,
-            .collection => |c| c.schema_version,
-        };
-    }
-
-    /// Deep copy that owns all of its memory; free it with `deinit`.
-    pub fn clone(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) !SerializableRoot
-    {
-        return try serializable_types.deep_clone(
-            SerializableRoot,
-            allocator,
-            self,
-        );
-    }
-
-    pub fn is_collection(
-        self: @This(),
-    ) bool
-    {
-        return self == .collection;
-    }
-
-    /// Convert a schema handle (timeline or collection) to a serializable
-    /// root.  Allocates memory; caller owns the result.
-    pub fn from_schema_handle(
-        allocator: std.mem.Allocator,
-        handle: CompositionItemHandle,
-    ) !SerializableRoot
-    {
-        return switch (handle) {
-            .timeline => |t| .{
-                .timeline = try serializable_types.SerializableTimeline.from(
-                    allocator,
-                    t,
-                ),
-            },
-            .collection => |c| .{
-                .collection = try serializable_types.collection_to_serializable(
-                    allocator,
-                    c,
-                ),
-            },
-            else => error.ExpectedTimelineOrCollection,
-        };
-    }
-
-    /// Convert to CompositionItemHandle (schema type).
-    /// Allocates memory; caller owns the result.
-    pub fn to_schema_handle(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) !references.CompositionItemHandle
-    {
-        return switch (self) {
-            .timeline => |t| .{
-                .timeline = try serializable_types.serializable_to_timeline(
-                    allocator,
-                    t,
-                ),
-            },
-            .collection => |c| .{
-                .collection = try serializable_types.serializable_to_collection(
-                    allocator,
-                    c,
-                ),
-            },
-        };
-    }
-
-    /// Apply the read-side content filter and bring the root up to the
-    /// current schema version.  Every read path calls this.
-    fn finalize(
-        self: *@This(),
-        allocator: std.mem.Allocator,
-        options: ReadOptions,
-    ) !void
-    {
-        switch (self.*) {
-            .timeline => |*t| {
-                if (options.content_filter == .all_except_metadata)
-                {
-                    t.drop_metadata(allocator);
-                }
-                try serializable_types.finalize_timeline(allocator, t);
-            },
-            .collection => |*c| {
-                if (options.content_filter == .all_except_metadata)
-                {
-                    c.drop_metadata(allocator);
-                }
-                try serializable_types.finalize_collection(allocator, c);
-            },
-        }
-    }
-};
+    try root.finalize(allocator);
+}
 
 // ============================================================================
 // Codec dispatch
@@ -453,10 +346,12 @@ comptime {
         const ns = codec_namespace(fmt) orelse @compileError(
             tag ++ ": codec has no namespace for its root type"
         );
-        const Data = if (desc.is_collection)
-            serializable_types.SerializableCollection
-        else
-            serializable_types.SerializableTimeline;
+        const Data = serializable_types.Document(
+            if (desc.is_collection)
+                serializable_types.SerializableCollection
+            else
+                serializable_types.SerializableTimeline
+        );
 
         if (!@hasDecl(ns, "read"))
         {
@@ -506,13 +401,17 @@ pub fn read_root(
             else
             {
                 const ns = comptime codec_namespace(fmt).?;
-                var root: SerializableRoot = if (comptime descriptor(fmt).is_collection)
-                    .{ .collection = try ns.read(allocator, reader, options) }
-                else
-                    .{ .timeline = try ns.read(allocator, reader, options) };
+                const doc = try ns.read(allocator, reader, options);
+                var root: SerializableRoot = .{
+                    .schema_version = doc.schema_version,
+                    .content = if (comptime descriptor(fmt).is_collection)
+                        .{ .collection = doc.content }
+                    else
+                        .{ .timeline = doc.content },
+                };
                 errdefer root.deinit(allocator);
 
-                try root.finalize(allocator, options);
+                try finish_read(&root, allocator, options);
                 return root;
             }
         },
@@ -540,8 +439,7 @@ const PreparedRoot = struct {
 /// Bring `root` to `target_version` for writing, using the given downgrade
 /// tables.  `root` itself is never modified.
 fn prepare_for_write_with(
-    comptime TimelineDowngrades: type,
-    comptime CollectionDowngrades: type,
+    comptime DocumentDowngrades: type,
     allocator: std.mem.Allocator,
     root: SerializableRoot,
     maybe_target_version: ?u32,
@@ -551,7 +449,7 @@ fn prepare_for_write_with(
         .root = root,
         .owned = false,
     };
-    const current = root.schema_version();
+    const current = root.schema_version;
     if (target == current)
     {
         return .{ .root = root, .owned = false };
@@ -561,40 +459,23 @@ fn prepare_for_write_with(
         return error.DowngradeTargetIsNewer;
     }
 
-    // Check the whole chain before paying for a copy.
-    const supported = switch (root) {
-        .timeline => versioning.downgrade_supported(
-            TimelineDowngrades,
-            current,
-            target,
-        ),
-        .collection => versioning.downgrade_supported(
-            CollectionDowngrades,
-            current,
-            target,
-        ),
+    // Check the whole chain (and that the root kind existed at `target`)
+    // before paying for a copy.
+    const oldest: u32 = switch (root.content) {
+        .timeline => versioning.OLDEST_TIMELINE_VERSION,
+        .collection => versioning.OLDEST_COLLECTION_VERSION,
     };
-    if (!supported)
+    if (
+        target < oldest
+        or !versioning.downgrade_supported(DocumentDowngrades, current, target)
+    )
     {
         return error.DowngradeNotSupported;
     }
 
     var copy = try root.clone(allocator);
     errdefer copy.deinit(allocator);
-    switch (copy) {
-        .timeline => |*t| try versioning.downgrade_with(
-            TimelineDowngrades,
-            allocator,
-            t,
-            target,
-        ),
-        .collection => |*c| try versioning.downgrade_with(
-            CollectionDowngrades,
-            allocator,
-            c,
-            target,
-        ),
-    }
+    try versioning.downgrade_with(DocumentDowngrades, allocator, &copy, target);
     return .{ .root = copy, .owned = true };
 }
 
@@ -605,8 +486,7 @@ fn prepare_for_write(
 ) !PreparedRoot
 {
     return try prepare_for_write_with(
-        versioning.TimelineDowngrades,
-        versioning.CollectionDowngrades,
+        versioning.DocumentDowngrades,
         allocator,
         root,
         maybe_target_version,
@@ -639,12 +519,12 @@ pub fn write_root(
                 const ns = comptime codec_namespace(fmt).?;
                 if (comptime desc.is_collection)
                 {
-                    if (root != .collection)
+                    if (root.content != .collection)
                     {
                         return error.NotATimelineFormat;
                     }
                 }
-                else if (root != .timeline)
+                else if (root.content != .timeline)
                 {
                     return error.NotACollectionFormat;
                 }
@@ -656,11 +536,19 @@ pub fn write_root(
                 );
                 defer prepared.deinit(allocator);
 
-                const data = if (comptime desc.is_collection)
-                    prepared.root.collection
+                const content = if (comptime desc.is_collection)
+                    prepared.root.content.collection
                 else
-                    prepared.root.timeline;
-                try ns.write(allocator, data, writer, options);
+                    prepared.root.content.timeline;
+                try ns.write(
+                    allocator,
+                    .{
+                        .schema_version = prepared.root.schema_version,
+                        .content = content,
+                    },
+                    writer,
+                    options,
+                );
             }
         },
     }
@@ -717,11 +605,11 @@ pub fn write_root_to_file(
     {
         return error.FormatIsReadOnly;
     }
-    if (desc.is_collection and root != .collection)
+    if (desc.is_collection and root.content != .collection)
     {
         return error.NotATimelineFormat;
     }
-    if (!desc.is_collection and root != .timeline)
+    if (!desc.is_collection and root.content != .timeline)
     {
         return error.NotACollectionFormat;
     }
@@ -1220,8 +1108,8 @@ test "adapter: serializable.write_to_file every writable format"
             .{},
         );
         try std.testing.expectEqual(
-            std.meta.activeTag(root),
-            std.meta.activeTag(result),
+            std.meta.activeTag(root.content),
+            std.meta.activeTag(result.content),
         );
     }
 }
@@ -1238,7 +1126,7 @@ fn root_as_text(
         allocator,
         root,
         &out.writer,
-        if (root == .collection) .tlca else .tla,
+        if (root.content == .collection) .tlca else .tla,
         .{},
     );
     return try out.toOwnedSlice();
@@ -1271,7 +1159,7 @@ test "adapter: read results own their metadata strings"
         var loaded = try serializable.read_from_file(allocator, io, path, .{});
         defer loaded.deinit(allocator);
         try std.testing.expect(
-            switch (loaded) {
+            switch (loaded.content) {
                 .timeline => |t| t.metadata_map != null,
                 .collection => |c| c.metadata_map != null,
             },
@@ -1381,7 +1269,7 @@ test "adapter: bundles round-trip metadata and honor read options"
         );
         defer no_md.deinit(allocator);
         try std.testing.expect(
-            switch (no_md) {
+            switch (no_md.content) {
                 .timeline => |t| t.metadata_map == null,
                 .collection => |c| c.metadata_map == null,
             },
@@ -1423,7 +1311,7 @@ fn clip_metadata_summary(
     errdefer out.deinit();
     const w = &out.writer;
 
-    switch (root) {
+    switch (root.content) {
         .timeline => |tl| try summarize_children(
             allocator,
             w,
@@ -1569,7 +1457,7 @@ test "adapter: schema handle round trip preserves metadata"
         // Reference: the serializable form.
         var direct = try serializable.read_from_file(allocator, io, path, .{});
         defer direct.deinit(allocator);
-        const format: FileFormat = if (direct == .collection) .tlca else .tla;
+        const format: FileFormat = if (direct.content == .collection) .tlca else .tla;
 
         // Through schema handles and back.
         var handle = try read_from_file(allocator, io, path, .{});
@@ -1735,13 +1623,14 @@ test "adapter: target_version"
 /// it, which renames the timeline.
 fn fake_downgrade_rename(
     allocator: std.mem.Allocator,
-    timeline: *serializable_types.SerializableTimeline,
+    root: *SerializableRoot,
 ) anyerror!void
 {
+    const timeline = &root.content.timeline;
     const renamed = try std.fmt.allocPrint(
         allocator,
         "{s} (v{d})",
-        .{ timeline.name, timeline.schema_version - 1 },
+        .{ timeline.name, root.schema_version - 1 },
     );
     allocator.free(timeline.name);
     timeline.name = renamed;
@@ -1753,8 +1642,8 @@ test "adapter: writing an older version downgrades a copy"
     const io = std.testing.io;
 
     const current = versioning.CURRENT_SCHEMA_VERSION;
-    const FakeTimelineDowngrades = versioning.TransformTable(
-        serializable_types.SerializableTimeline,
+    const FakeDocumentDowngrades = versioning.TransformTable(
+        SerializableRoot,
         .downgrade,
         &.{
             .{
@@ -1774,12 +1663,11 @@ test "adapter: writing an older version downgrades a copy"
     defer root.deinit(allocator);
     const before = try root_as_text(allocator, root);
     defer allocator.free(before);
-    const original_name = try allocator.dupe(u8, root.timeline.name);
+    const original_name = try allocator.dupe(u8, root.content.timeline.name);
     defer allocator.free(original_name);
 
     var prepared = try prepare_for_write_with(
-        FakeTimelineDowngrades,
-        versioning.CollectionDowngrades,
+        FakeDocumentDowngrades,
         allocator,
         root,
         current - 1,
@@ -1787,7 +1675,7 @@ test "adapter: writing an older version downgrades a copy"
     defer prepared.deinit(allocator);
 
     try std.testing.expect(prepared.owned);
-    try std.testing.expectEqual(current - 1, prepared.root.schema_version());
+    try std.testing.expectEqual(current - 1, prepared.root.schema_version);
     const expected_name = try std.fmt.allocPrint(
         allocator,
         "{s} (v{d})",
@@ -1796,7 +1684,7 @@ test "adapter: writing an older version downgrades a copy"
     defer allocator.free(expected_name);
     try std.testing.expectEqualStrings(
         expected_name,
-        prepared.root.timeline.name,
+        prepared.root.content.timeline.name,
     );
 
     // The downgraded copy encodes with the older version number.
@@ -1814,6 +1702,154 @@ test "adapter: writing an older version downgrades a copy"
     const after = try root_as_text(allocator, root);
     defer allocator.free(after);
     try std.testing.expectEqualStrings(before, after);
+}
+
+/// Test helper: a TLCA document with one nested timeline.  `root_version`
+/// and `nested_version` are inserted verbatim (e.g. ".schema_version = 1,"
+/// or "").
+fn tlca_source(
+    allocator: std.mem.Allocator,
+    root_version: []const u8,
+    nested_version: []const u8,
+) ![]u8
+{
+    return try std.fmt.allocPrint(
+        allocator,
+        \\{s}
+        \\.name = "Collection",
+        \\.description = "",
+        \\.children = [
+        \\    .timeline(.{{
+        \\        {s}
+        \\        .name = "Nested",
+        \\        .children = [],
+        \\        .presentation_space_discrete_partitions = .{{}},
+        \\    }}),
+        \\],
+        \\
+        ,
+        .{ root_version, nested_version },
+    );
+}
+
+/// Test helper: ".schema_version = N," for `version`.
+fn version_line(
+    allocator: std.mem.Allocator,
+    version: u32,
+) ![]u8
+{
+    return try std.fmt.allocPrint(
+        allocator,
+        ".schema_version = {d},",
+        .{version},
+    );
+}
+
+test "adapter: the schema version lives on the document root"
+{
+    const allocator = std.testing.allocator;
+    const current = versioning.CURRENT_SCHEMA_VERSION;
+
+    const root_line = try version_line(allocator, current);
+    defer allocator.free(root_line);
+
+    // Nested timelines have no version; one is an unknown field.
+    {
+        const source = try tlca_source(allocator, root_line, root_line);
+        defer allocator.free(source);
+        var reader: std.Io.Reader = .fixed(source);
+        try std.testing.expectError(
+            error.UnknownField,
+            read_root(allocator, &reader, .tlca, .{}),
+        );
+    }
+
+    const source = try tlca_source(allocator, root_line, "");
+    defer allocator.free(source);
+
+    var reader: std.Io.Reader = .fixed(source);
+    var root = try read_root(allocator, &reader, .tlca, .{});
+    defer root.deinit(allocator);
+    try std.testing.expectEqual(current, root.schema_version);
+    try std.testing.expectEqualStrings(
+        "Nested",
+        root.content.collection.children[0].timeline.name,
+    );
+
+    // Written back, only the root carries a version.
+    const text = try root_as_text(allocator, root);
+    defer allocator.free(text);
+    try std.testing.expectEqual(
+        @as(usize, 1),
+        std.mem.count(u8, text, ".schema_version"),
+    );
+    try std.testing.expect(std.mem.startsWith(u8, text, root_line));
+
+    // The same holds through TLCB.
+    var tlcb: std.Io.Writer.Allocating = .init(allocator);
+    defer tlcb.deinit();
+    try write_root(allocator, root, &tlcb.writer, .tlcb, .{});
+    var tlcb_reader: std.Io.Reader = .fixed(tlcb.written());
+    var from_tlcb = try read_root(allocator, &tlcb_reader, .tlcb, .{});
+    defer from_tlcb.deinit(allocator);
+    try std.testing.expectEqual(current, from_tlcb.schema_version);
+    const tlcb_text = try root_as_text(allocator, from_tlcb);
+    defer allocator.free(tlcb_text);
+    try std.testing.expectEqualStrings(text, tlcb_text);
+}
+
+test "adapter: document versions are required and checked per root kind"
+{
+    const allocator = std.testing.allocator;
+
+    // A collection older than collections themselves is unreadable.
+    if (versioning.OLDEST_COLLECTION_VERSION > 0)
+    {
+        const old_line = try version_line(
+            allocator,
+            versioning.OLDEST_COLLECTION_VERSION - 1,
+        );
+        defer allocator.free(old_line);
+        const source = try tlca_source(allocator, old_line, "");
+        defer allocator.free(source);
+
+        var reader: std.Io.Reader = .fixed(source);
+        try std.testing.expectError(
+            error.UpgradeNotSupported,
+            read_root(allocator, &reader, .tlca, .{}),
+        );
+    }
+
+    // A collection document must state its version.
+    {
+        const source = try tlca_source(allocator, "", "");
+        defer allocator.free(source);
+
+        var reader: std.Io.Reader = .fixed(source);
+        try std.testing.expectError(
+            error.MissingField,
+            read_root(allocator, &reader, .tlca, .{}),
+        );
+    }
+
+    // So must a timeline document.
+    {
+        const source =
+            \\.name = "No Version",
+            \\.children = [],
+            \\.presentation_space_discrete_partitions = .{},
+            \\
+        ;
+        inline for (.{ ReadOptions{}, ReadOptions{ .content_filter = .all_except_metadata } })
+            |options|
+        {
+            var reader: std.Io.Reader = .fixed(source);
+            try std.testing.expectError(
+                error.MissingField,
+                read_root(allocator, &reader, .tla, options),
+            );
+        }
+    }
 }
 
 test "adapter: writing a read-only format errors without creating a file"
@@ -1859,7 +1895,7 @@ test "adapter: content_filter all_except_metadata drops metadata"
         TEST_TIMELINE_METADATA_PATH,
         .{},
     );
-    try std.testing.expect(with_md.timeline.metadata_map != null);
+    try std.testing.expect(with_md.content.timeline.metadata_map != null);
 
     const without_md = try serializable.read_from_file(
         allocator,
@@ -1867,7 +1903,7 @@ test "adapter: content_filter all_except_metadata drops metadata"
         TEST_TIMELINE_METADATA_PATH,
         .{ .content_filter = .all_except_metadata },
     );
-    try std.testing.expect(without_md.timeline.metadata_map == null);
+    try std.testing.expect(without_md.content.timeline.metadata_map == null);
 }
 
 test "adapter: older schema versions are upgraded on read"
@@ -1904,7 +1940,7 @@ test "adapter: older schema versions are upgraded on read"
     const root = try serializable.read_from_file(allocator, io, path, .{});
     try std.testing.expectEqual(
         versioning.CURRENT_SCHEMA_VERSION,
-        root.timeline.schema_version,
+        root.schema_version,
     );
 }
 

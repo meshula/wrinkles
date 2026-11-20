@@ -28,8 +28,8 @@
             .hash = "ziggy-0.3.0-kTg8v8PCCAB6FQFHlKPLc0aRKaw4bTDODvp-qJRPLdL8",
         },
         .flatbuffers = .{
-            .url = "git+https://github.com/nDimensional/zig-flatbuffers.git#0f6a8df94cfaa854caad74438aef74e008de685f",
-            .hash = "flatbuffers-0.4.0-Ntd6DoUiAgDdf5nwS-m9X8hJHnHKGUPX9b4YKWjrplEQ",
+            .url = "git+https://github.com/ssteinbach/zig-flatbuffers#167ffdff2155c52a8a8317d0e29814a7f4ce80f0",
+            .hash = "flatbuffers-0.4.0-Ntd6DmYkAgAP18GEwzxKcEw0okoHfdodAefxkajab6c-",
         },
     },
     .paths = .{

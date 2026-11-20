@@ -148,7 +148,8 @@ pub const SkippedValue = struct {
 pub const SerializableTimelineNoMetadata = struct {
     pub const schema_name: []const u8 = "Timeline";
 
-    schema_version: u32 = versioning.CURRENT_SCHEMA_VERSION,
+    /// The document's schema version (required).
+    schema_version: u32,
     name: []const u8 = "",
     children: []SerializableComposable,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
@@ -186,7 +187,6 @@ pub const SerializableTimelineNoMetadata = struct {
     ) SerializableTimeline
     {
         return .{
-            .schema_version = self.schema_version,
             .name = self.name,
             .children = self.children,
             .presentation_space_discrete_partitions = (
