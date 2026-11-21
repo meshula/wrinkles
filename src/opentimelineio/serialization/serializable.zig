@@ -590,218 +590,6 @@ pub const SerializableTopology = struct {
     }
 };
 
-/// Forward declarations for recursive types
-pub const SerializableComposable = union(enum) {
-    clip: SerializableClip,
-    gap: SerializableGap,
-    track: SerializableTrack,
-    stack: SerializableStack,
-    warp: SerializableWarp,
-    transition: SerializableTransition,
-
-    pub fn from(
-        allocator: std.mem.Allocator,
-        handle: schema.references.CompositionItemHandle,
-        maybe_meta_ctx: ?*MetadataContext,
-    ) error{OutOfMemory, DiscretePartitionRequired}!SerializableComposable
-    {
-        return switch (handle) {
-            .clip => |clip_ptr| .{ .clip = try SerializableClip.from(allocator, clip_ptr.*, maybe_meta_ctx) },
-            .gap => |gap_ptr| .{ .gap = try SerializableGap.from(allocator, gap_ptr.*) },
-            .track => |track_ptr| .{ .track = try SerializableTrack.from(allocator, track_ptr.*, maybe_meta_ctx) },
-            .stack => |stack_ptr| .{ .stack = try SerializableStack.from(allocator, stack_ptr.*, maybe_meta_ctx) },
-            .warp => |warp_ptr| .{ .warp = try SerializableWarp.from(allocator, warp_ptr.*, maybe_meta_ctx) },
-            .transition => |trans_ptr| .{ .transition = try SerializableTransition.from(allocator, trans_ptr.*, maybe_meta_ctx) },
-            .timeline, .collection => unreachable, // Timeline/Collection are not composable children
-        };
-    }
-
-    pub fn deinit(
-        self: *const @This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        switch (self.*) {
-            inline else => |thing| thing.deinit(allocator),
-        }
-    }
-};
-
-/// Serializable variant of Warp
-pub const SerializableWarp = struct {
-    name: []const u8 = "",
-    child: *SerializableComposable,
-    transform: SerializableTopology,
-
-    pub fn from(
-        allocator: std.mem.Allocator,
-        warp: schema.Warp,
-        maybe_meta_ctx: ?*MetadataContext,
-    ) !SerializableWarp
-    {
-        const child = try allocator.create(SerializableComposable);
-        errdefer allocator.destroy(child);
-        child.* = try SerializableComposable.from(
-            allocator,
-            warp.child,
-            maybe_meta_ctx,
-        );
-
-        return .{
-            .name = try allocator.dupe(u8, warp.name),
-            .child = child,
-            .transform = try SerializableTopology.from(allocator, warp.transform),
-        };
-    }
-
-    pub fn deinit(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        allocator.free(self.name);
-        self.child.deinit(allocator);
-        allocator.destroy(self.child);
-        self.transform.deinit(allocator);
-    }
-};
-
-/// Serializable variant of Stack
-pub const SerializableStack = struct {
-    name: []const u8 = "",
-    bounds_s: ?SerializableBounds = null,
-    children: []SerializableComposable,
-    markers: []SerializableMarker = &.{},
-
-    pub fn from(
-        allocator: std.mem.Allocator,
-        stack: schema.Stack,
-        maybe_meta_ctx: ?*MetadataContext,
-    ) !SerializableStack
-    {
-        const ser_children = try allocator.alloc(
-            SerializableComposable,
-            stack.children.len,
-        );
-        for (stack.children, 0..)
-            |child, i|
-        {
-            ser_children[i] = try SerializableComposable.from(
-                allocator,
-                child,
-                maybe_meta_ctx,
-            );
-        }
-        return .{
-            .name = try allocator.dupe(u8, stack.name),
-            .children = ser_children,
-            .markers = try SerializableMarker.from_slice(
-                allocator,
-                stack.markers,
-            ),
-        };
-    }
-
-    pub fn deinit(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        allocator.free(self.name);
-        for (self.children)
-            |*child|
-        {
-            child.deinit(allocator);
-        }
-        allocator.free(self.children);
-        SerializableMarker.deinit_slice(self.markers, allocator);
-    }
-};
-
-/// Serializable variant of Track
-pub const SerializableTrack = struct {
-    name: []const u8 = "",
-    bounds_s: ?SerializableBounds = null,
-    children: []SerializableComposable,
-    markers: []SerializableMarker = &.{},
-
-    pub fn from(
-        allocator: std.mem.Allocator,
-        track: schema.Track,
-        maybe_meta_ctx: ?*MetadataContext,
-    ) !SerializableTrack
-    {
-        const ser_children = try allocator.alloc(SerializableComposable, track.children.len);
-        for (track.children, 0..)
-            |child, i|
-        {
-            ser_children[i] = try SerializableComposable.from(
-                allocator,
-                child,
-                maybe_meta_ctx,
-            );
-        }
-        return .{
-            .name = try allocator.dupe(u8, track.name),
-            .children = ser_children,
-            .markers = try SerializableMarker.from_slice(allocator, track.markers),
-        };
-    }
-
-    pub fn deinit(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        allocator.free(self.name);
-        for (self.children)
-            |*child|
-        {
-            child.deinit(allocator);
-        }
-        allocator.free(self.children);
-        SerializableMarker.deinit_slice(self.markers, allocator);
-    }
-};
-
-/// Serializable variant of Transition
-pub const SerializableTransition = struct {
-    name: []const u8 = "",
-    container: SerializableStack,
-    kind: []const u8,
-    bounds_s: ?SerializableContinuousInterval = null,
-
-    pub fn from(
-        allocator: std.mem.Allocator,
-        transition: schema.Transition,
-        maybe_meta_ctx: ?*MetadataContext,
-    ) !SerializableTransition
-    {
-        const bounds = if (transition.maybe_bounds_s)
-            |b|
-            [2]f64{ b.start.as(f64), b.end.as(f64) }
-        else
-            null;
-
-        return .{
-            .name = try allocator.dupe(u8, transition.name),
-            .container = try SerializableStack.from(allocator, transition.container, maybe_meta_ctx),
-            .kind = try allocator.dupe(u8, transition.kind),
-            .bounds_s = bounds,
-        };
-    }
-
-    pub fn deinit(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        allocator.free(self.name);
-        allocator.free(self.kind);
-        self.container.deinit(allocator);
-    }
-};
-
 /// Serializable variant of DiscretePartitionDomainMap
 pub const SerializableDiscretePartitionDomainMap = struct {
     picture: ?SerializableSampleIndexGenerator = null,
@@ -874,183 +662,425 @@ fn deinit_metadata_map(
     deinit_metadata_map_contents(allocator, mm);
 }
 
+
+/// The serializable editorial tree (composables, timeline, collection),
+/// generic over its clip type.  `Core` (clips reference metadata by hash) is
+/// the in-memory representation; formats instantiate other clip types for
+/// alternative on-disk layouts (see ascii.zig) and map between instances
+/// with `convert`.
+///
+/// Methods that build from schema objects (`from`) only compile for `Core`.
+pub fn Tree(
+    comptime ClipT: type,
+) type
+{
+    return struct {
+        pub const Clip = ClipT;
+
+        pub const Composable = union(enum) {
+            clip: Clip,
+            gap: SerializableGap,
+            track: Track,
+            stack: Stack,
+            warp: Warp,
+            transition: Transition,
+
+            pub fn from(
+                allocator: std.mem.Allocator,
+                handle: schema.references.CompositionItemHandle,
+                maybe_meta_ctx: ?*MetadataContext,
+            ) error{OutOfMemory, DiscretePartitionRequired}!Composable
+            {
+                return switch (handle) {
+                    .clip => |clip_ptr| .{ .clip = try Clip.from(allocator, clip_ptr.*, maybe_meta_ctx) },
+                    .gap => |gap_ptr| .{ .gap = try SerializableGap.from(allocator, gap_ptr.*) },
+                    .track => |track_ptr| .{ .track = try Track.from(allocator, track_ptr.*, maybe_meta_ctx) },
+                    .stack => |stack_ptr| .{ .stack = try Stack.from(allocator, stack_ptr.*, maybe_meta_ctx) },
+                    .warp => |warp_ptr| .{ .warp = try Warp.from(allocator, warp_ptr.*, maybe_meta_ctx) },
+                    .transition => |trans_ptr| .{ .transition = try Transition.from(allocator, trans_ptr.*, maybe_meta_ctx) },
+                    .timeline, .collection => unreachable, // Timeline/Collection are not composable children
+                };
+            }
+
+            pub fn deinit(
+                self: *const @This(),
+                allocator: std.mem.Allocator,
+            ) void
+            {
+                switch (self.*) {
+                    inline else => |thing| thing.deinit(allocator),
+                }
+            }
+        };
+
+        /// Serializable variant of Warp
+        pub const Warp = struct {
+            name: []const u8 = "",
+            child: *Composable,
+            transform: SerializableTopology,
+
+            pub fn from(
+                allocator: std.mem.Allocator,
+                warp: schema.Warp,
+                maybe_meta_ctx: ?*MetadataContext,
+            ) !Warp
+            {
+                const child = try allocator.create(Composable);
+                errdefer allocator.destroy(child);
+                child.* = try Composable.from(
+                    allocator,
+                    warp.child,
+                    maybe_meta_ctx,
+                );
+
+                return .{
+                    .name = try allocator.dupe(u8, warp.name),
+                    .child = child,
+                    .transform = try SerializableTopology.from(allocator, warp.transform),
+                };
+            }
+
+            pub fn deinit(
+                self: @This(),
+                allocator: std.mem.Allocator,
+            ) void
+            {
+                allocator.free(self.name);
+                self.child.deinit(allocator);
+                allocator.destroy(self.child);
+                self.transform.deinit(allocator);
+            }
+        };
+
+        /// Serializable variant of Stack
+        pub const Stack = struct {
+            name: []const u8 = "",
+            bounds_s: ?SerializableBounds = null,
+            children: []Composable,
+            markers: []SerializableMarker = &.{},
+
+            pub fn from(
+                allocator: std.mem.Allocator,
+                stack: schema.Stack,
+                maybe_meta_ctx: ?*MetadataContext,
+            ) !Stack
+            {
+                const ser_children = try allocator.alloc(
+                    Composable,
+                    stack.children.len,
+                );
+                for (stack.children, 0..)
+                    |child, i|
+                {
+                    ser_children[i] = try Composable.from(
+                        allocator,
+                        child,
+                        maybe_meta_ctx,
+                    );
+                }
+                return .{
+                    .name = try allocator.dupe(u8, stack.name),
+                    .children = ser_children,
+                    .markers = try SerializableMarker.from_slice(
+                        allocator,
+                        stack.markers,
+                    ),
+                };
+            }
+
+            pub fn deinit(
+                self: @This(),
+                allocator: std.mem.Allocator,
+            ) void
+            {
+                allocator.free(self.name);
+                for (self.children)
+                    |*child|
+                {
+                    child.deinit(allocator);
+                }
+                allocator.free(self.children);
+                SerializableMarker.deinit_slice(self.markers, allocator);
+            }
+        };
+
+        /// Serializable variant of Track
+        pub const Track = struct {
+            name: []const u8 = "",
+            bounds_s: ?SerializableBounds = null,
+            children: []Composable,
+            markers: []SerializableMarker = &.{},
+
+            pub fn from(
+                allocator: std.mem.Allocator,
+                track: schema.Track,
+                maybe_meta_ctx: ?*MetadataContext,
+            ) !Track
+            {
+                const ser_children = try allocator.alloc(Composable, track.children.len);
+                for (track.children, 0..)
+                    |child, i|
+                {
+                    ser_children[i] = try Composable.from(
+                        allocator,
+                        child,
+                        maybe_meta_ctx,
+                    );
+                }
+                return .{
+                    .name = try allocator.dupe(u8, track.name),
+                    .children = ser_children,
+                    .markers = try SerializableMarker.from_slice(allocator, track.markers),
+                };
+            }
+
+            pub fn deinit(
+                self: @This(),
+                allocator: std.mem.Allocator,
+            ) void
+            {
+                allocator.free(self.name);
+                for (self.children)
+                    |*child|
+                {
+                    child.deinit(allocator);
+                }
+                allocator.free(self.children);
+                SerializableMarker.deinit_slice(self.markers, allocator);
+            }
+        };
+
+        /// Serializable variant of Transition
+        pub const Transition = struct {
+            name: []const u8 = "",
+            container: Stack,
+            kind: []const u8,
+            bounds_s: ?SerializableContinuousInterval = null,
+
+            pub fn from(
+                allocator: std.mem.Allocator,
+                transition: schema.Transition,
+                maybe_meta_ctx: ?*MetadataContext,
+            ) !Transition
+            {
+                const bounds = if (transition.maybe_bounds_s)
+                    |b|
+                    [2]f64{ b.start.as(f64), b.end.as(f64) }
+                else
+                    null;
+
+                return .{
+                    .name = try allocator.dupe(u8, transition.name),
+                    .container = try Stack.from(allocator, transition.container, maybe_meta_ctx),
+                    .kind = try allocator.dupe(u8, transition.kind),
+                    .bounds_s = bounds,
+                };
+            }
+
+            pub fn deinit(
+                self: @This(),
+                allocator: std.mem.Allocator,
+            ) void
+            {
+                allocator.free(self.name);
+                allocator.free(self.kind);
+                self.container.deinit(allocator);
+            }
+        };
+
+        /// Serializable variant of Timeline (root type)
+        pub const Timeline = struct {
+            pub const schema_name: []const u8 = "Timeline";
+
+            name: []const u8 = "",
+            children: []Composable,
+            presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
+            /// Maps metadata hash keys to their metadata dictionaries.
+            /// Optional so empty maps can be omitted from serialization.
+            metadata_map: ?MetadataMap = null,
+            markers: []SerializableMarker = &.{},
+
+            pub fn from(
+                allocator: std.mem.Allocator,
+                timeline: *schema.Timeline,
+            ) !Timeline
+            {
+                // Create metadata map and context for accumulating clip metadata
+                var metadata_map: MetadataMap = .empty;
+                var meta_ctx = MetadataContext{
+                    .allocator = allocator,
+                    .metadata_map = &metadata_map,
+                };
+
+                // Convert tracks.children directly to timeline.children
+                const ser_children = try allocator.alloc(Composable, timeline.tracks.children.len);
+                for (timeline.tracks.children, 0..)
+                    |child, i|
+                {
+                    ser_children[i] = try Composable.from(
+                        allocator,
+                        child,
+                        &meta_ctx,
+                    );
+                }
+
+                // Timeline-level entries no clip references.
+                if (timeline.metadata_map)
+                    |json_val|
+                {
+                    try meta_ctx.merge_json_object(json_val);
+                }
+
+                return .{
+                    .name = try allocator.dupe(u8, timeline.name),
+                    .children = ser_children,
+                    .presentation_space_discrete_partitions = .{
+                        .picture = .from(
+                            timeline.discrete_space_partitions.presentation.picture
+                        ),
+                        .audio = .from(
+                            timeline.discrete_space_partitions.presentation.audio
+                        ),
+                    },
+                    .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+                    .markers = try SerializableMarker.from_slice(allocator, timeline.markers),
+                };
+            }
+
+            /// Free and remove the root metadata map, if any.
+            pub fn drop_metadata(
+                self: *@This(),
+                allocator: std.mem.Allocator,
+            ) void
+            {
+                if (self.metadata_map)
+                    |*mm|
+                {
+                    deinit_metadata_map(allocator, mm);
+                }
+                self.metadata_map = null;
+            }
+
+            pub fn deinit(
+                self: *@This(),
+                allocator: std.mem.Allocator,
+            ) void
+            {
+                allocator.free(self.name);
+
+                for (self.children)
+                    |*child|
+                {
+                    child.deinit(allocator);
+                }
+                allocator.free(self.children);
+
+                // Free metadata map including all nested keys and values
+                if (self.metadata_map)
+                    |*mm|
+                {
+                    deinit_metadata_map(allocator, mm);
+                }
+
+                // Free markers
+                SerializableMarker.deinit_slice(self.markers, allocator);
+            }
+        };
+
+        // ----------------------------------------------------------------------------
+        // Collection Types
+        // ----------------------------------------------------------------------------
+        // A Collection groups related items (timelines, clips, etc.) without implying
+        // any temporal relationship between them. Unlike a Timeline which arranges
+        // children with defined timing, a Collection is purely organizational.
+
+        /// Items that can be direct children of a Collection.
+        /// Collections can contain timelines and other composables.
+        pub const CollectionItem = union(enum) {
+            timeline: Timeline,
+            track: Track,
+            stack: Stack,
+            clip: Clip,
+            gap: SerializableGap,
+            warp: Warp,
+            transition: Transition,
+
+            pub fn deinit(
+                self: *const @This(),
+                allocator: std.mem.Allocator,
+            ) void
+            {
+                switch (self.*) {
+                    .timeline => |*tl| {
+                        var mutable_tl = @constCast(tl);
+                        mutable_tl.deinit(allocator);
+                    },
+                    inline else => |thing| thing.deinit(allocator),
+                }
+            }
+        };
+
+        /// Serializable variant of Collection (root type for .tlca/.tlcb files)
+        pub const Collection = struct {
+            pub const schema_name: []const u8 = "Collection";
+
+            name: []const u8 = "",
+            description: []const u8 = "",
+            children: []CollectionItem,
+            metadata_map: ?MetadataMap = null,
+
+            /// Free and remove the root metadata map, if any.
+            pub fn drop_metadata(
+                self: *@This(),
+                allocator: std.mem.Allocator,
+            ) void
+            {
+                if (self.metadata_map)
+                    |*mm|
+                {
+                    deinit_metadata_map(allocator, mm);
+                }
+                self.metadata_map = null;
+            }
+
+            pub fn deinit(
+                self: *@This(),
+                allocator: std.mem.Allocator,
+            ) void
+            {
+                allocator.free(self.name);
+                allocator.free(self.description);
+
+                for (self.children)
+                    |*child|
+                {
+                    child.deinit(allocator);
+                }
+                allocator.free(self.children);
+
+                if (self.metadata_map)
+                    |*mm|
+                {
+                    deinit_metadata_map(allocator, mm);
+                }
+            }
+        };
+    };
+}
+
+/// The in-memory serializable tree.
+pub const Core = Tree(SerializableClip);
+
+pub const SerializableComposable = Core.Composable;
+pub const SerializableWarp = Core.Warp;
+pub const SerializableStack = Core.Stack;
+pub const SerializableTrack = Core.Track;
+pub const SerializableTransition = Core.Transition;
 /// Serializable variant of Timeline (root type)
-pub const SerializableTimeline = struct {
-    pub const schema_name: []const u8 = "Timeline";
-
-    name: []const u8 = "",
-    children: []SerializableComposable,
-    presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
-    /// Maps metadata hash keys to their metadata dictionaries.
-    /// Optional so empty maps can be omitted from serialization.
-    metadata_map: ?MetadataMap = null,
-    markers: []SerializableMarker = &.{},
-
-    pub fn from(
-        allocator: std.mem.Allocator,
-        timeline: *schema.Timeline,
-    ) !SerializableTimeline
-    {
-        // Create metadata map and context for accumulating clip metadata
-        var metadata_map: MetadataMap = .empty;
-        var meta_ctx = MetadataContext{
-            .allocator = allocator,
-            .metadata_map = &metadata_map,
-        };
-
-        // Convert tracks.children directly to timeline.children
-        const ser_children = try allocator.alloc(SerializableComposable, timeline.tracks.children.len);
-        for (timeline.tracks.children, 0..)
-            |child, i|
-        {
-            ser_children[i] = try SerializableComposable.from(
-                allocator,
-                child,
-                &meta_ctx,
-            );
-        }
-
-        // Timeline-level entries no clip references.
-        if (timeline.metadata_map)
-            |json_val|
-        {
-            try meta_ctx.merge_json_object(json_val);
-        }
-
-        return .{
-            .name = try allocator.dupe(u8, timeline.name),
-            .children = ser_children,
-            .presentation_space_discrete_partitions = .{
-                .picture = .from(
-                    timeline.discrete_space_partitions.presentation.picture
-                ),
-                .audio = .from(
-                    timeline.discrete_space_partitions.presentation.audio
-                ),
-            },
-            .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
-            .markers = try SerializableMarker.from_slice(allocator, timeline.markers),
-        };
-    }
-
-    /// Free and remove the root metadata map, if any.
-    pub fn drop_metadata(
-        self: *@This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        if (self.metadata_map)
-            |*mm|
-        {
-            deinit_metadata_map(allocator, mm);
-        }
-        self.metadata_map = null;
-    }
-
-    pub fn deinit(
-        self: *@This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        allocator.free(self.name);
-
-        for (self.children)
-            |*child|
-        {
-            child.deinit(allocator);
-        }
-        allocator.free(self.children);
-
-        // Free metadata map including all nested keys and values
-        if (self.metadata_map)
-            |*mm|
-        {
-            deinit_metadata_map(allocator, mm);
-        }
-
-        // Free markers
-        SerializableMarker.deinit_slice(self.markers, allocator);
-    }
-};
-
-// ----------------------------------------------------------------------------
-// Collection Types
-// ----------------------------------------------------------------------------
-// A Collection groups related items (timelines, clips, etc.) without implying
-// any temporal relationship between them. Unlike a Timeline which arranges
-// children with defined timing, a Collection is purely organizational.
-
-/// Items that can be direct children of a Collection.
-/// Collections can contain timelines and other composables.
-pub const SerializableCollectionItem = union(enum) {
-    timeline: SerializableTimeline,
-    track: SerializableTrack,
-    stack: SerializableStack,
-    clip: SerializableClip,
-    gap: SerializableGap,
-    warp: SerializableWarp,
-    transition: SerializableTransition,
-
-    pub fn deinit(
-        self: *const @This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        switch (self.*) {
-            .timeline => |*tl| {
-                var mutable_tl = @constCast(tl);
-                mutable_tl.deinit(allocator);
-            },
-            inline else => |thing| thing.deinit(allocator),
-        }
-    }
-};
-
+pub const SerializableTimeline = Core.Timeline;
+pub const SerializableCollectionItem = Core.CollectionItem;
 /// Serializable variant of Collection (root type for .tlca/.tlcb files)
-pub const SerializableCollection = struct {
-    pub const schema_name: []const u8 = "Collection";
-
-    name: []const u8 = "",
-    description: []const u8 = "",
-    children: []SerializableCollectionItem,
-    metadata_map: ?MetadataMap = null,
-
-    /// Free and remove the root metadata map, if any.
-    pub fn drop_metadata(
-        self: *@This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        if (self.metadata_map)
-            |*mm|
-        {
-            deinit_metadata_map(allocator, mm);
-        }
-        self.metadata_map = null;
-    }
-
-    pub fn deinit(
-        self: *@This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        allocator.free(self.name);
-        allocator.free(self.description);
-
-        for (self.children)
-            |*child|
-        {
-            child.deinit(allocator);
-        }
-        allocator.free(self.children);
-
-        if (self.metadata_map)
-            |*mm|
-        {
-            deinit_metadata_map(allocator, mm);
-        }
-    }
-};
+pub const SerializableCollection = Core.Collection;
 
 // ----------------------------------------------------------------------------
 // Curve Library Serializable Types
@@ -1138,7 +1168,6 @@ pub const MetadataContext = struct {
 
     /// Recursively serialize JSON to bytes for hashing
     fn serialize_json_for_hash(
-        self: *MetadataContext,
         json_val: std.json.Value,
         writer: anytype,
     ) void
@@ -1163,7 +1192,7 @@ pub const MetadataContext = struct {
                     {
                         writer.writeAll(",") catch {};
                     }
-                    self.serialize_json_for_hash(
+                    serialize_json_for_hash(
                         item,
                         writer,
                     );
@@ -1185,7 +1214,7 @@ pub const MetadataContext = struct {
                     writer.writeAll("\"") catch {};
                     writer.writeAll(entry.key_ptr.*) catch {};
                     writer.writeAll("\":") catch {};
-                    self.serialize_json_for_hash(
+                    serialize_json_for_hash(
                         entry.value_ptr.*,
                         writer,
                     );
@@ -1222,6 +1251,31 @@ pub const MetadataContext = struct {
         }
     }
 
+    /// Content hash key of `json_val`: the first 8 bytes of the Blake3 hash
+    /// of its JSON text, as 16 lowercase hex characters.
+    pub fn hash_key(
+        json_val: std.json.Value,
+    ) [16]u8
+    {
+        // Serialize JSON to string for hashing
+        var hash_buffer: [32 * 1024]u8 = undefined;
+        var stream: std.Io.Writer = .fixed(&hash_buffer);
+        serialize_json_for_hash(json_val, &stream);
+
+        var hasher = std.crypto.hash.Blake3.init(.{});
+        hasher.update(stream.buffered());
+        var hash_bytes: [8]u8 = undefined;
+        hasher.final(&hash_bytes);
+
+        var result: [16]u8 = undefined;
+        _ = std.fmt.bufPrint(
+            &result,
+            "{x:0>16}",
+            .{ std.mem.readInt(u64, &hash_bytes, .big) },
+        ) catch unreachable;
+        return result;
+    }
+
     /// Add metadata to the map and return its Blake3 hash key as a hex string.
     /// If metadata with the same hash already exists, just returns the
     /// existing key.
@@ -1230,41 +1284,16 @@ pub const MetadataContext = struct {
         json_val: std.json.Value,
     ) ![]const u8
     {
-        // Serialize JSON to string for hashing
-        var hash_buffer: [32 * 1024]u8 = undefined;
-        var stream: std.Io.Writer = .fixed(&hash_buffer);
-        self.serialize_json_for_hash(
-            json_val,
-            &stream,
-        );
-        const json_bytes = stream.buffered();
+        const key = hash_key(json_val);
 
-        // Compute hash using Blake3 (first 8 bytes = u64)
-        var hasher = std.crypto.hash.Blake3.init(.{});
-        hasher.update(json_bytes);
-        var hash_bytes: [8]u8 = undefined;
-        hasher.final(hash_bytes[0..8]);
-
-        // Convert first 8 bytes to u64 for consistent representation
-        const hash: u64 = std.mem.readInt(u64, &hash_bytes, .big);
-
-        // Convert to hex string (16 chars for u64)
-        const hash_str = try self.allocator.alloc(u8, 16);
-        const hex_chars = "0123456789abcdef";
-        inline for (0..8) |i|
+        // Already stored: return a copy of the key.
+        if (self.metadata_map.fields.contains(&key))
         {
-            const byte: u8 = @truncate(hash >> @intCast((7 - i) * 8));
-            hash_str[i * 2] = hex_chars[byte >> 4];
-            hash_str[i * 2 + 1] = hex_chars[byte & 0x0f];
+            return try self.allocator.dupe(u8, &key);
         }
 
-        // Check if this metadata already exists
-        if (self.metadata_map.fields.getKey(hash_str)) |existing_key|
-        {
-            // Already exists, free the duplicate key and return existing
-            self.allocator.free(hash_str);
-            return try self.allocator.dupe(u8, existing_key);
-        }
+        const hash_str = try self.allocator.dupe(u8, &key);
+        errdefer self.allocator.free(hash_str);
 
         // Convert and store metadata
         const meta_val = try self.json_to_metadata_value(json_val);
@@ -1733,6 +1762,231 @@ pub fn Document(
     return struct {
         schema_version: u32,
         content: Content,
+    };
+}
+
+/// How `convert` treats values whose type is the same in source and
+/// destination and that contain nothing the hooks override.
+pub const ConvertMode = enum {
+    /// Return them as-is: the result borrows from the source.  For
+    /// short-lived layouts (e.g. building a write in an arena).
+    share,
+    /// Deep-copy them (`deep_clone`): the result owns all of its memory.
+    copy,
+};
+
+/// Map `value` from type `Src` to type `Dst`, typically between two
+/// instances of `Tree` (or document layouts built from them).
+///
+/// Structs are rebuilt field by field (by `Dst`'s field names), unions by
+/// tag name, slices, single-item pointers and optionals element by element.
+/// Values the hooks override are converted by the hooks; other values whose
+/// type is the same on both sides are shared or copied (see `ConvertMode`).
+///
+/// `Hooks` declares:
+///
+/// ```
+/// pub const mode: ConvertMode;
+/// pub const Error: type; // includes error.OutOfMemory
+/// pub fn overrides(comptime T: type) bool;
+/// pub fn override(self: *Hooks, comptime Src: type, comptime Dst: type,
+///     allocator: std.mem.Allocator, value: Src) Error!Dst;
+/// ```
+///
+/// An override may recurse with `convert_fields` (possibly with another
+/// `Hooks` value, e.g. one bound to a nested timeline's metadata map).
+pub fn convert(
+    comptime Src: type,
+    comptime Dst: type,
+    comptime Hooks: type,
+    hooks: *Hooks,
+    allocator: std.mem.Allocator,
+    value: Src,
+) Hooks.Error!Dst
+{
+    if (comptime Hooks.overrides(Src))
+    {
+        return try hooks.override(Src, Dst, allocator, value);
+    }
+
+    if (comptime Src == Dst and !reaches_override(Hooks, Src))
+    {
+        return switch (Hooks.mode) {
+            .share => value,
+            .copy => try deep_clone(Src, allocator, value),
+        };
+    }
+
+    switch (@typeInfo(Dst)) {
+        .optional => |info| {
+            const inner = value orelse return null;
+            return try convert(
+                @typeInfo(Src).optional.child,
+                info.child,
+                Hooks,
+                hooks,
+                allocator,
+                inner,
+            );
+        },
+        .pointer => |info| switch (info.size) {
+            .one => {
+                const result = try allocator.create(info.child);
+                result.* = try convert(
+                    @typeInfo(Src).pointer.child,
+                    info.child,
+                    Hooks,
+                    hooks,
+                    allocator,
+                    value.*,
+                );
+                return result;
+            },
+            .slice => {
+                const result = try allocator.alloc(info.child, value.len);
+                for (value, result)
+                    |item, *out|
+                {
+                    out.* = try convert(
+                        @typeInfo(Src).pointer.child,
+                        info.child,
+                        Hooks,
+                        hooks,
+                        allocator,
+                        item,
+                    );
+                }
+                return result;
+            },
+            else => @compileError(
+                "convert: unsupported pointer type " ++ @typeName(Dst)
+            ),
+        },
+        .@"struct" => {
+            return try convert_fields(
+                Src,
+                Dst,
+                Hooks,
+                hooks,
+                allocator,
+                value,
+            );
+        },
+        .@"union" => {
+            switch (value) {
+                inline else => |payload, tag| {
+                    const name = @tagName(tag);
+                    return @unionInit(
+                        Dst,
+                        name,
+                        try convert(
+                            @TypeOf(payload),
+                            @FieldType(Dst, name),
+                            Hooks,
+                            hooks,
+                            allocator,
+                            payload,
+                        ),
+                    );
+                },
+            }
+        },
+        else => @compileError(
+            "convert: cannot map " ++ @typeName(Src) ++ " to "
+            ++ @typeName(Dst)
+        ),
+    }
+}
+
+/// Build struct `Dst` from struct `value` field by field (by `Dst`'s field
+/// names, each converted with `convert`), without checking whether `Src`
+/// itself is overridden.  For overrides that convert most fields normally.
+pub fn convert_fields(
+    comptime Src: type,
+    comptime Dst: type,
+    comptime Hooks: type,
+    hooks: *Hooks,
+    allocator: std.mem.Allocator,
+    value: Src,
+) Hooks.Error!Dst
+{
+    const info = @typeInfo(Dst).@"struct";
+    var result: Dst = undefined;
+    inline for (info.field_names, info.field_types, info.field_attrs)
+        |name, FieldType, attrs|
+    {
+        if (comptime attrs.@"comptime")
+        {
+            continue;
+        }
+        @field(result, name) = try convert(
+            @FieldType(Src, name),
+            FieldType,
+            Hooks,
+            hooks,
+            allocator,
+            @field(value, name),
+        );
+    }
+    return result;
+}
+
+/// True if a value of type `T` can contain a value `Hooks` overrides.
+fn reaches_override(
+    comptime Hooks: type,
+    comptime T: type,
+) bool
+{
+    @setEvalBranchQuota(100_000);
+    return comptime reaches_override_visiting(Hooks, T, &.{});
+}
+
+fn reaches_override_visiting(
+    comptime Hooks: type,
+    comptime T: type,
+    comptime visited: []const type,
+) bool
+{
+    if (Hooks.overrides(T))
+    {
+        return true;
+    }
+    // metadata values are leaves: hooks never override inside them
+    if (T == MetadataMap or T == MetadataValue)
+    {
+        return false;
+    }
+    for (visited)
+        |V|
+    {
+        if (V == T)
+        {
+            return false;
+        }
+    }
+    const next = visited ++ [_]type{T};
+
+    return switch (@typeInfo(T)) {
+        .optional => |info| reaches_override_visiting(Hooks, info.child, next),
+        .array => |info| reaches_override_visiting(Hooks, info.child, next),
+        .pointer => |info| reaches_override_visiting(Hooks, info.child, next),
+        .@"struct" => |info| for (info.field_types)
+            |FieldType|
+        {
+            if (reaches_override_visiting(Hooks, FieldType, next))
+            {
+                break true;
+            }
+        } else false,
+        .@"union" => |info| for (info.field_types)
+            |FieldType|
+        {
+            if (reaches_override_visiting(Hooks, FieldType, next))
+            {
+                break true;
+            }
+        } else false,
+        else => false,
     };
 }
 
@@ -2882,4 +3136,136 @@ test "serializable: SerializableRoot.finalize upgrades and enforces the oldest v
         error.SchemaVersionNewerThanSupported,
         newer.finalize(allocator),
     );
+}
+
+/// Test hooks for `convert`: rename every clip.
+fn RenameClips(
+    comptime convert_mode: ConvertMode,
+) type
+{
+    return struct {
+        pub const mode = convert_mode;
+        pub const Error = error{OutOfMemory};
+
+        pub fn overrides(
+            comptime T: type,
+        ) bool
+        {
+            return T == SerializableClip;
+        }
+
+        pub fn override(
+            self: *@This(),
+            comptime Src: type,
+            comptime Dst: type,
+            allocator: std.mem.Allocator,
+            value: Src,
+        ) Error!Dst
+        {
+            var result = try convert_fields(
+                Src,
+                Dst,
+                @This(),
+                self,
+                allocator,
+                value,
+            );
+            if (mode == .copy)
+            {
+                allocator.free(result.name);
+                result.name = try allocator.dupe(u8, "renamed");
+            }
+            else
+            {
+                result.name = "renamed";
+            }
+            return result;
+        }
+    };
+}
+
+test "serializable: convert overrides values and shares or copies the rest"
+{
+    const allocator = std.testing.allocator;
+
+    var clip_children = [_]SerializableComposable{
+        .{
+            .clip = .{
+                .name = "clip",
+                .media = .{
+                    .data_reference = .{
+                        .uri = .{ .target_uri = "file:///a.mov" },
+                    },
+                    .domain = .picture,
+                },
+                .metadata_hash = "0123456789abcdef",
+            },
+        },
+        .{ .gap = .{ .name = "gap", .bounds_s = .{ 0, 1 } } },
+    };
+    var markers = [_]SerializableMarker{
+        .{ .name = "m", .marked_range = .{ 0, 1 }, .color = "red" },
+    };
+    var top = [_]SerializableComposable{
+        .{
+            .track = .{
+                .name = "track",
+                .children = &clip_children,
+                .markers = &markers,
+            },
+        },
+    };
+    const literal: SerializableTimeline = .{
+        .name = "timeline",
+        .children = &top,
+        .presentation_space_discrete_partitions = .{},
+    };
+
+    // .share: containers of clips are rebuilt, everything else is shared
+    {
+        var arena: std.heap.ArenaAllocator = .init(allocator);
+        defer arena.deinit();
+        var hooks: RenameClips(.share) = .{};
+        const shared = try convert(
+            SerializableTimeline,
+            SerializableTimeline,
+            RenameClips(.share),
+            &hooks,
+            arena.allocator(),
+            literal,
+        );
+        const track = shared.children[0].track;
+        try std.testing.expect(track.children.ptr != &clip_children);
+        try std.testing.expectEqualStrings("renamed", track.children[0].clip.name);
+        try std.testing.expectEqualStrings(
+            "0123456789abcdef",
+            track.children[0].clip.metadata_hash.?,
+        );
+        try std.testing.expect(track.markers.ptr == &markers);
+        try std.testing.expect(
+            track.children[1].gap.name.ptr == clip_children[1].gap.name.ptr
+        );
+        try std.testing.expectEqualStrings("clip", clip_children[0].clip.name);
+    }
+
+    // .copy: the result owns all of its memory
+    {
+        var source = try deep_clone(SerializableTimeline, allocator, literal);
+        var hooks: RenameClips(.copy) = .{};
+        var copied = try convert(
+            SerializableTimeline,
+            SerializableTimeline,
+            RenameClips(.copy),
+            &hooks,
+            allocator,
+            source,
+        );
+        defer copied.deinit(allocator);
+        source.deinit(allocator);
+
+        const track = copied.children[0].track;
+        try std.testing.expectEqualStrings("renamed", track.children[0].clip.name);
+        try std.testing.expectEqualStrings("gap", track.children[1].gap.name);
+        try std.testing.expectEqualStrings("red", track.markers[0].color);
+    }
 }

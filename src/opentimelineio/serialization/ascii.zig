@@ -66,22 +66,6 @@ const serializable_to_linear_curve = serializable.serializable_to_linear_curve;
 const serializable_to_timeline = serializable.serializable_to_timeline;
 
 
-/// Serializable variant of Clip with inline metadata (for --inline-metadata output)
-pub const SerializableClipInlineMetadata = struct {
-    name: []const u8 = "",
-    bounds_s: ?SerializableBounds = null,
-    media: SerializableMediaReference,
-    /// Metadata stored inline instead of by hash reference
-    metadata: ?MetadataValue = null,
-};
-
-/// Serializable variant of Clip with no metadata (for --no-metadata output)
-pub const SerializableClipNoMetadata = struct {
-    name: []const u8 = "",
-    bounds_s: ?SerializableBounds = null,
-    media: SerializableMediaReference,
-};
-
 /// A placeholder that consumes one complete ziggy value from the token stream
 /// and discards it without allocating or building any data.
 ///
@@ -138,284 +122,362 @@ pub const SkippedValue = struct {
     }
 };
 
-/// Variant of SerializableTimeline that skips metadata_map during parsing.
-/// Used when content_filter == .all_except_metadata.
-///
-/// `metadata_map` is a `SkippedValue`, which consumes the value's tokens
-/// without building it, providing significant performance gains for large
-/// files.  (ziggy's `skip_fields` is not used: it rejects documents that
-/// contain the skipped field.)
-pub const SerializableTimelineNoMetadata = struct {
-    pub const schema_name: []const u8 = "Timeline";
-
-    /// The document's schema version (required).
-    schema_version: u32,
-    name: []const u8 = "",
-    children: []SerializableComposable,
-    presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
-    /// Consumed and discarded during parsing.
-    metadata_map: SkippedValue = .{},
-    markers: []SerializableMarker = &.{},
-
-    pub fn deinit(
-        self: *@This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        allocator.free(self.name);
-
-        for (self.children)
-            |*child|
-        {
-            child.deinit(allocator);
-        }
-        allocator.free(self.children);
-
-        for (self.markers)
-            |marker|
-        {
-            marker.deinit(allocator);
-        }
-        allocator.free(self.markers);
-
-        // metadata_map is a SkippedValue and owns no memory
-    }
-
-    /// Convert to SerializableTimeline for use with existing code
-    pub fn to_serializable_timeline(
-        self: @This(),
-    ) SerializableTimeline
-    {
-        return .{
-            .name = self.name,
-            .children = self.children,
-            .presentation_space_discrete_partitions = (
-                self.presentation_space_discrete_partitions
-            ),
-            .metadata_map = null, // Always null
-            .markers = self.markers,
-        };
-    }
-};
-
 // ----------------------------------------------------------------------------
-// Output-only types for metadata mode variants
+// TLA layouts
 // ----------------------------------------------------------------------------
-// These types are used only for serialization output with --no-metadata
-// and --inline-metadata options. They are NOT used for parsing.
+// TLA files use `serializable.Tree` with `TlaClip`, which stores metadata by
+// hash reference (`metadata_hash`, the default) or inline (`metadata`, for
+// `.inline_metadata` output).  `serializable.convert` maps between these
+// trees and the in-memory `serializable.Core` tree; see the hooks below.
 
-/// Composable union for inline metadata output
-pub const SerializableComposableInlineMetadata = union(enum) {
-    clip: SerializableClipInlineMetadata,
-    gap: SerializableGap,
-    track: SerializableTrackInlineMetadata,
-    stack: SerializableStackInlineMetadata,
-    warp: SerializableWarpInlineMetadata,
-    transition: SerializableTransitionInlineMetadata,
-};
+/// A clip as stored in TLA: the `SerializableClip` fields plus inline
+/// `metadata` of type `Meta` (`?MetadataValue`, or `?SkippedValue` to
+/// discard it while parsing).  At most one of `metadata_hash` and
+/// `metadata` may be set.
+fn TlaClip(
+    comptime Meta: type,
+) type
+{
+    return struct {
+        name: []const u8 = "",
+        bounds_s: ?SerializableBounds = null,
+        media: SerializableMediaReference,
+        /// Key of an entry in the enclosing timeline/collection metadata_map.
+        metadata_hash: ?[]const u8 = null,
+        /// Metadata stored inline instead of by hash reference.
+        metadata: Meta = null,
+        markers: []SerializableMarker = &.{},
+    };
+}
 
-/// Composable union for no metadata output
-pub const SerializableComposableNoMetadata = union(enum) {
-    clip: SerializableClipNoMetadata,
-    gap: SerializableGap,
-    track: SerializableTrackNoMetadata,
-    stack: SerializableStackNoMetadata,
-    warp: SerializableWarpNoMetadata,
-    transition: SerializableTransitionNoMetadata,
-};
+/// TLA tree: clips with hash references or inline metadata.
+const TlaTree = serializable.Tree(TlaClip(?MetadataValue));
 
-/// Track variant for inline metadata output
-pub const SerializableTrackInlineMetadata = struct {
-    name: []const u8 = "",
-    bounds_s: ?SerializableBounds = null,
-    children: []SerializableComposableInlineMetadata,
-};
+/// TLA tree that discards inline clip metadata while parsing.
+const TlaTreeSkipMetadata = serializable.Tree(TlaClip(?SkippedValue));
 
-/// Track variant for no metadata output
-pub const SerializableTrackNoMetadata = struct {
-    name: []const u8 = "",
-    bounds_s: ?SerializableBounds = null,
-    children: []SerializableComposableNoMetadata,
-};
+/// File layout of a TLA timeline document: the `Tr.Timeline` fields plus
+/// the document's (required) schema version, with a root `metadata_map` of
+/// type `Map` (`?MetadataMap`, or `SkippedValue` to discard it while
+/// parsing).  Timelines nested in collections are `Tr.Timeline`, which has
+/// no version field (a nested version is an unknown-field error).
+fn TimelineDocument(
+    comptime Tr: type,
+    comptime Map: type,
+) type
+{
+    return struct {
+        pub const schema_name: []const u8 = "Timeline";
+        pub const Tree = Tr;
 
-/// Stack variant for inline metadata output
-pub const SerializableStackInlineMetadata = struct {
-    name: []const u8 = "",
-    bounds_s: ?SerializableBounds = null,
-    children: []SerializableComposableInlineMetadata,
-};
-
-/// Stack variant for no metadata output
-pub const SerializableStackNoMetadata = struct {
-    name: []const u8 = "",
-    bounds_s: ?SerializableBounds = null,
-    children: []SerializableComposableNoMetadata,
-};
-
-/// Warp variant for inline metadata output
-pub const SerializableWarpInlineMetadata = struct {
-    name: []const u8 = "",
-    child: *SerializableComposableInlineMetadata,
-    transform: SerializableTopology,
-};
-
-/// Warp variant for no metadata output
-pub const SerializableWarpNoMetadata = struct {
-    name: []const u8 = "",
-    child: *SerializableComposableNoMetadata,
-    transform: SerializableTopology,
-};
-
-/// Transition variant for inline metadata output
-pub const SerializableTransitionInlineMetadata = struct {
-    name: []const u8 = "",
-    container: SerializableStackInlineMetadata,
-    kind: []const u8,
-    bounds_s: ?SerializableContinuousInterval = null,
-};
-
-/// Transition variant for no metadata output
-pub const SerializableTransitionNoMetadata = struct {
-    name: []const u8 = "",
-    container: SerializableStackNoMetadata,
-    kind: []const u8,
-    bounds_s: ?SerializableContinuousInterval = null,
-};
-
-/// TLA file layout of a timeline document: the in-memory
-/// `SerializableTimeline` fields plus the document's schema version.
-/// Timelines nested in collections are plain `SerializableTimeline`, which
-/// has no version field (a nested version is an unknown-field error).
-pub const TlaTimeline = struct {
-    pub const schema_name: []const u8 = "Timeline";
-
-    /// The document's schema version (required).
-    schema_version: u32,
-    name: []const u8 = "",
-    children: []SerializableComposable,
-    presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
-    metadata_map: ?MetadataMap = null,
-    markers: []SerializableMarker = &.{},
-
-    /// Document layout for `timeline` at `schema_version`.
-    fn from(
-        timeline: SerializableTimeline,
+        /// The document's schema version (required).
         schema_version: u32,
-    ) TlaTimeline
-    {
-        return .{
-            .schema_version = schema_version,
-            .name = timeline.name,
-            .children = timeline.children,
-            .presentation_space_discrete_partitions = (
-                timeline.presentation_space_discrete_partitions
-            ),
-            .metadata_map = timeline.metadata_map,
-            .markers = timeline.markers,
-        };
-    }
+        name: []const u8 = "",
+        children: []Tr.Composable,
+        presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
+        metadata_map: Map = if (Map == SkippedValue) .{} else null,
+        markers: []SerializableMarker = &.{},
+    };
+}
 
-    /// The in-memory timeline; takes ownership of every field.
-    fn to_serializable(
-        self: @This(),
-    ) SerializableTimeline
-    {
-        return .{
-            .name = self.name,
-            .children = self.children,
-            .presentation_space_discrete_partitions = (
-                self.presentation_space_discrete_partitions
-            ),
-            .metadata_map = self.metadata_map,
-            .markers = self.markers,
-        };
-    }
-};
+/// File layout of a TLCA collection document: the `Tr.Collection` fields
+/// plus the document's (required) schema version.
+fn CollectionDocument(
+    comptime Tr: type,
+) type
+{
+    return struct {
+        pub const schema_name: []const u8 = "Collection";
+        pub const Tree = Tr;
 
-/// TLCA file layout of a collection document: the in-memory
-/// `SerializableCollection` fields plus the document's schema version.
-const TlaCollection = struct {
-    pub const schema_name: []const u8 = "Collection";
+        /// The document's schema version (required).
+        schema_version: u32,
+        name: []const u8 = "",
+        description: []const u8 = "",
+        children: []Tr.CollectionItem,
+        metadata_map: ?MetadataMap = null,
+    };
+}
 
-    /// The document's schema version (required).
+/// Document layout of `content` (a `Tr.Timeline` or `Tr.Collection`) at
+/// `schema_version`.  Borrows every field of `content`.
+fn document_layout(
+    comptime Tr: type,
+    content: anytype,
     schema_version: u32,
-    name: []const u8 = "",
-    description: []const u8 = "",
-    children: []SerializableCollectionItem,
-    metadata_map: ?MetadataMap = null,
+) if (@TypeOf(content) == Tr.Timeline)
+    TimelineDocument(Tr, ?MetadataMap)
+else
+    CollectionDocument(Tr)
+{
+    const Content = @TypeOf(content);
+    const Layout = if (Content == Tr.Timeline)
+        TimelineDocument(Tr, ?MetadataMap)
+    else
+        CollectionDocument(Tr);
+
+    const content_fields = @typeInfo(Content).@"struct".field_names;
+    comptime std.debug.assert(
+        @typeInfo(Layout).@"struct".field_names.len == content_fields.len + 1
+    );
+
+    var result: Layout = undefined;
+    result.schema_version = schema_version;
+    inline for (content_fields)
+        |name|
+    {
+        @field(result, name) = @field(content, name);
+    }
+    return result;
+}
+
+/// Write hooks for `.no_metadata`: clear clip hash references and drop the
+/// timeline/collection metadata maps; everything else is shared.
+const StripMetadata = struct {
+    pub const mode: serializable.ConvertMode = .share;
+    pub const Error = error{OutOfMemory};
+
+    pub fn overrides(
+        comptime T: type,
+    ) bool
+    {
+        return (
+            T == SerializableClip
+            or T == SerializableTimeline
+            or T == SerializableCollection
+        );
+    }
+
+    pub fn override(
+        self: *@This(),
+        comptime Src: type,
+        comptime Dst: type,
+        allocator: std.mem.Allocator,
+        value: Src,
+    ) Error!Dst
+    {
+        var result = try serializable.convert_fields(
+            Src,
+            Dst,
+            @This(),
+            self,
+            allocator,
+            value,
+        );
+        if (Src == SerializableClip)
+        {
+            result.metadata_hash = null;
+        }
+        else
+        {
+            result.metadata_map = null;
+        }
+        return result;
+    }
 };
 
-/// Timeline variant for inline metadata output (no metadata_map, metadata
-/// inline on clips)
-pub const SerializableTimelineInlineMetadata = struct {
-    pub const schema_name: []const u8 = "Timeline";
+/// Write hooks for `.inline_metadata`: store each clip's metadata inline,
+/// looked up in the metadata map of its enclosing timeline or collection,
+/// and drop the maps; everything else is shared.
+const InlineMetadata = struct {
+    /// Metadata map of the enclosing timeline or collection.
+    maybe_map: ?MetadataMap = null,
 
-    /// Set on the document root only; ignored on nested timelines.
-    schema_version: ?u32 = null,
-    name: []const u8 = "",
-    children: []SerializableComposableInlineMetadata,
-    presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
-    // No metadata_map field - metadata is inline on clips
+    pub const mode: serializable.ConvertMode = .share;
+    pub const Error = error{OutOfMemory};
+
+    pub fn overrides(
+        comptime T: type,
+    ) bool
+    {
+        return StripMetadata.overrides(T);
+    }
+
+    pub fn override(
+        self: *@This(),
+        comptime Src: type,
+        comptime Dst: type,
+        allocator: std.mem.Allocator,
+        value: Src,
+    ) Error!Dst
+    {
+        if (Src == SerializableClip)
+        {
+            var result: Dst = undefined;
+            inline for (@typeInfo(Src).@"struct".field_names)
+                |name|
+            {
+                @field(result, name) = @field(value, name);
+            }
+            result.metadata_hash = null;
+            result.metadata = (
+                if (value.metadata_hash)
+                    |hash|
+                    if (self.maybe_map)
+                        |mm|
+                        mm.fields.get(hash)
+                    else
+                        null
+                else
+                    null
+            );
+            return result;
+        }
+
+        // a timeline or collection: its clips use its own map
+        var inner: @This() = .{ .maybe_map = value.metadata_map };
+        var result = try serializable.convert_fields(
+            Src,
+            Dst,
+            @This(),
+            &inner,
+            allocator,
+            value,
+        );
+        result.metadata_map = null;
+        return result;
+    }
 };
 
-/// Timeline variant for output without any metadata
-pub const SerializableTimelineStrippedMetadata = struct {
-    pub const schema_name: []const u8 = "Timeline";
+/// Read hooks for a parsed TLA tree `Tr`: convert it to the in-memory
+/// tree, moving inline clip metadata into the metadata map of the enclosing
+/// timeline or collection under its content hash (the key
+/// `MetadataContext` would give it), so in memory clips always reference
+/// metadata by hash.  A clip with both a hash and inline metadata is
+/// `error.ConflictingClipMetadata`.
+///
+/// Shares the parsed values (`.share`); `parse_ziggy` copies the result.
+fn FoldInlineMetadata(
+    comptime Tr: type,
+) type
+{
+    return struct {
+        /// Metadata map of the enclosing timeline or collection.
+        map: *?MetadataMap,
 
-    /// Set on the document root only; ignored on nested timelines.
-    schema_version: ?u32 = null,
-    name: []const u8 = "",
-    children: []SerializableComposableNoMetadata,
-    presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
-    // No metadata_map field
-};
+        pub const mode: serializable.ConvertMode = .share;
+        pub const Error = error{
+            OutOfMemory,
+            ConflictingClipMetadata,
+        };
 
-/// Collection variant for inline metadata output (no metadata_map, metadata
-/// inline on clips)
-pub const SerializableCollectionInlineMetadata = struct {
-    pub const schema_name: []const u8 = "Collection";
+        pub fn overrides(
+            comptime T: type,
+        ) bool
+        {
+            return T == Tr.Clip or T == Tr.Timeline or T == Tr.Collection;
+        }
 
-    /// Set on the document root only; ignored on nested timelines.
-    schema_version: ?u32 = null,
-    name: []const u8 = "",
-    description: []const u8 = "",
-    children: []SerializableCollectionItemInlineMetadata,
-    // No metadata_map field - metadata is inline on clips
-};
+        pub fn override(
+            self: *@This(),
+            comptime Src: type,
+            comptime Dst: type,
+            allocator: std.mem.Allocator,
+            value: Src,
+        ) Error!Dst
+        {
+            if (Src == Tr.Clip)
+            {
+                return try self.fold_clip(allocator, value);
+            }
+            return try convert_with_own_map(Src, Dst, allocator, value);
+        }
 
-/// Collection variant for output without any metadata
-pub const SerializableCollectionStrippedMetadata = struct {
-    pub const schema_name: []const u8 = "Collection";
+        /// Convert a struct with its own `metadata_map` (a timeline, a
+        /// collection or a document layout): its clips fold into that map.
+        pub fn convert_with_own_map(
+            comptime Src: type,
+            comptime Dst: type,
+            allocator: std.mem.Allocator,
+            value: Src,
+        ) Error!Dst
+        {
+            var result: Dst = undefined;
+            result.metadata_map = (
+                if (@FieldType(Src, "metadata_map") == ?MetadataMap)
+                    value.metadata_map
+                else
+                    null
+            );
 
-    /// Set on the document root only; ignored on nested timelines.
-    schema_version: ?u32 = null,
-    name: []const u8 = "",
-    description: []const u8 = "",
-    children: []SerializableCollectionItemNoMetadata,
-    // No metadata_map field
-};
+            var inner: @This() = .{ .map = &result.metadata_map };
+            const info = @typeInfo(Dst).@"struct";
+            inline for (info.field_names, info.field_types)
+                |name, FieldType|
+            {
+                if (comptime std.mem.eql(u8, name, "metadata_map"))
+                {
+                    continue;
+                }
+                @field(result, name) = try serializable.convert(
+                    @FieldType(Src, name),
+                    FieldType,
+                    @This(),
+                    &inner,
+                    allocator,
+                    @field(value, name),
+                );
+            }
+            return result;
+        }
 
-/// Collection item variant for inline metadata output
-pub const SerializableCollectionItemInlineMetadata = union(enum) {
-    timeline: SerializableTimelineInlineMetadata,
-    track: SerializableTrackInlineMetadata,
-    stack: SerializableStackInlineMetadata,
-    clip: SerializableClipInlineMetadata,
-    gap: SerializableGap,
-    warp: SerializableWarpInlineMetadata,
-    transition: SerializableTransitionInlineMetadata,
-};
+        fn fold_clip(
+            self: *@This(),
+            allocator: std.mem.Allocator,
+            clip: Tr.Clip,
+        ) Error!SerializableClip
+        {
+            var result: SerializableClip = undefined;
+            inline for (@typeInfo(SerializableClip).@"struct".field_names)
+                |name|
+            {
+                @field(result, name) = @field(clip, name);
+            }
 
-/// Collection item variant for stripped metadata output
-pub const SerializableCollectionItemNoMetadata = union(enum) {
-    timeline: SerializableTimelineStrippedMetadata,
-    track: SerializableTrackNoMetadata,
-    stack: SerializableStackNoMetadata,
-    clip: SerializableClipNoMetadata,
-    gap: SerializableGap,
-    warp: SerializableWarpNoMetadata,
-    transition: SerializableTransitionNoMetadata,
-};
+            const inline_value = clip.metadata orelse return result;
+            if (clip.metadata_hash != null)
+            {
+                return error.ConflictingClipMetadata;
+            }
+            if (@TypeOf(inline_value) == MetadataValue)
+            {
+                result.metadata_hash = try self.add(allocator, inline_value);
+            }
+            return result;
+        }
+
+        /// Store `value` in the map under its content hash; return the key.
+        fn add(
+            self: *@This(),
+            allocator: std.mem.Allocator,
+            value: MetadataValue,
+        ) error{OutOfMemory}![]const u8
+        {
+            const json = serializable.metadata_value_to_json(
+                allocator,
+                value,
+            ) catch
+                |err|
+                switch (err) {
+                    error.OutOfMemory => return error.OutOfMemory,
+                };
+            const key = serializable.MetadataContext.hash_key(json);
+
+            if (self.map.* == null)
+            {
+                self.map.* = .empty;
+            }
+            const entry = try self.map.*.?.fields.getOrPut(allocator, &key);
+            if (!entry.found_existing)
+            {
+                entry.key_ptr.* = try allocator.dupe(u8, &key);
+                entry.value_ptr.* = value;
+            }
+            return entry.key_ptr.*;
+        }
+    };
+}
+
 
 // ----------------------------------------------------------------------------
 // Main Serialization Entry Points (using tla)
@@ -499,282 +561,6 @@ fn deserialize_linear_curve(
 
     // Convert to curve format
     return try serializable_to_linear_curve(allocator, ser_linear);
-}
-
-// ----------------------------------------------------------------------------
-// Metadata Mode Conversion Functions
-// ----------------------------------------------------------------------------
-
-/// Convert a SerializableTimeline to inline metadata format.
-/// Looks up metadata_hash values in metadata_map and stores them inline on clips.
-fn convert_to_inline_metadata(
-    allocator: std.mem.Allocator,
-    timeline: SerializableTimeline,
-) !SerializableTimelineInlineMetadata
-{
-    const inline_children = try allocator.alloc(
-        SerializableComposableInlineMetadata,
-        timeline.children.len,
-    );
-
-    for (timeline.children, 0..)
-        |child, i|
-    {
-        inline_children[i] = try convert_composable_to_inline_metadata(
-            allocator,
-            child,
-            timeline.metadata_map,
-        );
-    }
-
-    return .{
-        .name = timeline.name,
-        .children = inline_children,
-        .presentation_space_discrete_partitions = timeline.presentation_space_discrete_partitions,
-    };
-}
-
-/// Convert a SerializableComposable to inline metadata format.
-fn convert_composable_to_inline_metadata(
-    allocator: std.mem.Allocator,
-    composable: SerializableComposable,
-    metadata_map: ?MetadataMap,
-) !SerializableComposableInlineMetadata
-{
-    return switch (composable) {
-        .clip => |clip| .{
-            .clip = .{
-                .name = clip.name,
-                .bounds_s = clip.bounds_s,
-                .media = clip.media,
-                .metadata = if (clip.metadata_hash) |hash|
-                    if (metadata_map) |mm|
-                        mm.fields.get(hash)
-                    else
-                        null
-                else
-                    null,
-            },
-        },
-        .gap => |gap| .{ .gap = gap },
-        .track => |track| blk: {
-            const inline_children = try allocator.alloc(
-                SerializableComposableInlineMetadata,
-                track.children.len,
-            );
-            for (track.children, 0..)
-                |child, i|
-            {
-                inline_children[i] = try convert_composable_to_inline_metadata(
-                    allocator,
-                    child,
-                    metadata_map,
-                );
-            }
-            break :blk .{
-                .track = .{
-                    .name = track.name,
-                    .bounds_s = track.bounds_s,
-                    .children = inline_children,
-                },
-            };
-        },
-        .stack => |stack| blk: {
-            const inline_children = try allocator.alloc(
-                SerializableComposableInlineMetadata,
-                stack.children.len,
-            );
-            for (stack.children, 0..) 
-                |child, i| 
-            {
-                inline_children[i] = try convert_composable_to_inline_metadata(
-                    allocator,
-                    child,
-                    metadata_map,
-                );
-            }
-            break :blk .{
-                .stack = .{
-                    .name = stack.name,
-                    .bounds_s = stack.bounds_s,
-                    .children = inline_children,
-                },
-            };
-        },
-        .warp => |warp| blk: {
-            const inline_child = try allocator.create(SerializableComposableInlineMetadata);
-            inline_child.* = try convert_composable_to_inline_metadata(
-                allocator,
-                warp.child.*,
-                metadata_map,
-            );
-            break :blk .{
-                .warp = .{
-                    .name = warp.name,
-                    .child = inline_child,
-                    .transform = warp.transform,
-                },
-            };
-        },
-        .transition => |trans| blk: {
-            const inline_container_children = try allocator.alloc(
-                SerializableComposableInlineMetadata,
-                trans.container.children.len,
-            );
-            for (trans.container.children, 0..) 
-                |child, i| 
-            {
-                inline_container_children[i] = try convert_composable_to_inline_metadata(
-                    allocator,
-                    child,
-                    metadata_map,
-                );
-            }
-            break :blk .{
-                .transition = .{
-                    .name = trans.name,
-                    .container = .{
-                        .name = trans.container.name,
-                        .bounds_s = trans.container.bounds_s,
-                        .children = inline_container_children,
-                    },
-                    .kind = trans.kind,
-                    .bounds_s = trans.bounds_s,
-                },
-            };
-        },
-    };
-}
-
-/// Strip all metadata from a SerializableTimeline.
-/// Removes metadata_hash from clips and metadata_map from timeline.
-fn strip_metadata(
-    allocator: std.mem.Allocator,
-    timeline: SerializableTimeline,
-) !SerializableTimelineStrippedMetadata
-{
-    const stripped_children = try allocator.alloc(
-        SerializableComposableNoMetadata,
-        timeline.children.len,
-    );
-
-    for (timeline.children, 0..)
-        |child, i|
-    {
-        stripped_children[i] = try convert_composable_to_no_metadata(
-            allocator,
-            child,
-        );
-    }
-
-    return .{
-        .name = timeline.name,
-        .children = stripped_children,
-        .presentation_space_discrete_partitions = timeline.presentation_space_discrete_partitions,
-    };
-}
-
-/// Convert a SerializableComposable to no metadata format.
-fn convert_composable_to_no_metadata(
-    allocator: std.mem.Allocator,
-    composable: SerializableComposable,
-) !SerializableComposableNoMetadata
-{
-    return switch (composable) {
-        .clip => |clip| .{
-            .clip = .{
-                .name = clip.name,
-                .bounds_s = clip.bounds_s,
-                .media = clip.media,
-                // No metadata_hash field
-            },
-        },
-        .gap => |gap| .{ .gap = gap },
-        .track => |track| blk: {
-            const stripped_children = try allocator.alloc(
-                SerializableComposableNoMetadata,
-                track.children.len,
-            );
-            for (track.children, 0..) 
-                |child, i| 
-            {
-                stripped_children[i] = try convert_composable_to_no_metadata(
-                    allocator,
-                    child,
-                );
-            }
-            break :blk .{
-                .track = .{
-                    .name = track.name,
-                    .bounds_s = track.bounds_s,
-                    .children = stripped_children,
-                },
-            };
-        },
-        .stack => |stack| blk: {
-            const stripped_children = try allocator.alloc(
-                SerializableComposableNoMetadata,
-                stack.children.len,
-            );
-            for (stack.children, 0..)
-                |child, i|
-            {
-                stripped_children[i] = try convert_composable_to_no_metadata(
-                    allocator,
-                    child,
-                );
-            }
-            break :blk .{
-                .stack = .{
-                    .name = stack.name,
-                    .bounds_s = stack.bounds_s,
-                    .children = stripped_children,
-                },
-            };
-        },
-        .warp => |warp| blk: {
-            const stripped_child = try allocator.create(
-                SerializableComposableNoMetadata
-            );
-            stripped_child.* = try convert_composable_to_no_metadata(
-                allocator,
-                warp.child.*,
-            );
-            break :blk .{
-                .warp = .{
-                    .name = warp.name,
-                    .child = stripped_child,
-                    .transform = warp.transform,
-                },
-            };
-        },
-        .transition => |trans| blk: {
-            const stripped_container_children = try allocator.alloc(
-                SerializableComposableNoMetadata,
-                trans.container.children.len,
-            );
-            for (trans.container.children, 0..)
-                |child, i|
-            {
-                stripped_container_children[i] = try convert_composable_to_no_metadata(
-                    allocator,
-                    child,
-                );
-            }
-            break :blk .{
-                .transition = .{
-                    .name = trans.name,
-                    .container = .{
-                        .name = trans.container.name,
-                        .bounds_s = trans.container.bounds_s,
-                        .children = stripped_container_children,
-                    },
-                    .kind = trans.kind,
-                    .bounds_s = trans.bounds_s,
-                },
-            };
-        },
-    };
 }
 
 /// Test helper: encode `data` with a codec namespace into an owned buffer.
@@ -923,7 +709,7 @@ test "timeline serialization: all_except_metadata skips metadata_map"
 
     var meta: ziggy.Deserializer.Meta = .init;
     const no_md = try ziggy.deserializeLeaky(
-        SerializableTimelineNoMetadata,
+        TimelineDocument(TlaTreeSkipMetadata, SkippedValue),
         allocator,
         source,
         &meta,
@@ -932,13 +718,19 @@ test "timeline serialization: all_except_metadata skips metadata_map"
     try std.testing.expectEqualStrings("WithMetadata", no_md.name);
     try std.testing.expectEqual(@as(usize, 1), no_md.markers.len);
     try std.testing.expectEqualStrings("m1", no_md.markers[0].name);
-    try std.testing.expect(
-        no_md.to_serializable_timeline().metadata_map == null
+
+    var reader: std.Io.Reader = .fixed(source);
+    const read_no_md = try TimelineCodec.read(
+        allocator,
+        &reader,
+        .{ .content_filter = .all_except_metadata },
     );
+    try std.testing.expect(read_no_md.content.metadata_map == null);
+    try std.testing.expectEqual(@as(usize, 1), read_no_md.content.markers.len);
 
     // the full parse of the same document still sees the metadata
     const full = try ziggy.deserializeLeaky(
-        TlaTimeline,
+        TimelineDocument(TlaTree, ?MetadataMap),
         allocator,
         source,
         &meta,
@@ -1360,7 +1152,7 @@ test "tla schema: every serializable type and variant matches the schema"
         SerializableDomain,
         SerializableSampleIndexGenerator,
         SerializableRateSpecifier,
-        SerializableClipInlineMetadata,
+        TlaClip(?MetadataValue),
     })
         |T|
     {
@@ -1512,423 +1304,289 @@ test "tlca schema: fixtures match the schema when re-serialized"
 // ----------------------------------------------------------------------------
 
 
-/// Write SerializableTimeline to TLA format with the specified metadata mode.
-fn write_tla_with_metadata_mode(
+/// Write `doc` (a `SerializableTimeline` or `SerializableCollection`
+/// document) as TLA/TLCA with the given metadata mode.
+fn write_document(
+    comptime Content: type,
     allocator: std.mem.Allocator,
-    doc: serializable.Document(SerializableTimeline),
+    doc: serializable.Document(Content),
     metadata_mode: format_m.WriteOptions.MetadataMode,
-    writer: anytype,
+    writer: *std.Io.Writer,
 ) !void
 {
-    const intermediate_tl = doc.content;
+    // the layouts below share the document's values; only their containers
+    // are allocated
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    const scratch = arena.allocator();
+
+    const Core = serializable.Core;
+    const version = doc.schema_version;
     switch (metadata_mode) {
         .hash_reference => {
-            try ziggy.serialize(
-                TlaTimeline.from(intermediate_tl, doc.schema_version),
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
+            try write_ziggy(
+                document_layout(Core, doc.content, version),
                 writer,
             );
         },
         .no_metadata => {
-            // Strip all metadata
-            var stripped = try strip_metadata(allocator, intermediate_tl);
-            stripped.schema_version = doc.schema_version;
-            try ziggy.serialize(
-                stripped,
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
+            var hooks: StripMetadata = .{};
+            const stripped = try serializable.convert(
+                Content,
+                Content,
+                StripMetadata,
+                &hooks,
+                scratch,
+                doc.content,
+            );
+            try write_ziggy(
+                document_layout(Core, stripped, version),
                 writer,
             );
         },
         .inline_metadata => {
-            // Convert to inline metadata format
-            var inline_timeline = try convert_to_inline_metadata(
-                allocator,
-                intermediate_tl,
+            const InlineContent = (
+                if (Content == SerializableTimeline)
+                    TlaTree.Timeline
+                else
+                    TlaTree.Collection
             );
-            inline_timeline.schema_version = doc.schema_version;
-            try ziggy.serialize(
-                inline_timeline,
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
+            var hooks: InlineMetadata = .{};
+            const inlined = try serializable.convert(
+                Content,
+                InlineContent,
+                InlineMetadata,
+                &hooks,
+                scratch,
+                doc.content,
+            );
+            try write_ziggy(
+                document_layout(TlaTree, inlined, version),
                 writer,
             );
         },
     }
-    _ = try writer.write("\n");
 }
 
-/// Write SerializableCollection to TLCA format with the specified metadata mode.
-fn write_tlca_with_metadata_mode(
-    allocator: std.mem.Allocator,
-    doc: serializable.Document(SerializableCollection),
-    metadata_mode: format_m.WriteOptions.MetadataMode,
-    writer: anytype,
+/// Serialize `value` as a ziggy document followed by a newline.
+fn write_ziggy(
+    value: anytype,
+    writer: *std.Io.Writer,
 ) !void
 {
-    const collection = doc.content;
-    switch (metadata_mode) {
-        .hash_reference => {
-            // Nested timelines are SerializableTimeline, which has no
-            // version field, so only the root carries one.
-            const layout: TlaCollection = .{
-                .schema_version = doc.schema_version,
-                .name = collection.name,
-                .description = collection.description,
-                .children = collection.children,
-                .metadata_map = collection.metadata_map,
-            };
-            try ziggy.serialize(
-                layout,
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
-                writer,
-            );
+    try ziggy.serialize(
+        value,
+        .{
+            .whitespace = .space_4,
+            .emit_null_fields = false,
         },
-        .no_metadata => {
-            // Strip all metadata from collection
-            var stripped = try strip_collection_metadata(allocator, collection);
-            stripped.schema_version = doc.schema_version;
-            try ziggy.serialize(
-                stripped,
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
-                writer,
-            );
-        },
-        .inline_metadata => {
-            // Convert to inline metadata format
-            var inline_collection = try convert_collection_to_inline_metadata(
-                allocator,
-                collection,
-            );
-            inline_collection.schema_version = doc.schema_version;
-            try ziggy.serialize(
-                inline_collection,
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
-                writer,
-            );
-        },
-    }
-    _ = try writer.write("\n");
-}
-
-/// Strip all metadata from a SerializableCollection.
-/// Removes metadata_hash from clips and metadata_map from collection and embedded timelines.
-fn strip_collection_metadata(
-    allocator: std.mem.Allocator,
-    collection: SerializableCollection,
-) !SerializableCollectionStrippedMetadata
-{
-    const stripped_children = try allocator.alloc(
-        SerializableCollectionItemNoMetadata,
-        collection.children.len,
+        writer,
     );
-
-    for (collection.children, 0..)
-        |child, i|
-    {
-        stripped_children[i] = try convert_collection_item_to_no_metadata(allocator, child);
-    }
-
-    return .{
-        .name = collection.name,
-        .description = collection.description,
-        .children = stripped_children,
-        // No metadata_map field
-    };
+    try writer.writeAll("\n");
 }
 
-/// Convert a SerializableCollectionItem to no metadata format.
-fn convert_collection_item_to_no_metadata(
-    allocator: std.mem.Allocator,
-    item: SerializableCollectionItem,
-) !SerializableCollectionItemNoMetadata
+/// Number of non-overlapping occurrences of `needle` in `haystack`.
+fn count_of(
+    haystack: []const u8,
+    needle: []const u8,
+) usize
 {
-    return switch (item) {
-        .timeline => |tl| blk: {
-            const stripped_children = try allocator.alloc(
-                SerializableComposableNoMetadata,
-                tl.children.len,
-            );
-            for (tl.children, 0..)
-                |child, i|
-            {
-                stripped_children[i] = try convert_composable_to_no_metadata(allocator, child);
-            }
-            break :blk .{
-                .timeline = .{
-                    .name = tl.name,
-                    .children = stripped_children,
-                    .presentation_space_discrete_partitions = tl.presentation_space_discrete_partitions,
-                    // No metadata_map field
-                },
-            };
-        },
-        .track => |track| blk: {
-            const stripped_children = try allocator.alloc(
-                SerializableComposableNoMetadata,
-                track.children.len,
-            );
-            for (track.children, 0..)
-                |child, i|
-            {
-                stripped_children[i] = try convert_composable_to_no_metadata(allocator, child);
-            }
-            break :blk .{
-                .track = .{
-                    .name = track.name,
-                    .bounds_s = track.bounds_s,
-                    .children = stripped_children,
-                },
-            };
-        },
-        .stack => |stack| blk: {
-            const stripped_children = try allocator.alloc(
-                SerializableComposableNoMetadata,
-                stack.children.len,
-            );
-            for (stack.children, 0..)
-                |child, i|
-            {
-                stripped_children[i] = try convert_composable_to_no_metadata(allocator, child);
-            }
-            break :blk .{
-                .stack = .{
-                    .name = stack.name,
-                    .bounds_s = stack.bounds_s,
-                    .children = stripped_children,
-                },
-            };
-        },
-        .clip => |clip| .{
-            .clip = .{
-                .name = clip.name,
-                .bounds_s = clip.bounds_s,
-                .media = clip.media,
-                // No metadata_hash field
-            },
-        },
-        .gap => |gap| .{ .gap = gap },
-        .warp => |warp| blk: {
-            const stripped_child = try allocator.create(SerializableComposableNoMetadata);
-            stripped_child.* = try convert_composable_to_no_metadata(allocator, warp.child.*);
-            break :blk .{
-                .warp = .{
-                    .name = warp.name,
-                    .child = stripped_child,
-                    .transform = warp.transform,
-                },
-            };
-        },
-        .transition => |trans| blk: {
-            const stripped_container_children = try allocator.alloc(
-                SerializableComposableNoMetadata,
-                trans.container.children.len,
-            );
-            for (trans.container.children, 0..)
-                |child, i|
-            {
-                stripped_container_children[i] = try convert_composable_to_no_metadata(
-                    allocator,
-                    child,
-                );
-            }
-            break :blk .{
-                .transition = .{
-                    .name = trans.name,
-                    .container = .{
-                        .name = trans.container.name,
-                        .bounds_s = trans.container.bounds_s,
-                        .children = stripped_container_children,
-                    },
-                    .bounds_s = trans.bounds_s,
-                    .kind = trans.kind,
-                },
-            };
-        },
-    };
+    return std.mem.count(u8, haystack, needle);
 }
 
-/// Convert a SerializableCollection to inline metadata format.
-fn convert_collection_to_inline_metadata(
-    allocator: std.mem.Allocator,
-    collection: SerializableCollection,
-) !SerializableCollectionInlineMetadata
+test "tla: every metadata mode keeps markers"
 {
-    const inline_children = try allocator.alloc(
-        SerializableCollectionItemInlineMetadata,
-        collection.children.len,
-    );
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const io = std.testing.io;
 
-    for (collection.children, 0..)
-        |child, i|
-    {
-        inline_children[i] = try convert_collection_item_to_inline_metadata(
+    const timelines = [_]SerializableTimeline{
+        try schema_coverage_timeline(allocator),
+        try test_read_file(
+            TimelineCodec,
             allocator,
-            child,
-            collection.metadata_map,
+            io,
+            "test_files/simple_cut_with_markers.tla",
+        ),
+    };
+
+    for (timelines)
+        |timeline|
+    {
+        const hashed = try test_encode(
+            TimelineCodec,
+            allocator,
+            timeline,
+            .hash_reference,
+        );
+        const expected = count_of(hashed, ".marked_range");
+        try std.testing.expect(expected > 0);
+
+        const other_modes = [_]format_m.WriteOptions.MetadataMode{
+            .inline_metadata,
+            .no_metadata,
+        };
+        for (other_modes)
+            |mode|
+        {
+            const written = try test_encode(
+                TimelineCodec,
+                allocator,
+                timeline,
+                mode,
+            );
+            try std.testing.expectEqual(
+                expected,
+                count_of(written, ".marked_range"),
+            );
+        }
+    }
+}
+
+test "tla: inline metadata reads back into the metadata map"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    // { codec, path, keys are this library's content hashes }
+    // (stress_heavy_metadata.tla's key predates the current hash)
+    const cases = .{
+        .{ TimelineCodec, "test_files/simple_cut_with_metadata.tla", true },
+        .{ TimelineCodec, "test_files/just_clip_with_metadata.tla", true },
+        .{ TimelineCodec, "test_files/stress_heavy_metadata.tla", false },
+        .{ CollectionCodec, "test_files/collection_with_metadata.tlca", false },
+    };
+    inline for (cases)
+        |case|
+    {
+        const Codec = case[0];
+        var original = try test_read_file(Codec, allocator, io, case[1]);
+        defer original.deinit(allocator);
+
+        const hashed = try test_encode(
+            Codec,
+            allocator,
+            original,
+            .hash_reference,
+        );
+        defer allocator.free(hashed);
+        const inlined = try test_encode(
+            Codec,
+            allocator,
+            original,
+            .inline_metadata,
+        );
+        defer allocator.free(inlined);
+        try std.testing.expectEqual(0, count_of(inlined, "metadata_hash"));
+        try std.testing.expectEqual(0, count_of(inlined, "metadata_map"));
+        try std.testing.expect(count_of(inlined, ".metadata = ") > 0);
+
+        // reading inline metadata stores it by hash in the map again
+        var folded = try test_decode(Codec, allocator, inlined);
+        defer folded.deinit(allocator);
+        try std.testing.expect(folded.metadata_map != null);
+
+        const folded_inlined = try test_encode(
+            Codec,
+            allocator,
+            folded,
+            .inline_metadata,
+        );
+        defer allocator.free(folded_inlined);
+        try std.testing.expectEqualStrings(inlined, folded_inlined);
+
+        if (case[2])
+        {
+            const folded_hashed = try test_encode(
+                Codec,
+                allocator,
+                folded,
+                .hash_reference,
+            );
+            defer allocator.free(folded_hashed);
+            try std.testing.expectEqualStrings(hashed, folded_hashed);
+        }
+    }
+}
+
+test "tla: inline clip metadata with content filters and conflicts"
+{
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    const original = try std.Io.Dir.cwd().readFileAlloc(
+        io,
+        "test_files/just_clip_with_metadata.tla",
+        allocator,
+        .unlimited,
+    );
+    defer allocator.free(original);
+
+    const hash_line = ".metadata_hash = \"4eda2567c141183c\",";
+    const inline_line = ".metadata = { \"note\": \"inline\" },";
+    const inline_source = try std.mem.replaceOwned(
+        u8,
+        allocator,
+        original,
+        hash_line,
+        inline_line,
+    );
+    defer allocator.free(inline_source);
+    const both_source = try std.mem.replaceOwned(
+        u8,
+        allocator,
+        original,
+        hash_line,
+        hash_line ++ inline_line,
+    );
+    defer allocator.free(both_source);
+
+    // .all: the inline value joins the existing map entry
+    {
+        var reader: std.Io.Reader = .fixed(inline_source);
+        var doc = try TimelineCodec.read(allocator, &reader, .{});
+        defer doc.content.deinit(allocator);
+
+        const mm = doc.content.metadata_map.?;
+        try std.testing.expectEqual(2, mm.fields.count());
+        const clip = doc.content.children[0].track.children[0].clip;
+        const value = mm.fields.get(clip.metadata_hash.?).?;
+        try std.testing.expectEqualStrings(
+            "inline",
+            value.kv.fields.get("note").?.bytes,
         );
     }
 
-    return .{
-        .name = collection.name,
-        .description = collection.description,
-        .children = inline_children,
-        // No metadata_map field - metadata is inline
-    };
-}
+    // .all_except_metadata: neither the map nor the inline value is kept
+    {
+        var reader: std.Io.Reader = .fixed(inline_source);
+        var doc = try TimelineCodec.read(
+            allocator,
+            &reader,
+            .{ .content_filter = .all_except_metadata },
+        );
+        defer doc.content.deinit(allocator);
 
-/// Convert a SerializableCollectionItem to inline metadata format.
-fn convert_collection_item_to_inline_metadata(
-    allocator: std.mem.Allocator,
-    item: SerializableCollectionItem,
-    collection_metadata_map: ?MetadataMap,
-) !SerializableCollectionItemInlineMetadata
-{
-    return switch (item) {
-        .timeline => |tl| blk: {
-            // Timeline has its own metadata_map, use it for its children
-            const inline_children = try allocator.alloc(
-                SerializableComposableInlineMetadata,
-                tl.children.len,
-            );
-            for (tl.children, 0..)
-                |child, i|
-            {
-                inline_children[i] = try convert_composable_to_inline_metadata(
-                    allocator,
-                    child,
-                    tl.metadata_map,
-                );
-            }
-            break :blk .{
-                .timeline = .{
-                    .name = tl.name,
-                    .children = inline_children,
-                    .presentation_space_discrete_partitions = tl.presentation_space_discrete_partitions,
-                    // No metadata_map field - metadata is inline
-                },
-            };
-        },
-        .track => |track| blk: {
-            const inline_children = try allocator.alloc(
-                SerializableComposableInlineMetadata,
-                track.children.len,
-            );
-            for (track.children, 0..)
-                |child, i|
-            {
-                inline_children[i] = try convert_composable_to_inline_metadata(
-                    allocator,
-                    child,
-                    collection_metadata_map,
-                );
-            }
-            break :blk .{
-                .track = .{
-                    .name = track.name,
-                    .bounds_s = track.bounds_s,
-                    .children = inline_children,
-                },
-            };
-        },
-        .stack => |stack| blk: {
-            const inline_children = try allocator.alloc(
-                SerializableComposableInlineMetadata,
-                stack.children.len,
-            );
-            for (stack.children, 0..)
-                |child, i|
-            {
-                inline_children[i] = try convert_composable_to_inline_metadata(
-                    allocator,
-                    child,
-                    collection_metadata_map,
-                );
-            }
-            break :blk .{
-                .stack = .{
-                    .name = stack.name,
-                    .bounds_s = stack.bounds_s,
-                    .children = inline_children,
-                },
-            };
-        },
-        .clip => |clip| .{
-            .clip = .{
-                .name = clip.name,
-                .bounds_s = clip.bounds_s,
-                .media = clip.media,
-                .metadata = if (clip.metadata_hash)
-                    |hash|
-                    if (collection_metadata_map)
-                        |mm|
-                        mm.fields.get(hash)
-                    else
-                        null
-                else
-                    null,
-            },
-        },
-        .gap => |gap| .{ .gap = gap },
-        .warp => |warp| blk: {
-            const inline_child = try allocator.create(SerializableComposableInlineMetadata);
-            inline_child.* = try convert_composable_to_inline_metadata(
+        try std.testing.expect(doc.content.metadata_map == null);
+        const clip = doc.content.children[0].track.children[0].clip;
+        try std.testing.expect(clip.metadata_hash == null);
+    }
+
+    // a hash and an inline value on one clip is rejected, leaking nothing
+    inline for (.{ .all, .all_except_metadata })
+        |filter|
+    {
+        var reader: std.Io.Reader = .fixed(both_source);
+        try std.testing.expectError(
+            error.ConflictingClipMetadata,
+            TimelineCodec.read(
                 allocator,
-                warp.child.*,
-                collection_metadata_map,
-            );
-            break :blk .{
-                .warp = .{
-                    .name = warp.name,
-                    .child = inline_child,
-                    .transform = warp.transform,
-                },
-            };
-        },
-        .transition => |trans| blk: {
-            const inline_container_children = try allocator.alloc(
-                SerializableComposableInlineMetadata,
-                trans.container.children.len,
-            );
-            for (trans.container.children, 0..)
-                |child, i|
-            {
-                inline_container_children[i] = try convert_composable_to_inline_metadata(
-                    allocator,
-                    child,
-                    collection_metadata_map,
-                );
-            }
-            break :blk .{
-                .transition = .{
-                    .name = trans.name,
-                    .container = .{
-                        .name = trans.container.name,
-                        .bounds_s = trans.container.bounds_s,
-                        .children = inline_container_children,
-                    },
-                    .bounds_s = trans.bounds_s,
-                    .kind = trans.kind,
-                },
-            };
-        },
-    };
+                &reader,
+                .{ .content_filter = filter },
+            ),
+        );
+    }
 }
 
 test "collection serialization: tlca round-trip"
@@ -2077,19 +1735,22 @@ test "collection serialization: tlca to tlcb cross-format"
 // Codec interface (see adapter.zig)
 // ----------------------------------------------------------------------------
 
-/// Parse a ziggy document of type `T` from `reader`.  The result owns all
-/// of its memory and is freed with its `deinit`.
+/// Parse a TLA document with layout `Layout` from `reader` and convert it
+/// to a `Document(Content)`.  The result owns all of its memory and is
+/// freed with its `deinit`.
 ///
-/// Parsing happens in a scratch arena, so a rejected document (e.g. one
-/// missing a required field) leaks nothing; the result is then deep-copied
-/// into `allocator`.  The copy also takes ownership of the strings ziggy
-/// leaves pointing into the source, even with `.copy_strings = .always`
-/// (dictionary keys, union tags and enum names in metadata).
+/// Parsing and conversion happen in a scratch arena, so a rejected document
+/// (e.g. one missing a required field) leaks nothing; the result is then
+/// deep-copied into `allocator`.  The copy also takes ownership of the
+/// strings ziggy leaves pointing into the source, even with
+/// `.copy_strings = .always` (dictionary keys, union tags and enum names in
+/// metadata).
 fn parse_ziggy(
-    comptime T: type,
+    comptime Layout: type,
+    comptime Content: type,
     allocator: std.mem.Allocator,
     reader: *std.Io.Reader,
-) !T
+) !serializable.Document(Content)
 {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
@@ -2103,8 +1764,21 @@ fn parse_ziggy(
     );
 
     var meta: ziggy.Deserializer.Meta = .init;
-    const parsed = try ziggy.deserializeLeaky(T, scratch, source, &meta, .{});
-    return try serializable.deep_clone(T, allocator, parsed);
+    const parsed = try ziggy.deserializeLeaky(
+        Layout,
+        scratch,
+        source,
+        &meta,
+        .{},
+    );
+    const content = try FoldInlineMetadata(
+        Layout.Tree
+    ).convert_with_own_map(Layout, Content, scratch, parsed);
+
+    return .{
+        .schema_version = parsed.schema_version,
+        .content = try serializable.deep_clone(Content, allocator, content),
+    };
 }
 
 /// TLA: timeline document in ziggy text.
@@ -2115,27 +1789,21 @@ pub const TimelineCodec = struct {
         options: format_m.ReadOptions,
     ) !serializable.Document(SerializableTimeline)
     {
-        switch (options.content_filter) {
-            .all => {
-                const layout = try parse_ziggy(TlaTimeline, allocator, reader);
-                return .{
-                    .schema_version = layout.schema_version,
-                    .content = layout.to_serializable(),
-                };
-            },
-            // Skips the metadata_map tokens without building values.
-            .all_except_metadata => {
-                const layout = try parse_ziggy(
-                    SerializableTimelineNoMetadata,
-                    allocator,
-                    reader,
-                );
-                return .{
-                    .schema_version = layout.schema_version,
-                    .content = layout.to_serializable_timeline(),
-                };
-            },
-        }
+        return switch (options.content_filter) {
+            .all => try parse_ziggy(
+                TimelineDocument(TlaTree, ?MetadataMap),
+                SerializableTimeline,
+                allocator,
+                reader,
+            ),
+            // Skips the metadata tokens without building values.
+            .all_except_metadata => try parse_ziggy(
+                TimelineDocument(TlaTreeSkipMetadata, SkippedValue),
+                SerializableTimeline,
+                allocator,
+                reader,
+            ),
+        };
     }
 
     pub fn write(
@@ -2145,7 +1813,8 @@ pub const TimelineCodec = struct {
         options: format_m.WriteOptions,
     ) !void
     {
-        try write_tla_with_metadata_mode(
+        try write_document(
+            SerializableTimeline,
             allocator,
             doc,
             options.metadata_mode,
@@ -2164,16 +1833,12 @@ pub const CollectionCodec = struct {
     {
         // all_except_metadata is applied by the adapter after parsing.
         _ = options;
-        const layout = try parse_ziggy(TlaCollection, allocator, reader);
-        return .{
-            .schema_version = layout.schema_version,
-            .content = .{
-                .name = layout.name,
-                .description = layout.description,
-                .children = layout.children,
-                .metadata_map = layout.metadata_map,
-            },
-        };
+        return try parse_ziggy(
+            CollectionDocument(TlaTree),
+            SerializableCollection,
+            allocator,
+            reader,
+        );
     }
 
     pub fn write(
@@ -2183,7 +1848,8 @@ pub const CollectionCodec = struct {
         options: format_m.WriteOptions,
     ) !void
     {
-        try write_tlca_with_metadata_mode(
+        try write_document(
+            SerializableCollection,
             allocator,
             doc,
             options.metadata_mode,

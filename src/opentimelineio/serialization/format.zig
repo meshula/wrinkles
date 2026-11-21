@@ -27,6 +27,8 @@ pub const FormatError = error{
     /// The document's root object cannot be represented (e.g. an OTIO
     /// SerializableCollection read as a timeline).
     UnsupportedRootObject,
+    /// A TLA clip has both a `metadata_hash` and inline `metadata`.
+    ConflictingClipMetadata,
 };
 
 /// Supported file formats for read/write operations. Format is auto-detected
