@@ -1232,7 +1232,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     }
 }
 
-test "otio_measure_timeline executable on just_clip.tla"
+test "otio-measure-timeline executable on just_clip.tla"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -1242,16 +1242,16 @@ test "otio_measure_timeline executable on just_clip.tla"
         io,
         .{
             .argv = &.{
-                "zig-out/bin/otio_measure_timeline",
+                "zig-out/bin/otio-measure-timeline",
                 "test_files/just_clip.tla",
             },
         }
     ) catch |err| 
     {
         std.debug.print(
-            "Failed to run otio_measure_timeline: {s}\n"
+            "Failed to run otio-measure-timeline: {s}\n"
             ++ "Make sure to build it first with: zig build "
-            ++ "install-otio_measure_timeline\n",
+            ++ "install-otio-measure-timeline\n",
             .{@errorName(err)},
         );
         return err;
