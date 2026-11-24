@@ -1484,7 +1484,7 @@ pub fn build(
             b,
             "otio-measure-timeline",
             "Measure and display OTIO timeline durations",
-            "src/otio_measure_timeline.zig",
+            "src/otio-measure-timeline.zig",
             options,
             &.{
                 .{ .name = "string_stuff", .module = string_stuff },
