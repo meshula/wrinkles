@@ -53,8 +53,9 @@
                   `OpenTimelineIO 2.0`
 ```
 
-Additionally there are tools for visualizing curves, transformations, and the
-temporal hierarchies of editorial documents.
+Tools for visualizing curves, transformations, and the temporal hierarchies of
+editorial documents live in the separate
+[wrinkles-gui-apps](../wrinkles-gui-apps) repo.
 
 ![Screenshot of visualizer app](app.png)
 
@@ -383,7 +384,7 @@ didn't impact the deisgn or problems we were specifically solving.
       analogous to .otioz
 * Tooling
     * otiocat
-    * otio_space_visualizer
+    * otio_space_visualizer (in wrinkles-gui-apps)
     * otio_hierarchy_view
     * Raven hacked up port that runs against the c++ binding (~/workspace/raven_wrinkles)
 * Language Bindings

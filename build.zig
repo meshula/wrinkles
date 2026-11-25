@@ -40,10 +40,6 @@ pub const Options = struct {
     /// select which tests to run
     test_filter: ?[]const u8 = null,
 
-    /// Include gui tools in the build
-    /// XXX: disabled while upstream dependencies are broken
-    build_gui_tools: bool = false,
-
     // common build steps to attach artifacts to
 
     /// unit test step
@@ -52,11 +48,6 @@ pub const Options = struct {
     all_docs_step: *std.Build.Step,
     /// code check step (for zls)
     all_check_step: *std.Build.Step,
-
-    // ziis dep is needed for some internal steps
-    dep_ziis: ?*std.Build.Dependency = null,
-
-    c_deps: []const *std.Build.Step.Compile = undefined,
 };
 
 /// c-code compilation arguments
@@ -114,7 +105,8 @@ pub fn rev_HEAD(
     );
 }
 
-/// build an executable that uses zgui/zgflw etc from zig-gamedev
+/// build an executable (or a static library for wasm targets) with install,
+/// run, docs and check steps
 pub fn executable(
     b: *std.Build,
     comptime name: []const u8,
@@ -170,29 +162,8 @@ pub fn executable(
 
     exe.lto = .none;
 
-    // run and install the executable
-    if (options.target.result.cpu.arch.isWasm())
-    {
-        if (options.build_gui_tools)
-        {
-            @panic("currently not supported");
-
-            // const ziis = @import("zgui_cimgui_implot_sokol");
-            //
-            // _ = try ziis.build_wasm(
-            //     b,
-            //     .{
-            //         .app_name = name,
-            //         .mod_main = exe.root_module,
-            //         .dep_c_libs = options.c_deps,
-            //         .dep_ziis_builder = options.dep_ziis.?.builder,
-            //         .target = options.target,
-            //         .optimize = options.optimize,
-            //     }
-            // );
-        }
-    }
-    else
+    // run and install the executable (not for wasm targets)
+    if (options.target.result.cpu.arch.isWasm() == false)
     {
         // an install step specifically for the executable
         const install_exe_step = b.addInstallArtifact(
@@ -752,7 +723,7 @@ pub fn build(
     //
     // Options and system checks
     //
-    var options = Options{
+    const options = Options{
         .optimize = b.standardOptimizeOption(.{}),
         .target = b.standardTargetOptions(.{}),
         .test_filter = b.option(
@@ -760,12 +731,6 @@ pub fn build(
             "test-filter",
             "filter for tests to run",
         ) orelse null,
-
-        .build_gui_tools = b.option(
-            bool,
-            "build-gui-tools",
-            "include gui examples and tools in the build",
-        ) orelse false,
 
         // steps
         .test_step = b.step(
@@ -933,15 +898,6 @@ pub fn build(
     //
     // submodules and dependencies
     //
-
-    // XXX: currently busted
-    // options.dep_ziis = b.dependency(
-    //     "zgui_cimgui_implot_sokol",
-    //     .{
-    //         .optimize = options.optimize,
-    //         .target = options.target,
-    //     },
-    // );
 
     const comath_dep = b.dependency(
         "comath",
@@ -1157,12 +1113,6 @@ pub fn build(
             );
         };
 
-        options.c_deps = &.{
-            libsamplerate,
-            spline_gym,
-            kissfft,
-        };
-
         const topology = module_with_tests_and_artifact(
             "topology",
             .{
@@ -1359,26 +1309,6 @@ pub fn build(
         }
 
         //
-        // timeline widget (reusable Gantt-chart renderer, no OTIO dependency)
-        //
-
-        // XXX: ziis broken
-        // const timeline_widget = module_with_tests_and_artifact(
-        //     "timeline_widget",
-        //     .{
-        //         .b = b,
-        //         .options = options,
-        //         .fpath = "src/timeline_widget.zig",
-        //         .deps = &.{
-        //             .{
-        //                 .name = "zgui_cimgui_implot_sokol",
-        //                 .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol"),
-        //             },
-        //         },
-        //     },
-        // );
-
-        //
         // executables
         //
         const common_deps:[]const std.Build.Module.Import = &.{
@@ -1387,12 +1317,6 @@ pub fn build(
             // external deps
             .{ .name = "comath", .module = comath_dep.module("comath") },
             .{ .name = "wav", .module = wav_dep },
-
-            // XXX: ziis
-            // .{
-            //     .name = "zgui_cimgui_implot_sokol",
-            //     .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol")
-            // },
 
             // internal deps
             .{ .name = "string_stuff", .module = string_stuff },
@@ -1405,59 +1329,7 @@ pub fn build(
             .{ .name = "sampling", .module = sampling },
 
             .{ .name = "opentimelineio", .module = opentimelineio },
-
-            // XXX: ziis
-            // .{ .name = "timeline_widget", .module = timeline_widget },
         };
-
-        if (options.build_gui_tools)
-        {
-            // probably gone for good, but haven't removed yet
-            try executable(
-                b,
-                "curvet",
-                "Interactive curve editor and visualizer",
-                "src/curvet.zig",
-                options,
-                common_deps,
-            );
-
-            try executable(
-                b,
-                "sokol-test",
-                "Sokol graphics backend test",
-                "src/sokol_test.zig",
-                options,
-                common_deps,
-            );
-
-            try executable(
-                b,
-                "transformation-visualizer",
-                "Visualize time transformations between spaces",
-                "src/transformation_visualizer.zig",
-                options,
-                common_deps,
-            );
-
-            try executable(
-                b,
-                "wrinkles-visual-debugger",
-                "Visual debugger for wrinkles data structures",
-                "src/wrinkles_visual_debugger.zig",
-                options,
-                common_deps,
-            );
-
-            try executable(
-                b,
-                "otio-space-visualizer",
-                "Visualize OTIO timeline coordinate spaces",
-                "src/otio_space_visualizer.zig",
-                options,
-                common_deps,
-            );
-        }
 
         try executable(
             b,

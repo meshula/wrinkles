@@ -6,10 +6,6 @@ endif
 all:
 	zig build
 
-run-em:
-	clear
-	zig build curvet-run -Dtarget=wasm32-emscripten
-
 clean:
 	rm -rf .zig-cache zig-out
 
@@ -152,7 +148,6 @@ analyze:
 
 .PHONY: \
 	all \
-	run-em \
 	docs \
 	run_c \
 	convert-to-tla \

@@ -166,10 +166,7 @@ graph TB
 ### Primary Implementation Files
 **Core Systems:**
 - `wrinkles.zig` (16KB) - Main application orchestration
-- `wrinkles_visual_debugger.zig` (24KB) - Visual debugging interface
-- `transformation_visualizer.zig` (15KB) - Transformation visualization
 - `sampling.zig` (64KB) - **Largest module** - discrete space operations
-- `curvet.zig` (74KB) - **Largest module** - curve operations
 
 **OTIO Integration:**
 - `otio_measure_timeline.zig` - Timeline measurement
@@ -179,7 +176,6 @@ graph TB
 - `wrinkles_*.wgsl` (WGSL shaders) - WebGPU shader programs
 - `blank_fs.wgsl` - Fragment shader
 - `example_zgui_app.zig` - Dear ImGui example
-- `sokol_test.zig` - Sokol graphics testing
 
 **C Binding Layer:**
 - `c_binding/` - C API wrapper for library functions

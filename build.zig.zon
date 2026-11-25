@@ -19,10 +19,6 @@
             .url = "git+https://github.com/ssteinbach/zig-wav-io.git#af18074e913f34ad41454e3b3769e1754e8bd94f",
             .hash = "zig_wav_io-0.1.0-PYygzHUTAQBFR_oWMxj8MCP3Rc3KKefwAjnu0eGkWfep",
         },
-        // .zgui_cimgui_implot_sokol = .{
-        //     .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#57941f5bfe9279d061662a6281c67dadec49911b",
-        //     .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXvm_DABqtqIrmChkGcxDGkwSQDYwXxojX868JoMg",
-        // },
         .ziggy = .{
             .url = "git+https://github.com/ssteinbach/ziggy#8c115737db06c44d6cf9dfa602768fa900765d74",
             .hash = "ziggy-0.3.0-kTg8v8PCCAB6FQFHlKPLc0aRKaw4bTDODvp-qJRPLdL8",
