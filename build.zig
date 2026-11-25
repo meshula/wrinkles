@@ -1418,7 +1418,7 @@ pub fn build(
             b,
             "test-roundtrip-leak",
             "Test roundtrip for memory leaks",
-            "src/tools/test_roundtrip_leak.zig",
+            "src/apps/test_roundtrip_leak.zig",
             options,
             &.{
                 .{ .name = "opentimelineio", .module = opentimelineio },
