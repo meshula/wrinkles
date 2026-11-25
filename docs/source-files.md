@@ -165,17 +165,11 @@ graph TB
 
 ### Primary Implementation Files
 **Core Systems:**
-- `wrinkles.zig` (16KB) - Main application orchestration
 - `sampling.zig` (64KB) - **Largest module** - discrete space operations
 
 **OTIO Integration:**
 - `otio_measure_timeline.zig` - Timeline measurement
 - `otio_dump_graph.zig` - Graph visualization output
-
-**Graphics/UI:**
-- `wrinkles_*.wgsl` (WGSL shaders) - WebGPU shader programs
-- `blank_fs.wgsl` - Fragment shader
-- `example_zgui_app.zig` - Dear ImGui example
 
 **C Binding Layer:**
 - `c_binding/` - C API wrapper for library functions

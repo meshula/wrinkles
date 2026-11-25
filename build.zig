@@ -151,15 +151,6 @@ pub fn executable(
         exe.root_module.addImport(mod.name, mod.module);
     }
 
-    // options for exposing the content directory and build hash
-    {
-        const exe_options = b.addOptions();
-        exe.root_module.addOptions(
-            "exe_build_options",
-            exe_options,
-        );
-    }
-
     exe.lto = .none;
 
     // run and install the executable (not for wasm targets)
@@ -1335,7 +1326,7 @@ pub fn build(
             b,
             "otio-leak-test",
             "Memory leak detection test for OTIO parsing",
-            "src/otio_leak_test.zig",
+            "src/apps/otio_leak_test.zig",
             options,
             common_deps,
         );
@@ -1344,7 +1335,7 @@ pub fn build(
             b,
             "otio-dump-graph",
             "Dump OTIO file as a graphviz dot graph",
-            "src/otio_dump_graph.zig",
+            "src/apps/otio_dump_graph.zig",
             options,
             &.{
                 .{ .name = "string_stuff", .module = string_stuff },
@@ -1356,7 +1347,7 @@ pub fn build(
             b,
             "otio-measure-timeline",
             "Measure and display OTIO timeline durations",
-            "src/otio-measure-timeline.zig",
+            "src/apps/otio-measure-timeline.zig",
             options,
             &.{
                 .{ .name = "string_stuff", .module = string_stuff },
@@ -1369,7 +1360,7 @@ pub fn build(
             b,
             "otio-hierarchy-view",
             "Display OTIO file structure as a tree",
-            "src/otio_hierarchy_view.zig",
+            "src/apps/otio_hierarchy_view.zig",
             options,
             &.{
                 .{ .name = "string_stuff", .module = string_stuff },
@@ -1384,7 +1375,7 @@ pub fn build(
             b,
             "otiocat",
             "Convert files between formats (.otio, .tl*)",
-            "src/otiocat.zig",
+            "src/apps/otiocat.zig",
             options,
             &.{
                 .{ .name = "string_stuff", .module = string_stuff },
@@ -1400,7 +1391,7 @@ pub fn build(
                     .name = "test_otiocat",
                     .root_module = b.createModule(
                         .{
-                            .root_source_file = b.path("src/otiocat.zig"),
+                            .root_source_file = b.path("src/apps/otiocat.zig"),
                             .target = options.target,
                             .optimize = options.optimize,
                             .imports = &.{
