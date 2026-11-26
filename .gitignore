@@ -7,3 +7,4 @@ zig-pkg
 *.o
 imgui.ini
 production_test_files
+measure_performance.local.txt
