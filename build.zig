@@ -1023,34 +1023,34 @@ pub fn build(
                 },
             );
 
-        const spline_gym = mod: {
-            const spline_gym_mod = b.createModule(
+        const hodographs = mod: {
+            const hodographs_mod = b.createModule(
                 .{
                     .root_source_file = b.path(
-                        "spline-gym/src/hodographs.zig",
+                        "src/hodograph/hodographs.zig",
                     ),
                     .target = options.target,
                     .optimize = options.optimize,
                     .link_libc = true,
                 },
             );
-            spline_gym_mod.addCSourceFile(
+            hodographs_mod.addCSourceFile(
                 .{
-                    .file = b.path("spline-gym/src/hodographs.c"),
+                    .file = b.path("src/hodograph/hodographs.c"),
                     .flags = &.{},
                 },
             );
-            spline_gym_mod.addIncludePath(b.path("spline-gym/src"));
+            hodographs_mod.addIncludePath(b.path("src/hodograph"));
 
             break :mod b.addLibrary(
                .{
-                   .name = "spline_gym",
-                   .root_module = spline_gym_mod,
+                   .name = "hodographs",
+                   .root_module = hodographs_mod,
                    .linkage = .static,
                },
            );
         };
-        b.installArtifact(spline_gym);
+        b.installArtifact(hodographs);
 
         const curve = module_with_tests_and_artifact(
             "curve",
@@ -1060,7 +1060,7 @@ pub fn build(
                 .fpath = "src/curve/root.zig",
                 .deps = &.{
                     .{ .name = "test_output", .module = test_output_mod },
-                    .{ .name = "spline_gym", .module = spline_gym.root_module },
+                    .{ .name = "hodographs", .module = hodographs.root_module },
                     .{ .name = "string_stuff", .module = string_stuff },
                     .{ .name = "opentime", .module = opentime },
                     .{ .name = "comath", .module = comath_dep.module("comath") },
@@ -1316,7 +1316,7 @@ pub fn build(
             .{ .name = "topology", .module = topology },
 
             // libraries with c components
-            .{ .name = "spline_gym", .module = spline_gym.root_module },
+            .{ .name = "hodographs", .module = hodographs.root_module },
             .{ .name = "sampling", .module = sampling },
 
             .{ .name = "opentimelineio", .module = opentimelineio },

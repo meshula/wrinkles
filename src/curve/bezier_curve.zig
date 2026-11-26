@@ -44,7 +44,7 @@ const test_output = @import("test_output");
 
 const opentime = @import("opentime");
 
-pub const hodographs = @import("spline_gym");
+pub const hodographs = @import("hodographs");
 pub const math = @import("bezier_math.zig");
 
 const linear_curve = @import("linear_curve.zig");

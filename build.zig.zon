@@ -1,6 +1,6 @@
 .{
     .name = .wrinkles,
-    .version = "0.0.1",
+    .version = "1.0.0",
     .fingerprint = 0xcdd5ec7e0ff0ce3e, // Changing this has security and trust implications.
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
@@ -32,10 +32,9 @@
         "build.zig",
         "build.zig.zon",
         "src",
+        "docs",
+        "libs",
+        "LICENSE",
         "README.md",
-        "curves",
-        "segments",
-        "spline-gym",
-        "sample_otio_files",
     },
 }
