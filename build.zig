@@ -642,7 +642,7 @@ fn cpp_bindings_and_examples(
             options,
             opentimelineio_cpp,
             "cpp-otio-hierarchy-view",
-            "src/cpp_examples/otio_hierarchy_view.cpp",
+            "src/language_bindings/cpp/src/examples/otio_hierarchy_view.cpp",
             "Run C++ timeline hierarchy viewer",
         );
     }
@@ -654,7 +654,7 @@ fn cpp_bindings_and_examples(
             options,
             opentimelineio_cpp,
             "cpp-otio-measure-timeline",
-            "src/cpp_examples/otio_measure_timeline.cpp",
+            "src/language_bindings/cpp/src/examples/otio_measure_timeline.cpp",
             "Run C++ timeline measurement tool",
         );
     }
@@ -666,7 +666,7 @@ fn cpp_bindings_and_examples(
             options,
             opentimelineio_cpp,
             "cpp-otiocat",
-            "src/cpp_examples/otiocat.cpp",
+            "src/language_bindings/cpp/src/examples/otiocat.cpp",
             "Run C++ timeline format viewer",
         );
     }
