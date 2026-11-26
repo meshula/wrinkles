@@ -26,20 +26,6 @@
 ### Structure:
 
 ```
-                  `opentime`-.
-                     |        \
-`treecode`        `sampling`   `curve`
-      |              |        /
-      |           `Topology`-'
-      |              |
-      |           `ProjectionOperator`
-       \             |
-        `---------`TemporalProjectionBuilder`
-                     |
-                  `OpenTimelineIO`
-```
-
-```
                   `opentime 2.0`-.
                      |           |
 `treecode`        `sampling`   `curve`            
