@@ -345,7 +345,7 @@ table MetadataBlock {
 // This format stores ALL metadata in a single table with parallel arrays,
 // eliminating vtable overhead from thousands of individual tables.
 //
-// For Incredibles-2 with 24,323 metadata entries:
+// For a large production timeline with 24,323 metadata entries:
 //   - Per-entry tables: ~48,646 tables × ~15 bytes vtable = ~730KB overhead
 //   - Single table: 1 table × ~50 bytes vtable = ~50 bytes overhead
 //
