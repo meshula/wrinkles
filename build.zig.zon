@@ -5,7 +5,8 @@
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .comath = .{
-            .path = "../../../external_sources/comath/",
+            .url = "git+https://codeberg.org/stephan_gfx/comath.git#d7380a65a3362b9d07b0869ad25adfb7479bbe76",
+            .hash = "comath-0.1.0-wKZ2n3vsAQCMxNnvkJpDCDmQ6LlPZnOpa1QiNNz9Bg0V",
         },
         .kissfft = .{
             .url = "git+https://github.com/mborgerding/kissfft.git#febd4caeed32e33ad8b2e0bb5ea77542c40f18ec",
