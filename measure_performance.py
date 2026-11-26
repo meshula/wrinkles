@@ -225,13 +225,47 @@ def format_time(seconds: float) -> str:
         return f"{seconds:.2f}s"
 
 
+def anonymize_test_files(entries: list) -> list:
+    """Replace the names of (possibly non-public) local test files with
+    generic `production_N` labels so the report is safe to publish."""
+    return [
+        (f"production_{i}", path)
+        for i, (_, path) in enumerate(entries, start=1)
+    ]
+
+
+def parse_args():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Measure read/write performance for timeline formats."
+    )
+    parser.add_argument(
+        "--anonymize",
+        action="store_true",
+        help=(
+            "hide the names of files from the local test file list and the "
+            "path to the python otiocat, for reports that get checked in"
+        ),
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+
+    if PY_OTIOCAT is None:
+        baseline_desc = "not found"
+    elif args.anonymize:
+        baseline_desc = "python otiocat"
+    else:
+        baseline_desc = ' '.join(PY_OTIOCAT)
+
     print(f"# Performance Measurements")
     print(f"")
     print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Platform: {sys.platform}")
     print(f"Build: ReleaseFast")
-    print(f"OTIO v1 baseline: {' '.join(PY_OTIOCAT) if PY_OTIOCAT else 'not found'}")
+    print(f"OTIO v1 baseline: {baseline_desc}")
     print(f"OTIO v1 version: {get_python_otio_version()}")
     if LOCAL_TEST_FILES_LIST.exists():
         print(f"Local test files: {LOCAL_TEST_FILES_LIST.name}")
@@ -240,7 +274,10 @@ def main():
     print(f"")
 
     # Test files: local (non-public) list first, then built-in public samples
-    test_files = load_local_test_files(LOCAL_TEST_FILES_LIST) + BUILTIN_TEST_FILES
+    local_test_files = load_local_test_files(LOCAL_TEST_FILES_LIST)
+    if args.anonymize:
+        local_test_files = anonymize_test_files(local_test_files)
+    test_files = local_test_files + BUILTIN_TEST_FILES
 
     # File sizes section
     print("## File Sizes")

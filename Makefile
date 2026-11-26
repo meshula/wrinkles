@@ -138,6 +138,19 @@ verify-roundtrip: zig-out/bin/otiocat
 	rm -rf /tmp/otio_roundtrip; \
 	echo "Round-trip: $$success matched, $$failed mismatched"
 
+# Regenerate the checked-in performance report (docs/performance.md).
+# Builds with ReleaseFast first, since that's what the report claims to
+# measure.  Writes to a temp file so a failed run doesn't clobber the doc.
+# --anonymize hides the names of (non-public) files from
+# measure_performance.local.txt and local paths, since the doc is checked in.
+PERFORMANCE_DOC := docs/performance.md
+
+update_performance_doc:
+	zig build --release=fast
+	python3 measure_performance.py --anonymize > $(PERFORMANCE_DOC).tmp
+	mv $(PERFORMANCE_DOC).tmp $(PERFORMANCE_DOC)
+	@echo "Wrote: $(PERFORMANCE_DOC)"
+
 # use git-of-theseus to analyze the repo
 analyze:
 	git-of-theseus-analyze . --ignore-whitespace --cohortfm "%Y-%m" --only "src/*"
@@ -156,4 +169,5 @@ analyze:
 	copy-otio-samples \
 	convert-all \
 	verify-roundtrip \
+	update_performance_doc \
 	analyze
