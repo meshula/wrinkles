@@ -106,8 +106,9 @@ pub fn read_root_from_file(
     // has a bug in Zig 0.15.2 where it returns error.EndOfStream which is not
     // in FindBufferError
     // @TODO ^ double check this
-    const end_record = find_end_record(file_data) orelse
-        return TlzError.InvalidArchive;
+    const end_record = find_end_record(file_data) orelse return (
+        TlzError.InvalidArchive
+    );
 
     const maybe_extract_dir: ?std.Io.Dir = if (options.extract_to_directory)
         |extract_path|
@@ -133,17 +134,25 @@ pub fn read_root_from_file(
             return TlzError.InvalidArchive;
         }
 
-        if (!std.mem.eql(u8, file_data[cd_offset..][0..4], &zip.central_file_header_sig))
+        if (
+            !std.mem.eql(
+                u8,
+                file_data[cd_offset..][0..4],
+                &zip.central_file_header_sig,
+            )
+        )
         {
             return TlzError.InvalidArchive;
         }
 
-        const header_ptr: *align(1) const zip.CentralDirectoryFileHeader =
-            @ptrCast(file_data[cd_offset..][0..@sizeOf(zip.CentralDirectoryFileHeader)]);
+        const header_ptr: *align(1) const zip.CentralDirectoryFileHeader = @ptrCast(
+            file_data[cd_offset..][0..@sizeOf(zip.CentralDirectoryFileHeader)],
+        );
         const header = header_ptr.*;
 
         const filename_start = (
-            cd_offset + @sizeOf(zip.CentralDirectoryFileHeader)
+            cd_offset
+            + @sizeOf(zip.CentralDirectoryFileHeader)
         );
         const filename_end = filename_start + header.filename_len;
         if (filename_end > file_data.len)
@@ -204,10 +213,12 @@ pub fn read_root_from_file(
             try extract_writer.end();
         }
 
-        cd_offset += @sizeOf(zip.CentralDirectoryFileHeader) +
-            header.filename_len +
-            header.extra_len +
-            header.comment_len;
+        cd_offset += (
+            @sizeOf(zip.CentralDirectoryFileHeader)
+            + header.filename_len
+            + header.extra_len
+            + header.comment_len
+        );
     }
 
     if (!version_found)
@@ -244,14 +255,18 @@ pub fn write_root_to_file(
     std.debug.assert(bundle_desc.is_bundle);
 
     const bundle_opts = (
-        options.bundle_options orelse format_m.WriteOptions.BundleOptions{}
+        options.bundle_options
+        orelse format_m.WriteOptions.BundleOptions{}
     );
 
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const arena_alloc = arena.allocator();
 
-    const content_format: format_m.FileFormat = switch (bundle_opts.content_format) {
+    const content_format: format_m.FileFormat = switch (
+        bundle_opts.content_format
+    )
+    {
         .tla => if (bundle_desc.is_collection) .tlca else .tla,
         .tlb => if (bundle_desc.is_collection) .tlcb else .tlb,
     };
@@ -332,8 +347,11 @@ pub fn write_root_to_file(
             .local_header_offset = current_offset,
         },
     );
-    current_offset += 30 + @as(u32, @intCast(utils.BUNDLE_VERSION_FILE.len)) +
-        @as(u32, @intCast(version_data.len));
+    current_offset += (
+        30
+        + @as(u32, @intCast(utils.BUNDLE_VERSION_FILE.len))
+        + @as(u32, @intCast(version_data.len))
+    );
 
     // Entry 1: content (uncompressed)
     try entries.append(
@@ -347,8 +365,11 @@ pub fn write_root_to_file(
             .local_header_offset = current_offset,
         },
     );
-    current_offset += 30 + @as(u32, @intCast(content_name.len)) +
-        @as(u32, @intCast(content_bytes.len));
+    current_offset += (
+        30
+        + @as(u32, @intCast(content_name.len))
+        + @as(u32, @intCast(content_bytes.len))
+    );
 
     for (media_files.items)
         |media|
@@ -371,8 +392,11 @@ pub fn write_root_to_file(
                 .local_header_offset = current_offset,
             },
         );
-        current_offset += 30 + @as(u32, @intCast(media_path.len)) +
-            @as(u32, @intCast(media.data.len));
+        current_offset += (
+            30
+            + @as(u32, @intCast(media_path.len))
+            + @as(u32, @intCast(media.data.len))
+        );
     }
 
     for (entries.items)
@@ -461,21 +485,30 @@ fn readEntryDataFromBuffer(
 ) ![]const u8
 {
     // Check signature
-    if (!std.mem.eql(u8, archive_data[local_header_offset..][0..4], &zip.local_file_header_sig))
+    if (
+        !std.mem.eql(
+            u8,
+            archive_data[local_header_offset..][0..4],
+            &zip.local_file_header_sig,
+        )
+    )
     {
         return TlzError.InvalidArchive;
     }
 
     // Parse local file header
-    const header_ptr: *align(1) const zip.LocalFileHeader =
-        @ptrCast(archive_data[local_header_offset..][0..@sizeOf(zip.LocalFileHeader)]);
+    const header_ptr: *align(1) const zip.LocalFileHeader = @ptrCast(
+        archive_data[local_header_offset..][0..@sizeOf(zip.LocalFileHeader)],
+    );
     const header = header_ptr.*;
 
     // Calculate data offset
-    const data_offset = local_header_offset +
-        @sizeOf(zip.LocalFileHeader) +
-        header.filename_len +
-        header.extra_len;
+    const data_offset = (
+        local_header_offset
+        + @sizeOf(zip.LocalFileHeader)
+        + header.filename_len
+        + header.extra_len
+    );
 
     const compressed_data = (
         archive_data[data_offset..][0..header.compressed_size]
@@ -545,7 +578,8 @@ const MediaCollector = struct {
                 .track => |*tr| try self.walk_children(tr.children),
                 .stack => |*st| try self.walk_children(st.children),
                 .warp => |*wp| try self.walk_composable(wp.child),
-                .transition => |*tx| try self.walk_children(tx.container.children),
+                .transition => |*tx|
+                    try self.walk_children(tx.container.children),
                 .gap => {},
             }
         }
@@ -573,7 +607,8 @@ const MediaCollector = struct {
             .track => |*tr| try self.walk_children(tr.children),
             .stack => |*st| try self.walk_children(st.children),
             .warp => |*wp| try self.walk_composable(wp.child),
-            .transition => |*tx| try self.walk_children(tx.container.children),
+            .transition => |*tx|
+                try self.walk_children(tx.container.children),
             .gap => {},
         }
     }
@@ -583,91 +618,95 @@ const MediaCollector = struct {
         clip: *serializable.SerializableClip,
     ) !void
     {
-    if (clip.media.data_reference == .uri)
-    {
-        const uri = clip.media.data_reference.uri.target_uri;
-
-        // Skip non-file URIs
-        if (std.mem.startsWith(u8, uri, "file:///"))
+        if (clip.media.data_reference == .uri)
         {
-            // Skip absolute file:/// URIs that don't exist locally
-            // These are typically placeholders
-        }
-        else if (
-            !std.mem.startsWith(u8, uri, "http://")
-        and !std.mem.startsWith(u8, uri, "https://")
-        )
-        {
-            // Relative path - try to resolve it
-            const disk_path = (
-                if (self.maybe_base_dir)
-                |base_dir|
-                    try std.fs.path.join(
-                        self.allocator,
-                        &.{ base_dir, uri },
-                    )
-                else uri
-            );
+            const uri = clip.media.data_reference.uri.target_uri;
 
-            // Check if file exists
-            const file_exists = blk: {
-                std.Io.Dir.cwd().access(self.io, disk_path, .{}) catch {
-                    break :blk false;
+            // Skip non-file URIs
+            if (std.mem.startsWith(u8, uri, "file:///"))
+            {
+                // Skip absolute file:/// URIs that don't exist locally
+                // These are typically placeholders
+            }
+            else if (
+                !std.mem.startsWith(u8, uri, "http://")
+                and !std.mem.startsWith(u8, uri, "https://")
+            )
+            {
+                // Relative path - try to resolve it
+                const disk_path = (
+                    if (self.maybe_base_dir)
+                        |base_dir|
+                        try std.fs.path.join(
+                            self.allocator,
+                            &.{ base_dir, uri },
+                        )
+                    else
+                        uri
+                );
+
+                // Check if file exists
+                const file_exists = blk: {
+                    std.Io.Dir.cwd().access(self.io, disk_path, .{})
+                    catch {
+                        break :blk false;
+                    };
+                    break :blk true;
                 };
-                break :blk true;
-            };
 
-            if (file_exists)
-            {
-                // Read the file
-                const file = try std.Io.Dir.cwd().openFile(
-                    self.io,
-                    disk_path,
-                    .{},
-                );
-                defer file.close(self.io);
+                if (file_exists)
+                {
+                    // Read the file
+                    const file = try std.Io.Dir.cwd().openFile(
+                        self.io,
+                        disk_path,
+                        .{},
+                    );
+                    defer file.close(self.io);
 
-                var media_read_buf: [4096]u8 = undefined;
-                var file_reader = file.reader(self.io, &media_read_buf);
-                const data = try file_reader.interface.allocRemaining(
-                    self.allocator,
-                    .unlimited,
-                );
-                const basename = utils.get_basename(uri);
+                    var media_read_buf: [4096]u8 = undefined;
+                    var file_reader = file.reader(self.io, &media_read_buf);
+                    const data = try file_reader.interface.allocRemaining(
+                        self.allocator,
+                        .unlimited,
+                    );
+                    const basename = utils.get_basename(uri);
 
-                // Add to media files list
-                try self.media_files.append(
-                    self.allocator,
-                    .{
-                        .source_uri = uri,
-                        .disk_path = disk_path,
-                        .basename = basename,
-                        .data = data,
-                    },
-                );
+                    // Add to media files list
+                    try self.media_files.append(
+                        self.allocator,
+                        .{
+                            .source_uri = uri,
+                            .disk_path = disk_path,
+                            .basename = basename,
+                            .data = data,
+                        },
+                    );
 
-                // Point the URI at the media/ directory; restored after
-                // the bundle is written.
-                try self.restores.append(
-                    self.allocator,
-                    .{
-                        .slot = &clip.media.data_reference.uri.target_uri,
-                        .original = uri,
-                    },
-                );
-                clip.media.data_reference.uri.target_uri = try std.fmt.allocPrint(
-                    self.allocator,
-                    "{s}/{s}",
-                    .{ utils.BUNDLE_DIR_NAME, basename },
-                );
+                    // Point the URI at the media/ directory; restored after
+                    // the bundle is written.
+                    try self.restores.append(
+                        self.allocator,
+                        .{
+                            .slot = &clip.media.data_reference.uri.target_uri,
+                            .original = uri,
+                        },
+                    );
+                    clip.media.data_reference.uri.target_uri = (
+                        try std.fmt.allocPrint(
+                            self.allocator,
+                            "{s}/{s}",
+                            .{ utils.BUNDLE_DIR_NAME, basename },
+                        )
+                    );
+                }
+                else if (self.policy == .error_if_not_file)
+                {
+                    return TlzError.MediaFileNotFound;
+                }
+                // missing_if_not_file: leave as-is
             }
-            else if (self.policy == .error_if_not_file)
-            {
-                return TlzError.MediaFileNotFound;
-            }
-            // missing_if_not_file: leave as-is
         }
-    }
     }
 };
 
@@ -884,7 +923,6 @@ test "tlz_bundle: write and verify ZIP structure"
         .{},
     );
 
-
     // Verify file exists and has valid ZIP structure
     const file = try std.Io.Dir.cwd().openFile(io, test_path, .{});
     defer file.close(io);
@@ -910,20 +948,22 @@ fn first_clip_uri(
         |child|
     {
         switch (child) {
-            .clip => |cl| if (cl.media.data_reference == .uri)
-            {
-                return cl.media.data_reference.uri.target_uri;
-            },
-            .track => |tr| if (first_clip_uri(tr.children))
-                |uri|
-            {
-                return uri;
-            },
-            .stack => |st| if (first_clip_uri(st.children))
-                |uri|
-            {
-                return uri;
-            },
+            .clip => |cl|
+                if (cl.media.data_reference == .uri) {
+                    return cl.media.data_reference.uri.target_uri;
+                },
+            .track => |tr|
+                if (first_clip_uri(tr.children))
+                    |uri|
+                    {
+                        return uri;
+                    },
+            .stack => |st|
+                if (first_clip_uri(st.children))
+                    |uri|
+                    {
+                        return uri;
+                    },
             else => {},
         }
     }
@@ -994,12 +1034,14 @@ test "tlz_bundle: media bundling with app.png"
     try std.testing.expect(stat.size > 100);
 
     // Read the bundle back: the bundled URI points into media/.
-    var bundled = try read_root_from_file(allocator, io, test_path, .tlz, .{});
+    var bundled = (
+        try read_root_from_file(allocator, io, test_path, .tlz, .{})
+    );
     defer bundled.deinit(allocator);
 
     const bundled_uri = first_clip_uri(bundled.content.timeline.children).?;
     try std.testing.expect(
-        std.mem.startsWith(u8, bundled_uri, utils.BUNDLE_DIR_NAME ++ "/")
+        std.mem.startsWith(u8, bundled_uri, utils.BUNDLE_DIR_NAME ++ "/"),
     );
     try std.testing.expectEqualStrings(
         utils.get_basename(original_uri),

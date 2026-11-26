@@ -110,7 +110,10 @@ pub fn TransformTable(
             for (STEPS)
                 |step|
             {
-                if (step.from == from and step.to == to)
+                if (
+                    step.from == from
+                    and step.to == to
+                )
                 {
                     return step;
                 }
@@ -227,7 +230,7 @@ pub fn downgrade_table_problem(
                     .{ step.from, step.to, latest_version },
                 );
             }
-            for (Table.STEPS[i + 1 ..])
+            for (Table.STEPS[i + 1..])
                 |other|
             {
                 if (other.from == step.from)
@@ -278,8 +281,7 @@ pub fn upgrade_with(
     {
         const version: u32 = @intCast(v);
         const step = Table.get(version, version + 1).?;
-        switch (step.change)
-        {
+        switch (step.change) {
             .none => {},
             .transform => |transform_fn| try transform_fn(allocator, data),
         }
@@ -323,8 +325,7 @@ pub fn downgrade_with(
         : (version -= 1)
     {
         const step = Table.get(version, version - 1).?;
-        switch (step.change)
-        {
+        switch (step.change) {
             .none => {},
             .transform => |transform_fn| try transform_fn(allocator, data),
         }
@@ -403,10 +404,11 @@ fn upgrade_document_v0_to_v1(
 ) anyerror!void
 {
     switch (root.content) {
-        .timeline => |*timeline| try serializable.fix_v0_transitions(
-            allocator,
-            timeline,
-        ),
+        .timeline => |*timeline|
+            try serializable.fix_v0_transitions(
+                allocator,
+                timeline,
+            ),
         .collection => return VersionError.UpgradeNotSupported,
     }
 }
@@ -434,8 +436,13 @@ pub const DocumentDowngrades = TransformTable(
 
 comptime {
     const oldest = @min(OLDEST_TIMELINE_VERSION, OLDEST_COLLECTION_VERSION);
-    if (upgrade_table_problem(DocumentUpgrades, oldest, CURRENT_SCHEMA_VERSION))
-        |problem|
+    if (
+        upgrade_table_problem(
+            DocumentUpgrades,
+            oldest,
+            CURRENT_SCHEMA_VERSION,
+        )
+    ) |problem|
     {
         @compileError("DocumentUpgrades: " ++ problem);
     }
@@ -497,7 +504,12 @@ test "versioning: DocumentUpgrades is a no-op at the current version"
         },
     };
 
-    try upgrade_with(DocumentUpgrades, allocator, &root, CURRENT_SCHEMA_VERSION);
+    try upgrade_with(
+        DocumentUpgrades,
+        allocator,
+        &root,
+        CURRENT_SCHEMA_VERSION,
+    );
     try std.testing.expectEqual(CURRENT_SCHEMA_VERSION, root.schema_version);
 }
 
@@ -512,7 +524,12 @@ test "versioning: DocumentUpgrades rejects data newer than supported"
 
     try std.testing.expectError(
         VersionError.SchemaVersionNewerThanSupported,
-        upgrade_with(DocumentUpgrades, allocator, &root, CURRENT_SCHEMA_VERSION),
+        upgrade_with(
+            DocumentUpgrades,
+            allocator,
+            &root,
+            CURRENT_SCHEMA_VERSION,
+        ),
     );
 }
 
@@ -546,12 +563,50 @@ const FakeVersioned = struct {
 };
 
 const fake_transforms = struct {
-    fn up_0_1(_: Allocator, d: *FakeVersioned) anyerror!void { d.record('a'); }
-    fn up_1_2(_: Allocator, d: *FakeVersioned) anyerror!void { d.record('b'); }
-    fn up_3_4(_: Allocator, d: *FakeVersioned) anyerror!void { d.record('d'); }
-    fn down_4_3(_: Allocator, d: *FakeVersioned) anyerror!void { d.record('D'); }
-    fn down_2_1(_: Allocator, d: *FakeVersioned) anyerror!void { d.record('B'); }
-    fn failing(_: Allocator, _: *FakeVersioned) anyerror!void
+    fn up_0_1(
+        _: Allocator,
+        d: *FakeVersioned,
+    ) anyerror!void
+    {
+        d.record('a');
+    }
+
+    fn up_1_2(
+        _: Allocator,
+        d: *FakeVersioned,
+    ) anyerror!void
+    {
+        d.record('b');
+    }
+
+    fn up_3_4(
+        _: Allocator,
+        d: *FakeVersioned,
+    ) anyerror!void
+    {
+        d.record('d');
+    }
+
+    fn down_4_3(
+        _: Allocator,
+        d: *FakeVersioned,
+    ) anyerror!void
+    {
+        d.record('D');
+    }
+
+    fn down_2_1(
+        _: Allocator,
+        d: *FakeVersioned,
+    ) anyerror!void
+    {
+        d.record('B');
+    }
+
+    fn failing(
+        _: Allocator,
+        _: *FakeVersioned,
+    ) anyerror!void
     {
         return error.FakeTransformFailed;
     }
@@ -563,10 +618,22 @@ const FakeUpgrades = TransformTable(
     FakeVersioned,
     .upgrade,
     &.{
-        .{ .from = 0, .to = 1, .change = .{ .transform = fake_transforms.up_0_1 } },
-        .{ .from = 1, .to = 2, .change = .{ .transform = fake_transforms.up_1_2 } },
+        .{
+            .from = 0,
+            .to = 1,
+            .change = .{ .transform = fake_transforms.up_0_1 },
+        },
+        .{
+            .from = 1,
+            .to = 2,
+            .change = .{ .transform = fake_transforms.up_1_2 },
+        },
         .{ .from = 2, .to = 3, .change = .none },
-        .{ .from = 3, .to = 4, .change = .{ .transform = fake_transforms.up_3_4 } },
+        .{
+            .from = 3,
+            .to = 4,
+            .change = .{ .transform = fake_transforms.up_3_4 },
+        },
     },
 );
 
@@ -575,9 +642,17 @@ const FakeDowngrades = TransformTable(
     FakeVersioned,
     .downgrade,
     &.{
-        .{ .from = 4, .to = 3, .change = .{ .transform = fake_transforms.down_4_3 } },
+        .{
+            .from = 4,
+            .to = 3,
+            .change = .{ .transform = fake_transforms.down_4_3 },
+        },
         .{ .from = 3, .to = 2, .change = .none },
-        .{ .from = 2, .to = 1, .change = .{ .transform = fake_transforms.down_2_1 } },
+        .{
+            .from = 2,
+            .to = 1,
+            .change = .{ .transform = fake_transforms.down_2_1 },
+        },
     },
 );
 
@@ -598,8 +673,12 @@ fn expect_log(
 test "versioning: valid fake tables pass the comptime checks"
 {
     comptime {
-        std.debug.assert(upgrade_table_problem(FakeUpgrades, 0, FAKE_CURRENT) == null);
-        std.debug.assert(downgrade_table_problem(FakeDowngrades, FAKE_CURRENT) == null);
+        std.debug.assert(
+            upgrade_table_problem(FakeUpgrades, 0, FAKE_CURRENT) == null,
+        );
+        std.debug.assert(
+            downgrade_table_problem(FakeDowngrades, FAKE_CURRENT) == null,
+        );
     }
 }
 
@@ -623,7 +702,7 @@ test "versioning: upgrades chain single-version steps in order"
     // Starting part way only runs the remaining steps.
     var from_2: FakeVersioned = .{ .schema_version = 2 };
     try upgrade_with(FakeUpgrades, allocator, &from_2, FAKE_CURRENT);
-    try expect_log(&.{ .{ .name = 'd', .saw_version = 3 } }, from_2);
+    try expect_log(&.{.{ .name = 'd', .saw_version = 3 }}, from_2);
 
     // Stopping short of the current version is allowed.
     var to_2: FakeVersioned = .{ .schema_version = 0 };
@@ -694,9 +773,21 @@ test "versioning: a failing transform stops the chain"
         FakeVersioned,
         .upgrade,
         &.{
-            .{ .from = 0, .to = 1, .change = .{ .transform = fake_transforms.up_0_1 } },
-            .{ .from = 1, .to = 2, .change = .{ .transform = fake_transforms.failing } },
-            .{ .from = 2, .to = 3, .change = .{ .transform = fake_transforms.up_3_4 } },
+            .{
+                .from = 0,
+                .to = 1,
+                .change = .{ .transform = fake_transforms.up_0_1 },
+            },
+            .{
+                .from = 1,
+                .to = 2,
+                .change = .{ .transform = fake_transforms.failing },
+            },
+            .{
+                .from = 2,
+                .to = 3,
+                .change = .{ .transform = fake_transforms.up_3_4 },
+            },
         },
     );
 
@@ -708,7 +799,7 @@ test "versioning: a failing transform stops the chain"
     // The first step completed; the failing one did not bump the version
     // and later steps never ran.
     try std.testing.expectEqual(@as(u32, 1), data.schema_version);
-    try expect_log(&.{ .{ .name = 'a', .saw_version = 0 } }, data);
+    try expect_log(&.{.{ .name = 'a', .saw_version = 0 }}, data);
 }
 
 test "versioning: comptime checks reject malformed tables"
@@ -797,8 +888,12 @@ test "versioning: comptime checks reject malformed tables"
         std.debug.assert(downgrade_table_problem(DownPast, 2) != null);
 
         // Tables used in the wrong direction.
-        std.debug.assert(upgrade_table_problem(FakeDowngrades, 0, FAKE_CURRENT) != null);
-        std.debug.assert(downgrade_table_problem(FakeUpgrades, FAKE_CURRENT) != null);
+        std.debug.assert(
+            upgrade_table_problem(FakeDowngrades, 0, FAKE_CURRENT) != null,
+        );
+        std.debug.assert(
+            downgrade_table_problem(FakeUpgrades, FAKE_CURRENT) != null,
+        );
     }
 }
 
@@ -812,7 +907,11 @@ test "versioning: data older than the oldest readable version is rejected"
         .upgrade,
         &.{
             .{ .from = 2, .to = 3, .change = .none },
-            .{ .from = 3, .to = 4, .change = .{ .transform = fake_transforms.up_3_4 } },
+            .{
+                .from = 3,
+                .to = 4,
+                .change = .{ .transform = fake_transforms.up_3_4 },
+            },
         },
     );
     comptime std.debug.assert(upgrade_table_problem(FromTwo, 2, 4) == null);

@@ -26,19 +26,22 @@ const WRITE_TEST_FILES = build_options.write_sampling_test_wave_files;
 const test_output = @import("test_output");
 
 /// type of a sample value, ie the amplitude in a sample in an audio buffer
-pub const sample_value_t  = f32;
+pub const sample_value_t = f32;
 /// the type of an index of a sample in a sample buffer.  Note that this is a
-/// signed integer.  In some cases, this can result in negative numbers, but in
-/// practice this allows for more flexibility in dealing with handles, offsets,
+/// signed integer.  In some cases, this can result in negative numbers, but
+/// in
+/// practice this allows for more flexibility in dealing with handles,
+/// offsets,
 /// etc. without further casting.
-pub const sample_index_t  = i64;
+pub const sample_index_t = i64;
 /// type of an ordinate in a continuous space that spans a sampling
-pub const sample_ordinate_t  = opentime.Ordinate;
+pub const sample_ordinate_t = opentime.Ordinate;
 
 pub const sample_rate_base_t = u32;
 
 // epsilon values for comparison against zero
 const EPSILON_VALUE: sample_value_t = 1.0e-4;
+
 // const EPSILON_ORD: sample_ordinate_t = opentime.Ordinate.EPSILON;
 
 /// project a continuous ordinate into a discrete index sequence
@@ -48,21 +51,24 @@ pub fn project_instantaneous_cd(
 ) sample_index_t
 {
     const rate_hz_ord = self.sample_rate_hz.as_ordinate();
-    return @as(
-        sample_index_t,
-        @intFromFloat(
-            @floor(
-                opentime.eval(
-                    "ord * rate + (ONE / rate) / 2",
-                    .{ 
-                        .ord = ord_continuous,
-                        .rate = rate_hz_ord, 
-                        .ONE = sample_ordinate_t.one,
-                    },
-                ).as(f32)
-            )
+    return (
+        @as(
+            sample_index_t,
+            @intFromFloat(
+                @floor(
+                    opentime.eval(
+                        "ord * rate + (ONE / rate) / 2",
+                        .{
+                            .ord = ord_continuous,
+                            .rate = rate_hz_ord,
+                            .ONE = sample_ordinate_t.one,
+                        },
+                    ).as(f32),
+                ),
+            ),
         )
-    ) + self.start_index;
+        + self.start_index
+    );
 }
 
 test "sampling: project_instantaneous_cd"
@@ -88,7 +94,7 @@ pub fn project_index_dc(
 {
     var start = sample_ordinate_t.init(ind_discrete);
     start = start.sub(
-        @as(sample_ordinate_t.InnerType, @floatFromInt(self.start_index))
+        @as(sample_ordinate_t.InnerType, @floatFromInt(self.start_index)),
     );
     const s_per_cycle = self.sample_rate_hz.inv_as_ordinate();
     start = start.mul(s_per_cycle);
@@ -103,19 +109,14 @@ test "sampling: project_index_dc"
 {
     const result = project_index_dc(
         SampleIndexGenerator{
-            .sample_rate_hz = .{ .Integer = 24},
+            .sample_rate_hz = .{ .Integer = 24 },
             .start_index = 12,
         },
         300,
     );
 
-    try opentime.expectOrdinateEqual(
-        12.0, result.start
-    );
-    try opentime.expectOrdinateEqual(
-        12.0 + 1.0/24.0,
-        result.end
-    );
+    try opentime.expectOrdinateEqual(12.0, result.start);
+    try opentime.expectOrdinateEqual(12.0 + 1.0 / 24.0, result.end);
 }
 
 /// a set of samples and the parameters of those samples
@@ -126,12 +127,15 @@ pub const Sampling = struct {
 
     pub fn init(
         allocator: std.mem.Allocator,
-        count:usize,
+        count: usize,
         index_generator: SampleIndexGenerator,
         interpolating: bool,
     ) !Sampling
     {
-        const buffer: []sample_value_t = try allocator.alloc(sample_value_t, count);
+        const buffer: []sample_value_t = try allocator.alloc(
+            sample_value_t,
+            count,
+        );
 
         return .{
             .buffer = buffer,
@@ -143,7 +147,7 @@ pub const Sampling = struct {
     pub fn deinit(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) void 
+    ) void
     {
         allocator.free(self.buffer);
     }
@@ -153,7 +157,7 @@ pub const Sampling = struct {
         self: @This(),
         io: std.Io,
         fpath: []const u8,
-    ) !void 
+    ) !void
     {
         var file = try std.Io.Dir.cwd().createFile(
             io,
@@ -161,23 +165,21 @@ pub const Sampling = struct {
             .{},
         );
         defer file.close(io);
-        
-        var buf:[4096]u8 = undefined;
+
+        var buf: [4096]u8 = undefined;
         var writer = file.writer(io, &buf);
 
         try wav.write_wav(
             &writer.interface,
             .i16,
-            self.index_generator.sample_rate_hz.as_ordinate().as(
-                usize
-            ),
+            self.index_generator.sample_rate_hz.as_ordinate().as(usize),
             1,
             sample_value_t,
             self.buffer,
         );
     }
 
-    /// write a file but procedurally generate the filename with data from the 
+    /// write a file but procedurally generate the filename with data from the
     /// sampling / parent signal
     pub fn write_file_prefix(
         self: @This(),
@@ -190,30 +192,30 @@ pub const Sampling = struct {
     {
         const name = (
             if (maybe_parent_signal)
-            |parent_signal|
-             try std.fmt.allocPrint(
-                allocator,
-                "{s}/{s}{s}.amp_{d}_{d}s_{d}hz_signal_{f}hz_samples.wav",
-                .{
-                    dirname,
-                    prefix,
-                    @tagName(parent_signal.signal),
-                    parent_signal.amplitude,
-                    parent_signal.duration_s,
-                    parent_signal.frequency_hz,
-                    self.index_generator.sample_rate_hz,
-                }
-            )
-        else 
-            try std.fmt.allocPrint(
-                allocator,
-                "{s}/{s}_{d}hz_samples.wav",
-                .{
-                    dirname,
-                    prefix,
-                    self.index_generator.sample_rate_hz.Integer,
-                }
-            )
+                |parent_signal|
+                try std.fmt.allocPrint(
+                    allocator,
+                    "{s}/{s}{s}.amp_{d}_{d}s_{d}hz_signal_{f}hz_samples.wav",
+                    .{
+                        dirname,
+                        prefix,
+                        @tagName(parent_signal.signal),
+                        parent_signal.amplitude,
+                        parent_signal.duration_s,
+                        parent_signal.frequency_hz,
+                        self.index_generator.sample_rate_hz,
+                    },
+                )
+            else
+                try std.fmt.allocPrint(
+                    allocator,
+                    "{s}/{s}_{d}hz_samples.wav",
+                    .{
+                        dirname,
+                        prefix,
+                        self.index_generator.sample_rate_hz.Integer,
+                    },
+                )
         );
         defer allocator.free(name);
 
@@ -239,10 +241,10 @@ pub const Sampling = struct {
     ) [2]sample_index_t
     {
         const start_index = self.index_generator.index_at_ordinate(
-            input_interval.start
+            input_interval.start,
         );
         const end_index = self.index_generator.index_at_ordinate(
-            input_interval.end
+            input_interval.end,
         );
 
         return .{ start_index, end_index };
@@ -258,9 +260,9 @@ pub const Sampling = struct {
             input_interval,
         );
 
-        return self.buffer[
-            @intCast(index_bounds[0])
-            .. @intCast(index_bounds[1])];
+        return self.buffer[@intCast(index_bounds[0])..@intCast(
+            index_bounds[1],
+        )];
     }
 
     /// assuming a time-0 start, build the range of continuous time
@@ -272,7 +274,7 @@ pub const Sampling = struct {
         return .{
             .start = opentime.Ordinate.init(0),
             .end = self.index_generator.ordinate_at_index(
-                @intCast(self.buffer.len)
+                @intCast(self.buffer.len),
             ),
         };
     }
@@ -280,15 +282,14 @@ pub const Sampling = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
         try writer.print(
             (
-                  "Sampling{{ buffer.len: {d}, index_generator: {f}, "
-                  ++ "interpolating: {any} }}"
+                "Sampling{{ buffer.len: {d}, index_generator: {f}, "
+                ++ "interpolating: {any} }}"
             ),
-            .
-            {
+            .{
                 self.buffer.len,
                 self.index_generator,
                 self.interpolating,
@@ -297,7 +298,7 @@ pub const Sampling = struct {
     }
 };
 
-test "sampling: samples_overlapping_interval" 
+test "sampling: samples_overlapping_interval"
 {
     const allocator = std.testing.allocator;
 
@@ -308,7 +309,7 @@ test "sampling: samples_overlapping_interval"
         .signal = .sine,
     };
     const index_generator = SampleIndexGenerator{
-        .sample_rate_hz = .{ .Integer = 48000 }, 
+        .sample_rate_hz = .{ .Integer = 48000 },
     };
     const sine_100hz_samples_48khz = try sine_signal_100hz.rasterized(
         allocator,
@@ -339,14 +340,14 @@ pub const URational = struct {
         self: @This(),
     ) sample_ordinate_t.InnerType
     {
-        const num : f32 = @floatFromInt(self.num);
-        const den : f32 = @floatFromInt(self.den);
+        const num: f32 = @floatFromInt(self.num);
+        const den: f32 = @floatFromInt(self.den);
 
-        return num/den;
+        return num / den;
     }
 };
 
-pub const RateSpecifier = union (enum) {
+pub const RateSpecifier = union(enum) {
     Integer: sample_rate_base_t,
     Rational: URational,
 
@@ -360,8 +361,8 @@ pub const RateSpecifier = union (enum) {
                 switch (self) {
                     inline .Integer => |b| @floatFromInt(b),
                     inline .Rational => |r| r.as_float(),
-                }
-            )
+                },
+            ),
         );
     }
 
@@ -371,14 +372,14 @@ pub const RateSpecifier = union (enum) {
     ) sample_ordinate_t
     {
         return opentime.Ordinate.init(
-            1.0 /
-            @as(
+            1.0
+            / @as(
                 sample_ordinate_t.InnerType,
                 switch (self) {
                     inline .Integer => |b| @floatFromInt(b),
                     inline .Rational => |r| r.as_float(),
-                }
-            )
+                },
+            ),
         );
     }
 
@@ -393,8 +394,9 @@ pub const RateSpecifier = union (enum) {
         );
 
         switch (self) {
-            inline .Integer => |b| try writer.print("{d}", .{ b }),
-            inline .Rational => |r| try writer.print("{d}/{d}", .{r.num, r.den}),
+            inline .Integer => |b| try writer.print("{d}", .{b}),
+            inline .Rational => |r|
+                try writer.print("{d}/{d}", .{ r.num, r.den }),
         }
 
         try writer.print(
@@ -407,6 +409,7 @@ pub const RateSpecifier = union (enum) {
 /// generate indices based on a sample rate
 pub const SampleIndexGenerator = struct {
     sample_rate_hz: RateSpecifier,
+
     // @TODO: should be an i64 to handle negative sample indices
     start_index: sample_index_t = 0,
 
@@ -424,11 +427,11 @@ pub const SampleIndexGenerator = struct {
                     "ord * hz_f + ( inv_hz_f * 0.5)",
                     .{
                         .ord = continuous_ord,
-                        .hz_f = hz_f,  
-                        .inv_hz_f = inv_hz_f,  
-                    }
-                ).as(f32)
-            )
+                        .hz_f = hz_f,
+                        .inv_hz_f = inv_hz_f,
+                    },
+                ).as(f32),
+            ),
         );
     }
 
@@ -438,7 +441,9 @@ pub const SampleIndexGenerator = struct {
     ) sample_ordinate_t
     {
         return (
-            opentime.Ordinate.init(index).div(self.sample_rate_hz.as_ordinate())
+            opentime.Ordinate.init(index).div(
+                self.sample_rate_hz.as_ordinate(),
+            )
         );
     }
 
@@ -449,7 +454,7 @@ pub const SampleIndexGenerator = struct {
     {
         // @TODO: ceil?  Floor?
         return @intFromFloat(
-            length.mul(self.sample_rate_hz.as_ordinate()).as(f32)
+            length.mul(self.sample_rate_hz.as_ordinate()).as(f32),
         );
     }
 
@@ -471,11 +476,17 @@ pub const SampleIndexGenerator = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
         try writer.print(
-            "DiscreteIndexGenerator{{ sample_rate_hz: {f}, start_index: {d} }}",
-            .{ self.sample_rate_hz, self.start_index, },
+            (
+                "DiscreteIndexGenerator{{ sample_rate_hz: {f}, start_index: "
+                ++ "{d} }}"
+            ),
+            .{
+                self.sample_rate_hz,
+                self.start_index,
+            },
         );
     }
 };
@@ -487,27 +498,27 @@ pub const SignalGenerator = struct {
     duration_s: sample_ordinate_t,
     signal: Signal,
 
-    const Signal= enum {
+    const Signal = enum {
         sine,
         ramp,
     };
 
     /// fill a buffer with values generated by this signal generator
     pub fn rasterized(
-        self:@This(),
+        self: @This(),
         allocator: std.mem.Allocator,
         index_generator: SampleIndexGenerator,
         interpolating_samples: bool,
     ) !Sampling
     {
-        const sample_hz  = index_generator.sample_rate_hz.as_ordinate();
+        const sample_hz = index_generator.sample_rate_hz.as_ordinate();
 
         const samples_per_cycle = sample_hz.div(
-            @as(f32, @floatFromInt(self.frequency_hz))
+            @as(f32, @floatFromInt(self.frequency_hz)),
         );
 
         const result = try Sampling.init(
-            allocator, 
+            allocator,
             // signal_duration_s is promoted to an f64 for precision in the
             // loop boundary
             @intFromFloat(@ceil(self.duration_s.mul(sample_hz).as(f32))),
@@ -521,30 +532,35 @@ pub const SignalGenerator = struct {
         for (0.., result.buffer)
             |current_index, *sample|
         {
-            const phase_angle:sample_ordinate_t = (
+            const phase_angle: sample_ordinate_t = (
                 sample_ordinate_t.init(current_index).div(samples_per_cycle)
             );
 
-            const mod_phase_angle = @mod(phase_angle.as(f32), 1.0,);
+            const mod_phase_angle = @mod(
+                phase_angle.as(f32),
+                1.0,
+            );
 
             switch (self.signal) {
                 .sine => {
-                    sample.* = self.amplitude * std.math.sin(
-                        two_pi * mod_phase_angle
+                    sample.* = (
+                        self.amplitude
+                        * std.math.sin(two_pi * mod_phase_angle)
                     );
                 },
+
                 // @TODO: not bandwidth-limited, cannot be used for a proper
                 //        synthesizer
                 .ramp => {
                     sample.* = (
-                        self.amplitude 
+                        self.amplitude
                         * opentime.lerp(
                             mod_phase_angle,
-                            @as(sample_value_t,0),
+                            @as(sample_value_t, 0),
                             1,
                         )
                     );
-                }
+                },
             }
         }
 
@@ -552,7 +568,7 @@ pub const SignalGenerator = struct {
     }
 };
 
-test "sampling: rasterizing the sine" 
+test "sampling: rasterizing the sine"
 {
     const allocator = std.testing.allocator;
 
@@ -571,45 +587,42 @@ test "sampling: rasterizing the sine"
     defer sine_100hz_samples_48khz.deinit(allocator);
 
     // check some known quantities
-    try std.testing.expectEqual(
-        48000,
-        sine_100hz_samples_48khz.buffer.len
-    );
+    try std.testing.expectEqual(48000, sine_100hz_samples_48khz.buffer.len);
     try std.testing.expectEqual(
         @as(sample_value_t, 0),
-        sine_100hz_samples_48khz.buffer[0]
+        sine_100hz_samples_48khz.buffer[0],
     );
 }
 
 /// returns the peak to peak distance in indices of the samples in the buffer
 pub fn peak_to_peak_distance(
     samples: []const sample_value_t,
-) !usize 
+) !usize
 {
-    var maybe_last_peak_index:?sample_index_t = null;
-    var maybe_distance_in_indices:?sample_index_t = null;
+    var maybe_last_peak_index: ?sample_index_t = null;
+    var maybe_distance_in_indices: ?sample_index_t = null;
 
     const width = 3;
 
-    for (width..samples.len-width)
+    for (width..samples.len - width)
         |current_index|
     {
         const current_index_si: sample_index_t = @intCast(current_index);
 
         if (
-            samples[current_index] > samples[current_index - width] 
+            samples[current_index] > samples[current_index - width]
             and samples[current_index] > samples[current_index + width]
             and (
-                maybe_last_peak_index == null 
-                or maybe_last_peak_index.? < current_index - 3
+                maybe_last_peak_index == null
+                or (maybe_last_peak_index.? < current_index - 3)
             )
         )
         {
             if (maybe_last_peak_index)
-               |last_peak_index| 
+                |last_peak_index|
             {
                 maybe_distance_in_indices = (
-                    current_index_si 
+                    current_index_si
                     - last_peak_index
                 );
                 break;
@@ -639,13 +652,15 @@ test "sampling: peak_to_peak_distance: sine/48khz sample/100hz signal"
     };
     const sine_100_samples_48khz = try sine_signal_100hz.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Integer = 48000 }, },
+        .{
+            .sample_rate_hz = .{ .Integer = 48000 },
+        },
         true,
     );
     defer sine_100_samples_48khz.deinit(allocator);
 
     const sine_samples_48khz_100_p2p = try peak_to_peak_distance(
-        sine_100_samples_48khz.buffer
+        sine_100_samples_48khz.buffer,
     );
 
     try std.testing.expectEqual(480, sine_samples_48khz_100_p2p);
@@ -663,13 +678,15 @@ test "sampling: peak_to_peak_distance: sine/48khz sample/50hz signal"
     };
     const sine_samples_48_50 = try sine_signal_48khz_50.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Integer = 48000 }, },
+        .{
+            .sample_rate_hz = .{ .Integer = 48000 },
+        },
         true,
     );
     defer sine_samples_48_50.deinit(allocator);
 
     const sine_samples_48_50_p2p = try peak_to_peak_distance(
-        sine_samples_48_50.buffer
+        sine_samples_48_50.buffer,
     );
 
     try std.testing.expectEqual(960, sine_samples_48_50_p2p);
@@ -687,20 +704,22 @@ test "sampling: peak_to_peak_distance: sine/96khz sample/100hz signal"
     };
     const sine_samples_96_100 = try sine_signal_100.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Integer = 96000 } , },
+        .{
+            .sample_rate_hz = .{ .Integer = 96000 },
+        },
         true,
     );
     defer sine_samples_96_100.deinit(allocator);
 
     const sine_samples_96_100_p2p = try peak_to_peak_distance(
-        sine_samples_96_100.buffer
+        sine_samples_96_100.buffer,
     );
 
     try std.testing.expectEqual(960, sine_samples_96_100_p2p);
 }
 
 // test 0 - ensure that the contents of the c-library are visible
-test "sampling: c lib interface test" 
+test "sampling: c lib interface test"
 {
     // libsamplerate
     try std.testing.expectEqual(libsamplerate.SRC_SINC_BEST_QUALITY, 0);
@@ -722,13 +741,12 @@ pub fn resampled_dd(
         / input_d_samples.index_generator.sample_rate_hz.as_ordinate().as(f64)
     );
 
-    const num_output_samples: sample_index_t =
-        @intFromFloat(
-            @floor(
-                @as(f64, @floatFromInt(input_d_samples.buffer.len)) 
-                * resample_ratio
-            )
-        );
+    const num_output_samples: sample_index_t = @intFromFloat(
+        @floor(
+            @as(f64, @floatFromInt(input_d_samples.buffer.len))
+            * resample_ratio,
+        ),
+    );
 
     const result = try Sampling.init(
         allocator,
@@ -737,7 +755,7 @@ pub fn resampled_dd(
         input_d_samples.interpolating,
     );
 
-    var src_data : libsamplerate.SRC_DATA = .{
+    var src_data: libsamplerate.SRC_DATA = .{
         .data_in = @ptrCast(input_d_samples.buffer.ptr),
         .input_frames = @intCast(input_d_samples.buffer.len),
         .data_out = @ptrCast(result.buffer.ptr),
@@ -752,7 +770,8 @@ pub fn resampled_dd(
         1,
     );
 
-    if (resample_error != 0) {
+    if (resample_error != 0)
+    {
         return error.ResamplingError;
     }
 
@@ -792,7 +811,8 @@ pub fn transform_resample_dd(
 
     var output_buffer: std.ArrayList(sample_value_t) = .empty;
 
-    // walk across each mapping in the trimmed topology and transform (or omit)
+    // walk across each mapping in the trimmed topology and transform (or
+    // omit)
     // the samples into the output space
     for (output_c_to_input_c_trimmed.mappings)
         |output_c_to_input_c_m|
@@ -803,7 +823,7 @@ pub fn transform_resample_dd(
 
                 const output_buffer_size = (
                     output_d_sampling_info.buffer_size_for_length(
-                        output_range.duration()
+                        output_range.duration(),
                     )
                 );
 
@@ -886,19 +906,21 @@ pub fn transform_resample_linear_dd(
 ) !Sampling
 {
     return switch (input_d_samples.interpolating) {
-        true => try transform_resample_linear_interpolating_dd(
-            allocator,
-            input_d_samples,
-            output_c_to_input_c_crv.input_to_output_curve,
-            output_d_sampling_info,
-            step_transform,
-        ),
-        false => try transform_resample_linear_non_interpolating_dd(
-            allocator,
-            input_d_samples,
-            output_c_to_input_c_crv,
-            output_d_sampling_info,
-        ),
+        true =>
+            try transform_resample_linear_interpolating_dd(
+                allocator,
+                input_d_samples,
+                output_c_to_input_c_crv.input_to_output_curve,
+                output_d_sampling_info,
+                step_transform,
+            ),
+        false =>
+            try transform_resample_linear_non_interpolating_dd(
+                allocator,
+                input_d_samples,
+                output_c_to_input_c_crv,
+                output_d_sampling_info,
+            ),
     };
 }
 
@@ -1012,7 +1034,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
 
     const num_output_samples = (
         output_d_sampling_info.buffer_size_for_length(
-            output_d_extents.duration()
+            output_d_extents.duration(),
         )
     );
 
@@ -1032,7 +1054,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
     {
         const output_sample_interval = (
             output_d_sampling_info.ord_interval_for_index(
-                @intCast(output_index)
+                @intCast(output_index),
             )
         );
 
@@ -1043,14 +1065,14 @@ pub fn transform_resample_linear_non_interpolating_dd(
         // output -> input time (continuous -> continuous)
         const input_ord = (
             (
-             output_c_to_input_d.project_instantaneous_cc(
-                 output_sample_ord,
-             ).ordinate() 
+                output_c_to_input_d.project_instantaneous_cc(
+                    output_sample_ord,
+                ).ordinate()
             )
-            catch |err| 
-            {
+            catch |err| {
                 // out of bounds means that this sample has a value of 0
-                if (err == error.OutOfBounds) {
+                if (err == error.OutOfBounds)
+                {
                     output_sample.* = 0;
                     continue;
                 }
@@ -1061,7 +1083,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
 
         // input ordinate -> input index (continuous -> discrete)
         const input_sample_index: usize = @intCast(
-            input_d_samples.index_generator.index_at_ordinate(input_ord)
+            input_d_samples.index_generator.index_at_ordinate(input_ord),
         );
 
         output_sample.* = input_d_samples.buffer[input_sample_index];
@@ -1079,7 +1101,7 @@ pub fn transform_resample_linear_interpolating_dd(
     step_transform: bool,
 ) !Sampling
 {
-    var output_buffer_size:usize = 0;
+    var output_buffer_size: usize = 0;
 
     const TransformSpec = struct {
         /// ratio of output sample count to input sample count
@@ -1093,24 +1115,24 @@ pub fn transform_resample_linear_interpolating_dd(
     defer transform_specs.deinit(allocator);
 
     for (
-        output_c_to_input_c_crv.knots[0..output_c_to_input_c_crv.knots.len-1],
-        output_c_to_input_c_crv.knots[1..]
-    )  
-        |l_knot, r_knot|
-    {    
+        output_c_to_input_c_crv.knots[0..output_c_to_input_c_crv.knots.len - 1],
+        output_c_to_input_c_crv.knots[1..],
+    ) |l_knot, r_knot|
+    {
         const relevant_sample_indices = (
             input_d_samples.indices_within_interval(
-                .{.start = l_knot.in,.end = r_knot.in },
+                .{ .start = l_knot.in, .end = r_knot.in },
             )
         );
-        const relevant_input_samples = input_d_samples.buffer[
-            @intCast(relevant_sample_indices[0]) ..
-        ];
-        if (relevant_input_samples.len == 0) {
+        const relevant_input_samples = input_d_samples.buffer[@intCast(
+            relevant_sample_indices[0],
+        )..];
+        if (relevant_input_samples.len == 0)
+        {
             return error.NoRelevantSamples;
         }
         const input_samples: usize = @intCast(
-            relevant_sample_indices[1] - relevant_sample_indices[0]
+            relevant_sample_indices[1] - relevant_sample_indices[0],
         );
 
         const sample_rate_f = (
@@ -1120,29 +1142,28 @@ pub fn transform_resample_linear_interpolating_dd(
             output_sampling_info.sample_rate_hz.inv_as_ordinate()
         );
 
-        const output_samples:usize = @intFromFloat(
+        const output_samples: usize = @intFromFloat(
             @floor(
                 opentime.eval(
                     "(r - l) * rate + inv_rate * 0.5",
-                    .{ 
-                        .r = r_knot.out, 
+                    .{
+                        .r = r_knot.out,
                         .l = l_knot.out,
                         .rate = sample_rate_f,
                         .inv_rate = inv_rate_f,
-                    }
-                ).as(f32)
-            )
+                    },
+                ).as(f32),
+            ),
         );
 
-        if (output_samples == 0) {
+        if (output_samples == 0)
+        {
             return error.NoOutputSamplesToCompute;
         }
 
-        const transform_ratio:f32 = (
-            ( @as(f32, @floatFromInt(output_samples))) 
-            / (
-                @as(f32, @floatFromInt(input_samples))
-            )
+        const transform_ratio: f32 = (
+            (@as(f32, @floatFromInt(output_samples)))
+            / (@as(f32, @floatFromInt(input_samples)))
         );
 
         output_buffer_size += output_samples;
@@ -1154,13 +1175,13 @@ pub fn transform_resample_linear_interpolating_dd(
                 .output_samples = output_samples,
                 .input_data = relevant_input_samples,
                 .input_samples = input_samples,
-            }
+            },
         );
     }
 
     const full_output_buffer = try allocator.alloc(
         sample_value_t,
-        output_buffer_size
+        output_buffer_size,
     );
     var output_buffer = full_output_buffer[0..];
 
@@ -1184,15 +1205,16 @@ pub fn transform_resample_linear_interpolating_dd(
         .end_of_input = 0,
     };
 
-    if (RESAMPLE_DEBUG_LOGGING) {
+    if (RESAMPLE_DEBUG_LOGGING)
+    {
         std.log.debug(" \n\n----- resample info dump -----\n", .{});
     }
 
     var input_transform_samples = input_d_samples.buffer[0..];
 
     // walk across each transform spec to compute the output samples
-    // XXX: not a for loop because the condition that advances this counter 
-    var transform_index:usize = 0;
+    // XXX: not a for loop because the condition that advances this counter
+    var transform_index: usize = 0;
     while (transform_index < transform_specs.items.len)
     {
         // setup this chunk
@@ -1200,8 +1222,8 @@ pub fn transform_resample_linear_interpolating_dd(
         src_data.src_ratio = spec.transform_ratio;
         src_data.input_frames = @intCast(input_transform_samples.len);
         src_data.output_frames = @intCast(spec.output_samples);
-        
-        if (step_transform) 
+
+        if (step_transform)
         {
             // calling this function forces it to be a step function
             _ = libsamplerate.src_set_ratio(src_state, spec.transform_ratio);
@@ -1217,11 +1239,12 @@ pub fn transform_resample_linear_interpolating_dd(
             src_state,
             &src_data,
         );
-        if (lsr_error != 0) {
+        if (lsr_error != 0)
+        {
             return error.LibSampleRateError;
         }
 
-        if (RESAMPLE_DEBUG_LOGGING) 
+        if (RESAMPLE_DEBUG_LOGGING)
         {
             std.log.debug(
                 "in provided: {d} in used: {d} out requested: {d} out "
@@ -1231,27 +1254,27 @@ pub fn transform_resample_linear_interpolating_dd(
                     src_data.input_frames_used,
                     src_data.output_frames,
                     src_data.output_frames_gen,
-                }
+                },
             );
             std.log.debug(
                 "ratio: {d}\n",
                 .{
                     src_data.src_ratio,
-                }
+                },
             );
         }
 
         // slide buffers forward
-        input_transform_samples = input_transform_samples[
-            @intCast(src_data.input_frames_used)..
-        ];
+        input_transform_samples = input_transform_samples[@intCast(
+            src_data.input_frames_used,
+        )..];
         src_data.data_in = @ptrCast(input_transform_samples.ptr);
         output_buffer = output_buffer[@intCast(src_data.output_frames_gen)..];
         src_data.data_out = @ptrCast(output_buffer.ptr);
 
         // if its time to advance to the next chunk
         if (
-            src_data.output_frames <= 0 
+            src_data.output_frames <= 0
             or input_transform_samples.len == 0
         )
         {
@@ -1273,7 +1296,7 @@ pub fn transform_resample_linear_interpolating_dd(
 
 // test 1
 // have a set of samples over 48khz, resample them to 44khz
-test "sampling: resample from 48khz to 44" 
+test "sampling: resample from 48khz to 44"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -1290,13 +1313,16 @@ test "sampling: resample from 48khz to 44"
     const sine_samples_48khz_100 = (
         try sine_signal_48kz_100.rasterized(
             allocator,
-            .{ .sample_rate_hz = .{ .Integer = 48000 } , },
+            .{
+                .sample_rate_hz = .{ .Integer = 48000 },
+            },
             true,
         )
     );
     defer sine_samples_48khz_100.deinit(allocator);
 
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try sine_samples_48khz_100.write_file_prefix(
             allocator,
             io,
@@ -1313,7 +1339,8 @@ test "sampling: resample from 48khz to 44"
     );
     defer sine_samples_44khz.deinit(allocator);
 
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try sine_samples_44khz.write_file_prefix(
             allocator,
             io,
@@ -1333,9 +1360,10 @@ test "sampling: resample from 48khz to 44"
 }
 
 // test 2
-// have a set of samples over 48khz, transform them with a linear curve and then
+// have a set of samples over 48khz, transform them with a linear curve and
+// then
 // resample them to 44khz
-test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1khz" 
+test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1khz"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -1353,12 +1381,15 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
 
     const s48 = try samples_48.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Integer = 48000 } , },
+        .{
+            .sample_rate_hz = .{ .Integer = 48000 },
+        },
         true,
     );
     defer s48.deinit(allocator);
 
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try s48.write_file_prefix(
             allocator,
             io,
@@ -1401,15 +1432,19 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
             .init(.{ .in = 3.0, .out = 4.0 }),
         ),
     };
-    const transform_curve : curve.Bezier = .{
+    const transform_curve: curve.Bezier = .{
         .segments = &transform_curve_segments,
     };
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try curve.bezier.write_json_file_curve(
             allocator,
             io,
             transform_curve,
-            try artifacts.file_path(&path_buf, "ours_transform_curve.curve.json"),
+            try artifacts.file_path(
+                &path_buf,
+                "ours_transform_curve.curve.json",
+            ),
         );
     }
 
@@ -1429,7 +1464,8 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
         true,
     );
     defer samples_48_transformd.deinit(allocator);
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try samples_48_transformd.write_file_prefix(
             allocator,
             io,
@@ -1442,12 +1478,11 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
     const samples_44 = try resampled_dd(
         allocator,
         samples_48_transformd,
-        .{
-            .sample_rate_hz = .{ .Integer = 44100 } 
-        },
+        .{ .sample_rate_hz = .{ .Integer = 44100 } },
     );
     defer samples_44.deinit(allocator);
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try samples_44.write_file_prefix(
             allocator,
             io,
@@ -1459,31 +1494,29 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
 
     // identity
     const samples_44_p2p_0p25 = try peak_to_peak_distance(
-        samples_44.buffer[0..11025]
+        samples_44.buffer[0..11025],
     );
-    try std.testing.expectEqual(
-        441,
-        samples_44_p2p_0p25
-    );
+    try std.testing.expectEqual(441, samples_44_p2p_0p25);
 
     // 2x
     const samples_44_p2p_0p5 = try peak_to_peak_distance(
-        samples_44.buffer[48100..52000]
+        samples_44.buffer[48100..52000],
     );
     try std.testing.expectEqual(882, samples_44_p2p_0p5);
 
     // identity
     const samples_44_p2p_1p0 = try peak_to_peak_distance(
-        samples_44.buffer[(3*48000 + 100)..]
+        samples_44.buffer[(3 * 48000 + 100)..],
     );
     try std.testing.expectEqual(441, samples_44_p2p_1p0);
 }
 
 // test 3
-// transform a set of samples with a cubic function.  also linearize the function
+// transform a set of samples with a cubic function.  also linearize the
+// function
 // at an intentionally low rate to reproduce an error we've seen on some
 // editing systems with retiming
-test "sampling: transform 48khz samples with a nonlinear acceleration curve and resample" 
+test "sampling: transform 48khz samples with a nonlinear acceleration curve and resample"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -1500,7 +1533,9 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     };
     const s48 = try samples_48.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Integer = 48000 } , },
+        .{
+            .sample_rate_hz = .{ .Integer = 48000 },
+        },
         true,
     );
     defer s48.deinit(allocator);
@@ -1518,18 +1553,22 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
                 .p1 = .{ .in = 1.5, .out = 1.25 },
                 .p2 = .{ .in = 2, .out = 1.35 },
                 .p3 = .{ .in = 2.5, .out = 1.5 },
-            }
+            },
         ),
     };
-    const cubic_transform_curve : curve.Bezier = .{
-        .segments = &cubic_transform_curve_segments
+    const cubic_transform_curve: curve.Bezier = .{
+        .segments = &cubic_transform_curve_segments,
     };
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try curve.bezier.write_json_file_curve(
             allocator,
             io,
             cubic_transform_curve,
-            try artifacts.file_path(&path_buf, "ours_transform_24hz.linear.json"),
+            try artifacts.file_path(
+                &path_buf,
+                "ours_transform_24hz.linear.json",
+            ),
         );
     }
 
@@ -1562,10 +1601,8 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     }
 
     // linearize at 24hz
-    const transform_curve_extents = (
-        cubic_transform_curve.extents_input()
-    );
-    const inc:sample_value_t = 4.0/24.0;
+    const transform_curve_extents = (cubic_transform_curve.extents_input());
+    const inc: sample_value_t = 4.0 / 24.0;
 
     var knots: std.ArrayList(curve.ControlPoint) = .empty;
     defer knots.deinit(allocator);
@@ -1575,9 +1612,9 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
         .{
             .in = transform_curve_extents.start,
             .out = try cubic_transform_curve.output_at_input(
-                transform_curve_extents.start
+                transform_curve_extents.start,
             ),
-        }
+        },
     );
 
     var t = transform_curve_extents.start.add(inc);
@@ -1589,7 +1626,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
             .{
                 .in = t,
                 .out = try cubic_transform_curve.output_at_input(t),
-            }
+            },
         );
     }
 
@@ -1598,27 +1635,33 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     };
     defer transform_24hz_lin.deinit(allocator);
 
-    const input_to_output_lin_cc = 
-        (
-         try topology.Topology.init_from_linear(
-             allocator,
-             transform_24hz_lin,
-         )
+    const input_to_output_lin_cc = (
+        try topology.Topology.init_from_linear(
+            allocator,
+            transform_24hz_lin,
+        )
     );
     defer input_to_output_lin_cc.deinit(allocator);
 
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try curve.bezier.write_json_file_curve(
             allocator,
             io,
             transform_24hz_lin,
-            try artifacts.file_path(&path_buf, "ours_transform_24hz.linear.json"),
+            try artifacts.file_path(
+                &path_buf,
+                "ours_transform_24hz.linear.json",
+            ),
         );
         try curve.bezier.write_json_file_curve(
             allocator,
             io,
             cubic_transform_curve,
-            try artifacts.file_path(&path_buf, "ours_transform_acceleration.curve.json"),
+            try artifacts.file_path(
+                &path_buf,
+                "ours_transform_acceleration.curve.json",
+            ),
         );
     }
 
@@ -1631,7 +1674,8 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     );
     defer samples_48_transformd.deinit(allocator);
 
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try samples_48_transformd.write_file_prefix(
             allocator,
             io,
@@ -1644,13 +1688,12 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     const samples_44 = try resampled_dd(
         allocator,
         samples_48_transformd,
-        .{
-            .sample_rate_hz = .{ .Integer = 44100 } 
-        },
+        .{ .sample_rate_hz = .{ .Integer = 44100 } },
     );
     defer samples_44.deinit(allocator);
 
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try samples_44.write_file_prefix(
             allocator,
             io,
@@ -1662,21 +1705,15 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
 
     // identity
     const samples_44_p2p_0p25 = try peak_to_peak_distance(
-        samples_44.buffer[0..11025]
+        samples_44.buffer[0..11025],
     );
-    try std.testing.expectEqual(
-        441,
-        samples_44_p2p_0p25
-    );
+    try std.testing.expectEqual(441, samples_44_p2p_0p25);
 
     // 2x
     const samples_44_p2p_0p5 = try peak_to_peak_distance(
-        samples_44.buffer[(44100+1000)..]
+        samples_44.buffer[(44100 + 1000)..],
     );
-    try std.testing.expectEqual(
-        207,
-        samples_44_p2p_0p5
-     );
+    try std.testing.expectEqual(207, samples_44_p2p_0p5);
 }
 
 test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
@@ -1697,15 +1734,19 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
     const ramp_samples = try ramp_signal.rasterized(
         allocator,
         .{
-            .sample_rate_hz = .{ .Integer = 48000 }, 
+            .sample_rate_hz = .{ .Integer = 48000 },
         },
         false,
     );
     defer ramp_samples.deinit(allocator);
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try ramp_samples.write_file(
             io,
-            try artifacts.file_path(&path_buf, "ramp_2s_1hz_signal_48000hz_sampling.wav"),
+            try artifacts.file_path(
+                &path_buf,
+                "ramp_2s_1hz_signal_48000hz_sampling.wav",
+            ),
         );
     }
 
@@ -1719,7 +1760,7 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
 }
 
 // only meaningfull if serializing test data to disk
-test "sampling: serialize a 24hz ramp to disk, to visualize ramp output" 
+test "sampling: serialize a 24hz ramp to disk, to visualize ramp output"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -1732,17 +1773,19 @@ test "sampling: serialize a 24hz ramp to disk, to visualize ramp output"
         .duration_s = opentime.Ordinate.init(1),
         .signal = .ramp,
         // .signal_amplitude = 4,
+
     };
 
     const ramp_samples = try ramp_signal.rasterized(
         allocator,
         .{
-            .sample_rate_hz = .{ .Integer = 48000 }, 
+            .sample_rate_hz = .{ .Integer = 48000 },
         },
         true,
     );
     defer ramp_samples.deinit(allocator);
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try ramp_samples.write_file_prefix(
             allocator,
             io,
@@ -1754,7 +1797,7 @@ test "sampling: serialize a 24hz ramp to disk, to visualize ramp output"
 }
 
 test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
-{    
+{
     const allocator = std.testing.allocator;
 
     const ramp_signal = SignalGenerator{
@@ -1766,7 +1809,9 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
 
     const ramp_samples = try ramp_signal.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Integer = 4 } , },
+        .{
+            .sample_rate_hz = .{ .Integer = 4 },
+        },
         false,
     );
 
@@ -1779,19 +1824,20 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
             .input_to_output_curve = (
                 try curve.Linear.init_identity(
                     allocator,
-                    &.{0, 2},
+                    &.{ 0, 2 },
                 )
-            )
+            ),
+
         }
     );
     defer sample_to_output_crv.deinit(std.testing.allocator);
 
-    const output_sampling_info:SampleIndexGenerator = .{
-        .sample_rate_hz = .{ .Integer = 4 } ,
+    const output_sampling_info: SampleIndexGenerator = .{
+        .sample_rate_hz = .{ .Integer = 4 },
     };
 
     const transformd_ramp_samples = try transform_resample_linear_dd(
-        allocator, 
+        allocator,
         ramp_samples,
         sample_to_output_crv,
         output_sampling_info,
@@ -1799,12 +1845,9 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
     );
     defer transformd_ramp_samples.deinit(allocator);
 
-    try std.testing.expectEqual(
-        4,
-        transformd_ramp_samples.buffer.len
-    );
+    try std.testing.expectEqual(4, transformd_ramp_samples.buffer.len);
 
-    const expected = &[_]sample_value_t{ 0, 1, 2, 3};
+    const expected = &[_]sample_value_t{ 0, 1, 2, 3 };
 
     try std.testing.expectEqualSlices(
         sample_value_t,
@@ -1833,7 +1876,7 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
     );
     defer ramp_samples.deinit(allocator);
 
-    const input_data = &[_]sample_value_t{ 0, 1, 2, 3};
+    const input_data = &[_]sample_value_t{ 0, 1, 2, 3 };
 
     try std.testing.expectEqualSlices(
         sample_value_t,
@@ -1850,31 +1893,36 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
                     .init(.{ .in = 0, .out = 0 }),
                     .init(.{ .in = 1, .out = 0.5 }),
                 },
-            }
+            },
+
         }
     );
 
     errdefer std.log.err(
         "Sample to output curve: {f}\n",
-        .{ sample_to_output_crv.mapping() }
+        .{sample_to_output_crv.mapping()},
     );
 
     // trivial check that curve behaves as expected
     try opentime.expectOrdinateEqual(
         0.5,
-        try sample_to_output_crv.project_instantaneous_cc(opentime.Ordinate.init(1.0)).ordinate(),
+        try sample_to_output_crv.project_instantaneous_cc(
+            opentime.Ordinate.init(1.0),
+        ).ordinate(),
     );
     try opentime.expectOrdinateEqual(
         0.0,
-        try sample_to_output_crv.project_instantaneous_cc(opentime.Ordinate.init(0.0)).ordinate(),
+        try sample_to_output_crv.project_instantaneous_cc(
+            opentime.Ordinate.init(0.0),
+        ).ordinate(),
     );
 
-    const output_sampling_info : SampleIndexGenerator = .{
+    const output_sampling_info: SampleIndexGenerator = .{
         .sample_rate_hz = .{ .Integer = 4 },
     };
 
     const output_ramp_samples = try transform_resample_linear_dd(
-        allocator, 
+        allocator,
         ramp_samples,
         sample_to_output_crv,
         output_sampling_info,
@@ -1882,7 +1930,7 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
     );
     defer output_ramp_samples.deinit(allocator);
 
-    const expected = &[_]sample_value_t{ 0, 0, 1, 1};
+    const expected = &[_]sample_value_t{ 0, 0, 1, 1 };
 
     try std.testing.expectEqualSlices(
         sample_value_t,
@@ -1916,7 +1964,7 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
     );
     defer ramp_samples.deinit(allocator);
 
-    const input_data = &[_]sample_value_t{ 0, 1, 2, 3};
+    const input_data = &[_]sample_value_t{ 0, 1, 2, 3 };
 
     try std.testing.expectEqualSlices(
         sample_value_t,
@@ -1928,31 +1976,46 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
 
     const transformd_to_sample_crv = (
         topology.mapping.MappingCurveLinearMonotonic{
-            .input_to_output_curve = curve.Linear.Monotonic {
+            .input_to_output_curve = curve.Linear.Monotonic{
                 .knots = &.{
-                    .init(.{ .in = 0.0, .out = 0.0, }),
-                    .init(.{ .in = 2.0, .out = 1.0, }),
+                    .init(
+                        .{
+                            .in = 0.0,
+                            .out = 0.0,
+                        },
+                    ),
+                    .init(
+                        .{
+                            .in = 2.0,
+                            .out = 1.0,
+                        },
+                    ),
                 },
-            }
+            },
+
         }
     );
 
     // trivial check that curve behaves as expected
     try opentime.expectOrdinateEqual(
         0.5,
-        try transformd_to_sample_crv.project_instantaneous_cc(opentime.Ordinate.init(1.0)).ordinate(),
+        try transformd_to_sample_crv.project_instantaneous_cc(
+            opentime.Ordinate.init(1.0),
+        ).ordinate(),
     );
     try opentime.expectOrdinateEqual(
         0.0,
-        try transformd_to_sample_crv.project_instantaneous_cc(opentime.Ordinate.init(0.0)).ordinate(),
+        try transformd_to_sample_crv.project_instantaneous_cc(
+            opentime.Ordinate.init(0.0),
+        ).ordinate(),
     );
 
-    const output_sampling_info : SampleIndexGenerator = .{
+    const output_sampling_info: SampleIndexGenerator = .{
         .sample_rate_hz = .{ .Integer = 4 },
     };
 
     const output_ramp_samples = try transform_resample_linear_dd(
-        allocator, 
+        allocator,
         ramp_samples,
         transformd_to_sample_crv,
         output_sampling_info,
@@ -1960,7 +2023,7 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
     );
     defer output_ramp_samples.deinit(allocator);
 
-    const expected = &[_]sample_value_t{ 0, 0, 1, 1, 2, 2, 3, 3};
+    const expected = &[_]sample_value_t{ 0, 0, 1, 1, 2, 2, 3, 3 };
 
     try std.testing.expectEqualSlices(
         sample_value_t,
@@ -1973,7 +2036,6 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
         output_ramp_samples.buffer.len,
     );
 }
-
 
 // hold on even twos - short frames
 test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(over same duration, but with 2x the hz)"
@@ -1996,7 +2058,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
     );
     defer ramp_samples.deinit(allocator);
 
-    const input_data = &[_]sample_value_t{ 0, 1, 2, 3};
+    const input_data = &[_]sample_value_t{ 0, 1, 2, 3 };
 
     try std.testing.expectEqualSlices(
         sample_value_t,
@@ -2011,34 +2073,39 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
             .input_to_output_curve = (
                 try curve.Linear.init_identity(
                     allocator,
-                    &.{0, 1.0},
+                    &.{ 0, 1.0 },
                 )
-            )
+            ),
+
         }
     );
     defer sample_to_output_crv.deinit(std.testing.allocator);
 
     errdefer std.log.err(
         "Sample to output curve: {f}\n",
-        .{ sample_to_output_crv.mapping() }
+        .{sample_to_output_crv.mapping()},
     );
 
     // trivial check that curve behaves as expected
     try opentime.expectOrdinateEqual(
         0.5,
-        try sample_to_output_crv.project_instantaneous_cc(opentime.Ordinate.init(0.5)).ordinate(),
+        try sample_to_output_crv.project_instantaneous_cc(
+            opentime.Ordinate.init(0.5),
+        ).ordinate(),
     );
     try opentime.expectOrdinateEqual(
         0.0,
-        try sample_to_output_crv.project_instantaneous_cc(opentime.Ordinate.init(0.0)).ordinate(),
+        try sample_to_output_crv.project_instantaneous_cc(
+            opentime.Ordinate.init(0.0),
+        ).ordinate(),
     );
 
-    const output_sampling_info : SampleIndexGenerator = .{
+    const output_sampling_info: SampleIndexGenerator = .{
         .sample_rate_hz = .{ .Integer = 8 },
     };
 
     const output_ramp_samples = try transform_resample_linear_dd(
-        allocator, 
+        allocator,
         ramp_samples,
         sample_to_output_crv,
         output_sampling_info,
@@ -2046,14 +2113,14 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
     );
     defer output_ramp_samples.deinit(allocator);
 
-    const expected = &[_]sample_value_t{ 0, 0, 1, 1, 2, 2, 3, 3};
+    const expected = &[_]sample_value_t{ 0, 0, 1, 1, 2, 2, 3, 3 };
 
     try std.testing.expectEqualSlices(
         sample_value_t,
         expected,
         output_ramp_samples.buffer,
     );
-    
+
     try opentime.expectOrdinateEqual(
         1.0,
         output_ramp_samples.extents().end,
@@ -2063,7 +2130,6 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
         8,
         output_ramp_samples.buffer.len,
     );
-
 }
 
 // hold on odd twos
@@ -2109,7 +2175,7 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
     // *--*--*--*--)
     // 0  1  1  2
     //
-    const input_data = &[_]sample_value_t{ 0, 1, 2, 3};
+    const input_data = &[_]sample_value_t{ 0, 1, 2, 3 };
 
     try std.testing.expectEqualSlices(
         sample_value_t,
@@ -2117,26 +2183,24 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
         ramp_samples.buffer,
     );
 
-    try std.testing.expectEqual(
-        false,
-        ramp_samples.interpolating
-    );
+    try std.testing.expectEqual(false, ramp_samples.interpolating);
 
     const transform_to_inter_crv = (
-        topology.mapping.MappingCurveLinearMonotonic {
-            .input_to_output_curve = curve.Linear.Monotonic {
-                .knots = &.{ 
+        topology.mapping.MappingCurveLinearMonotonic{
+            .input_to_output_curve = curve.Linear.Monotonic{
+                .knots = &.{
                     .init(.{ .in = 0.25, .out = 0.25 }),
                     .init(.{ .in = 1.25, .out = 1.25 }),
                 },
-            }
+            },
+
         }
     ).mapping();
 
     const inter_to_sample_crv = (
-        topology.mapping.MappingCurveLinearMonotonic {
+        topology.mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.Linear.Monotonic{
-                .knots = &.{ 
+                .knots = &.{
                     .init(.{ .in = 0, .out = 0 }),
                     .init(.{ .in = 2, .out = 1 }),
                 },
@@ -2146,29 +2210,33 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
 
     const transformd_to_sample_crv = try topology.mapping.join(
         allocator,
-        .{ 
+        .{
             .a2b = transform_to_inter_crv,
             .b2c = inter_to_sample_crv,
-        }
+        },
     );
     defer transformd_to_sample_crv.deinit(std.testing.allocator);
 
     // trivial check that curve behaves as expected
     try opentime.expectOrdinateEqual(
         0.375,
-        try transformd_to_sample_crv.project_instantaneous_cc(opentime.Ordinate.init(0.75)).ordinate(),
+        try transformd_to_sample_crv.project_instantaneous_cc(
+            opentime.Ordinate.init(0.75),
+        ).ordinate(),
     );
     try opentime.expectOrdinateEqual(
         0.125,
-        try transformd_to_sample_crv.project_instantaneous_cc(opentime.Ordinate.init(0.25)).ordinate(),
+        try transformd_to_sample_crv.project_instantaneous_cc(
+            opentime.Ordinate.init(0.25),
+        ).ordinate(),
     );
 
-    const output_sampling_info : SampleIndexGenerator = .{
+    const output_sampling_info: SampleIndexGenerator = .{
         .sample_rate_hz = .{ .Integer = 4 },
     };
 
     const output_ramp_samples = try transform_resample_linear_dd(
-        allocator, 
+        allocator,
         ramp_samples,
         transformd_to_sample_crv.linear,
         output_sampling_info,
@@ -2176,14 +2244,14 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
     );
     defer output_ramp_samples.deinit(allocator);
 
-    const expected = &[_]sample_value_t{ 0, 1, 1 , 2};
+    const expected = &[_]sample_value_t{ 0, 1, 1, 2 };
 
     try std.testing.expectEqualSlices(
         sample_value_t,
         expected,
         output_ramp_samples.buffer,
     );
-    
+
     try opentime.expectOrdinateEqual(
         1.0,
         output_ramp_samples.extents().end,
@@ -2210,7 +2278,7 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
     );
     defer ramp_samples.deinit(allocator);
 
-    const input_data = &[_]sample_value_t{ 0, 1, 2, 3};
+    const input_data = &[_]sample_value_t{ 0, 1, 2, 3 };
 
     // test input data
     // ///////////////
@@ -2227,37 +2295,37 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
     // ///////////////
 
     const output_to_input_topo = (
-        topology.Topology {
+        topology.Topology{
             .mappings = &.{
                 (
-                 topology.mapping.MappingCurveLinearMonotonic{
-                     .input_to_output_curve = .{
-                         .knots = &.{
-                             .init(.{ .in = 0.0,    .out = 0.0 }),
-                             .init(.{ .in = 1.25, .out = 0.0 }),
-                         },
-                     },
-                 }
+                    topology.mapping.MappingCurveLinearMonotonic{
+                        .input_to_output_curve = .{
+                            .knots = &.{
+                                .init(.{ .in = 0.0, .out = 0.0 }),
+                                .init(.{ .in = 1.25, .out = 0.0 }),
+                            },
+                        },
+                    }
                 ).mapping(),
                 (
-                 topology.mapping.MappingCurveLinearMonotonic{
-                     .input_to_output_curve = .{
-                         .knots = &.{
-                             .init(.{ .in = 1.25, .out = 0.25 }),
-                             .init(.{ .in = 1.75, .out = 0.25 }),
-                         }
-                     },
-                 }
+                    topology.mapping.MappingCurveLinearMonotonic{
+                        .input_to_output_curve = .{
+                            .knots = &.{
+                                .init(.{ .in = 1.25, .out = 0.25 }),
+                                .init(.{ .in = 1.75, .out = 0.25 }),
+                            },
+                        },
+                    }
                 ).mapping(),
                 (
-                 topology.mapping.MappingCurveLinearMonotonic{
-                     .input_to_output_curve = .{
-                         .knots = &.{
-                             .init(.{ .in = 1.75, .out = 0.5 }),
-                             .init(.{ .in = 2.5,  .out = 0.5 }),
-                         }
-                     },
-                 }
+                    topology.mapping.MappingCurveLinearMonotonic{
+                        .input_to_output_curve = .{
+                            .knots = &.{
+                                .init(.{ .in = 1.75, .out = 0.5 }),
+                                .init(.{ .in = 2.5, .out = 0.5 }),
+                            },
+                        },
+                    }
                 ).mapping(),
             },
         }
@@ -2285,17 +2353,14 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
     // );
     // defer output_to_input_topo.deinit(allocator);
 
-    try std.testing.expectEqual(
-        3,
-        output_to_input_topo.mappings.len
-    );
+    try std.testing.expectEqual(3, output_to_input_topo.mappings.len);
 
-    const output_sampling_info : SampleIndexGenerator = .{
-        .sample_rate_hz = .{ .Integer = 4 } ,
+    const output_sampling_info: SampleIndexGenerator = .{
+        .sample_rate_hz = .{ .Integer = 4 },
     };
 
     const output_ramp_samples = try transform_resample_dd(
-        allocator, 
+        allocator,
         ramp_samples,
         output_to_input_topo,
         output_sampling_info,
@@ -2317,12 +2382,12 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
 // within the nomenclature of OTIO itself, describe samples on one media and
 // resample them to another space (IE have a clip at 48khz and the timeline at
 // 44khz)-
-// 
-// test 5 
+//
+// test 5
 // resample according to centered kernels
 //@}
 
-test "sampling: wav.zig generator test" 
+test "sampling: wav.zig generator test"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -2346,7 +2411,8 @@ test "sampling: wav.zig generator test"
     );
     defer s48.deinit(allocator);
 
-    if (WRITE_TEST_FILES) {
+    if (WRITE_TEST_FILES)
+    {
         try s48.write_file(
             io,
             try artifacts.file_path(&path_buf, "ours_givemesine.wav"),
@@ -2358,7 +2424,7 @@ test "sampling: transformed leak test"
 {
     const allocator = std.testing.allocator;
 
-    var buf = [_]sample_value_t{0, 1, 2, 3};
+    var buf = [_]sample_value_t{ 0, 1, 2, 3 };
 
     const ramp_samples = Sampling{
         .interpolating = false,
@@ -2378,16 +2444,17 @@ test "sampling: transformed leak test"
                 curve.Linear.Monotonic{
                     .knots = &knots,
                 }
-            )
+            ),
+
         }
     );
 
-    const output_sampling_info : SampleIndexGenerator = .{
+    const output_sampling_info: SampleIndexGenerator = .{
         .sample_rate_hz = .{ .Integer = 8 },
     };
 
     const output_ramp_samples = try transform_resample_linear_dd(
-        allocator, 
+        allocator,
         ramp_samples,
         transformed_to_sample_crv,
         output_sampling_info,

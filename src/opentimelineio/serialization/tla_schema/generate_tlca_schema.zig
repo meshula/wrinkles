@@ -33,8 +33,9 @@ fn generate(
         if (!std.mem.startsWith(u8, tla_schema, TLA_ROOT ++ "\n///"))
         {
             @compileError(
-                "tla.ziggy-schema must start with '" ++ TLA_ROOT
-                ++ "', a blank line, and a doc comment"
+                "tla.ziggy-schema must start with '"
+                ++ TLA_ROOT
+                ++ "', a blank line, and a doc comment",
             );
         }
 
@@ -46,12 +47,14 @@ fn generate(
         );
 
         const out = (
-            TLCA_ROOT ++ "\n" ++ notice
-            ++ tla_schema[TLA_ROOT.len + 1 ..]
+            TLCA_ROOT
+            ++ "\n"
+            ++ notice
+            ++ tla_schema[TLA_ROOT.len + 1..]
             ++ collection_types
             ++ "\x00"
         );
-        return out[0 .. out.len - 1 :0];
+        return out[0..out.len - 1:0];
     }
 }
 

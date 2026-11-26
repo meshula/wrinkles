@@ -14,16 +14,25 @@ pub const BezierSegment = extern struct {
     p: [4]Vector2,
 };
 
-pub extern fn compute_hodograph(b: *const BezierSegment) BezierSegment;
-pub extern fn bezier_roots(bz: *const BezierSegment) Vector2;
-pub extern fn inflection_points(bz: *const BezierSegment) Vector2;
+pub extern fn compute_hodograph(
+    b: *const BezierSegment,
+) BezierSegment;
+pub extern fn bezier_roots(
+    bz: *const BezierSegment,
+) Vector2;
+pub extern fn inflection_points(
+    bz: *const BezierSegment,
+) Vector2;
 pub extern fn split_bezier(
     bz: *const BezierSegment,
     t: f32,
     r1: *BezierSegment,
     r2: *BezierSegment,
 ) bool;
-pub extern fn evaluate_bezier(b: *BezierSegment, u: f32) Vector2;
+pub extern fn evaluate_bezier(
+    b: *BezierSegment,
+    u: f32,
+) Vector2;
 
 test "hodograph: simple"
 {

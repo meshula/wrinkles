@@ -56,8 +56,8 @@ const State = struct {
     {
         allocator.free(self.input_path);
 
-        if (self.output_path) 
-            |path| 
+        if (self.output_path)
+            |path|
         {
             allocator.free(path);
         }
@@ -76,7 +76,9 @@ fn parse_args(
     var output_path: ?[]const u8 = null;
     var metadata_mode: MetadataMode = .hash_reference;
     var bundle_format: serialization.bundle_utils.BundleFormat = .tla;
-    var media_policy: serialization.bundle_utils.MediaReferencePolicy = .missing_if_not_file;
+    var media_policy: serialization.bundle_utils.MediaReferencePolicy = (
+        .missing_if_not_file
+    );
     var maybe_target_version: ?u32 = null;
     var list_target_versions = false;
 
@@ -93,20 +95,23 @@ fn parse_args(
 
         // Handle options (flags starting with -)
         if (
-            string.eql_latin_s8(arg, "--help") 
-            or string.eql_latin_s8(arg, "-h"))
+            string.eql_latin_s8(arg, "--help")
+            or string.eql_latin_s8(arg, "-h")
+        )
         {
             usage("");
         }
         else if (
-            string.eql_latin_s8(arg, "--no-metadata") 
+            string.eql_latin_s8(arg, "--no-metadata")
             or string.eql_latin_s8(arg, "-M")
-            )
+        )
         {
             metadata_mode = .no_metadata;
         }
-        else if (string.eql_latin_s8(arg, "--inline-metadata") or
-            string.eql_latin_s8(arg, "-m"))
+        else if (
+            string.eql_latin_s8(arg, "--inline-metadata")
+            or string.eql_latin_s8(arg, "-m")
+        )
         {
             metadata_mode = .inline_metadata;
         }
@@ -138,7 +143,8 @@ fn parse_args(
                 u32,
                 arg[TARGET_VERSION_FLAG.len..],
                 10,
-            ) catch usage("Invalid --target-version value.");
+            )
+            catch usage("Invalid --target-version value.");
         }
         else if (string.eql_latin_s8(arg, "--list-target-versions"))
         {
@@ -273,7 +279,8 @@ pub fn usage(
         \\  otiocat -m timeline.otio              # Metadata inline on clips
         \\
         \\{s}
-        , .{msg}
+        ,
+        .{msg},
     );
     std.process.exit(1);
 }
@@ -290,17 +297,22 @@ fn print_target_versions(
 
     const versioning = serialization.versioning;
     try w.print(
-        "Current schema version: {d}\n" ++
-        "Writable schema versions (--target-version=N):\n",
+        "Current schema version: {d}\n"
+        ++ "Writable schema versions (--target-version=N):\n",
         .{versioning.CURRENT_SCHEMA_VERSION},
     );
     inline for (
         .{
-            .{ "timelines   (.tla, .tlb, .tlz)", versioning.TIMELINE_WRITE_VERSIONS },
-            .{ "collections (.tlca, .tlcb, .tlcz)", versioning.COLLECTION_WRITE_VERSIONS },
-        }
-    )
-        |row|
+            .{
+                "timelines   (.tla, .tlb, .tlz)",
+                versioning.TIMELINE_WRITE_VERSIONS,
+            },
+            .{
+                "collections (.tlca, .tlcb, .tlcz)",
+                versioning.COLLECTION_WRITE_VERSIONS,
+            },
+        },
+    ) |row|
     {
         try w.print("  {s}:", .{row[0]});
         for (row[1])
@@ -323,7 +335,8 @@ pub fn main(
     const parent_allocator = if (builtin.mode == .debug) alloc: {
         var da = std.heap.DebugAllocator(.{}){};
         break :alloc da.allocator();
-    } else std.heap.smp_allocator;
+    }
+    else std.heap.smp_allocator;
 
     var arena = std.heap.ArenaAllocator.init(parent_allocator);
     const allocator = arena.allocator();
@@ -351,7 +364,8 @@ pub fn main(
         io,
         state.input_path,
         .{},
-    ) catch |e| switch (e) {
+    )
+    catch |e| switch (e) {
         error.FileNotFound => found = false,
         else => return e,
     };
@@ -360,54 +374,66 @@ pub fn main(
     {
         std.log.err(
             "File: {s} does not exist or is not accessible.",
-            .{state.input_path}
+            .{state.input_path},
         );
         std.process.exit(1);
     }
 
     const input_format = serialization.FileFormat.from_path(
         state.input_path,
-    ) catch |err| {
+    )
+    catch |err| {
         std.log.err(
             "Unsupported input file {s}: {t}",
             .{ state.input_path, err },
         );
         std.process.exit(1);
     };
-    const is_collection = serialization.descriptor(input_format).is_collection;
+    const is_collection = (
+        serialization.descriptor(input_format).is_collection
+    );
 
     // Writing to stdout defaults to the text format for the input's root type
     const output_format: serialization.FileFormat = (
         if (state.output_path)
             |path|
-            serialization.FileFormat.from_path(path) catch |err| {
+            serialization.FileFormat.from_path(path)
+            catch |err| {
                 std.log.err(
                     "Unsupported output file {s}: {t}",
                     .{ path, err },
                 );
                 std.process.exit(1);
             }
-        else if (is_collection) .tlca else .tla
+        else if (is_collection) .tlca
+        else .tla
     );
     const output_desc = serialization.descriptor(output_format);
 
-    if (is_collection != output_desc.is_collection) {
+    if (is_collection != output_desc.is_collection)
+    {
         std.log.err(
-            "Cannot convert between timeline and collection formats. " ++
-            "Use timeline formats (.tla, .tlb, .tlz) or collection formats (.tlca, .tlcb, .tlcz).",
-            .{}
+            "Cannot convert between timeline and collection formats. "
+            ++ (
+                "Use timeline formats (.tla, .tlb, .tlz) or collection "
+                ++ "formats (.tlca, .tlcb, .tlcz)."
+            ),
+            .{},
         );
         std.process.exit(1);
     }
 
     if (output_desc.is_read_only)
     {
-        std.log.err("Cannot write .{t} files", .{ output_format });
+        std.log.err("Cannot write .{t} files", .{output_format});
         std.process.exit(1);
     }
 
     // Bundle output requires an output file (can't write to stdout)
-    if (output_desc.is_bundle and state.output_path == null)
+    if (
+        output_desc.is_bundle
+        and state.output_path == null
+    )
     {
         std.log.err("Bundle output requires an output file path", .{});
         std.process.exit(1);
@@ -417,14 +443,18 @@ pub fn main(
         |target|
     {
         const writable = (
-            if (is_collection) serialization.versioning.COLLECTION_WRITE_VERSIONS
+            if (is_collection) (
+                serialization.versioning.COLLECTION_WRITE_VERSIONS
+            )
             else serialization.versioning.TIMELINE_WRITE_VERSIONS
         );
         if (std.mem.indexOfScalar(u32, writable, target) == null)
         {
             std.log.err(
-                "Cannot write {s} schema version {d}; writable versions: {any}"
-                ++ " (see --list-target-versions)",
+                (
+                    "Cannot write {s} schema version {d}; writable versions: "
+                    ++ "{any}"
+                ) ++ " (see --list-target-versions)",
                 .{
                     if (is_collection) "collection" else "timeline",
                     target,
@@ -465,7 +495,8 @@ pub fn main(
     read_prog.end();
 
     const convert_prog = parent_prog.start(
-        if (is_collection) "Converting collection..." else "Converting timeline...",
+        if (is_collection) "Converting collection..."
+        else "Converting timeline...",
         0,
     );
 
@@ -500,7 +531,7 @@ pub fn main(
 
     convert_prog.end();
 
-    if (state.output_path) 
+    if (state.output_path)
         |path|
     {
         std.log.info("Wrote: {s}", .{path});
@@ -511,7 +542,8 @@ pub fn main(
 // Tests
 // ----------------------------------------------------------------------------
 
-test "FileFormat stringToEnum parses extensions correctly" {
+test "FileFormat stringToEnum parses extensions correctly"
+{
     // Test that we can parse all supported output formats
     try std.testing.expectEqual(
         serialization.FileFormat.tla,
@@ -579,14 +611,17 @@ fn expect_roundtrip_through(
     );
 }
 
-test "otiocat: roundtrip tla through tla" {
+test "otiocat: roundtrip tla through tla"
+{
     try expect_roundtrip_through("otio_sample_data/simple_cut.tla", .tla);
 }
 
-test "otiocat: roundtrip tla through tlb" {
+test "otiocat: roundtrip tla through tlb"
+{
     try expect_roundtrip_through("otio_sample_data/simple_cut.tla", .tlb);
 }
 
-test "otiocat: convert otio through tla" {
+test "otiocat: convert otio through tla"
+{
     try expect_roundtrip_through("otio_sample_data/simple_cut.otio", .tla);
 }

@@ -7,22 +7,18 @@ const topology = @import("topology");
 const c = @import("opentimelineio_c");
 
 var gpa = std.heap.DebugAllocator(.{}){};
-const ALLOCATOR:std.mem.Allocator = gpa.allocator();
+const ALLOCATOR: std.mem.Allocator = gpa.allocator();
 
 /// constant to represent an error (nullpointer)
-const ERR_REF : c.otio_CompositionItemHandle = .{
+const ERR_REF: c.otio_CompositionItemHandle = .{
     .kind = c.otio_ct_err,
-    .ref = null 
+    .ref = null,
 };
 
-const ERR_ALLOCATOR = c.otio_Allocator{
-    .ref = null 
-};
-const ERR_ARENA = c.otio_Arena{
-    .arena = null,
-    .allocator = ERR_ALLOCATOR 
-};
-pub export fn otio_fetch_allocator_gpa() c.otio_Allocator
+const ERR_ALLOCATOR = c.otio_Allocator{ .ref = null };
+const ERR_ARENA = c.otio_Arena{ .arena = null, .allocator = ERR_ALLOCATOR };
+pub export fn otio_fetch_allocator_gpa(
+) c.otio_Allocator
 {
     return .{ .ref = @ptrCast(@constCast(&ALLOCATOR)) };
 }
@@ -35,7 +31,8 @@ pub export fn otio_fetch_allocator_new_arena(
     const page_alloc = std.heap.page_allocator;
 
     // Allocate the arena struct on the heap
-    const arena_ptr = page_alloc.create(std.heap.ArenaAllocator) catch return ERR_ARENA;
+    const arena_ptr = page_alloc.create(std.heap.ArenaAllocator)
+    catch return ERR_ARENA;
 
     // Initialize the arena in-place on the heap
     arena_ptr.* = std.heap.ArenaAllocator.init(page_alloc);
@@ -44,8 +41,10 @@ pub export fn otio_fetch_allocator_new_arena(
     const allocator = arena_ptr.allocator();
 
     // Allocate the Allocator wrapper and vtable using the arena
-    const alloc_ptr = allocator.create(std.mem.Allocator) catch return ERR_ARENA;
-    const vtable = allocator.create(std.mem.Allocator.VTable) catch return ERR_ARENA;
+    const alloc_ptr = allocator.create(std.mem.Allocator)
+    catch return ERR_ARENA;
+    const vtable = allocator.create(std.mem.Allocator.VTable)
+    catch return ERR_ARENA;
 
     // Copy the vtable (these are function pointers to static code)
     vtable.* = allocator.vtable.*;
@@ -70,10 +69,7 @@ pub export fn otio_arena_deinit(
         return;
     }
 
-    const ref = ptrCast(
-        std.heap.ArenaAllocator,
-        ref_c.arena.?
-    );
+    const ref = ptrCast(std.heap.ArenaAllocator, ref_c.arena.?);
 
     // First deinit the arena (frees all arena-allocated memory)
     ref.*.deinit();
@@ -87,10 +83,8 @@ pub export fn otio_read_from_file(
     filepath_c: [*:0]const u8,
 ) c.otio_CompositionItemHandle
 {
-    const filepath : []const u8 = std.mem.span(filepath_c);
-    const allocator = fetch_allocator(
-        allocator_c
-    ) catch return ERR_REF;
+    const filepath: []const u8 = std.mem.span(filepath_c);
+    const allocator = fetch_allocator(allocator_c) catch return ERR_REF;
 
     var threaded: std.Io.Threaded = .init_single_threaded;
     const io = threaded.io();
@@ -100,10 +94,11 @@ pub export fn otio_read_from_file(
         io,
         filepath,
         .{},
-    ) catch |err| {
+    )
+    catch |err| {
         std.log.err(
             "couldn't read file: '{s}', error: {any}\n",
-            .{filepath, err},
+            .{ filepath, err },
         );
         return ERR_REF;
     };
@@ -121,14 +116,22 @@ pub export fn otio_write_to_file(
 ) c_int
 {
     // Validate that input is a timeline
-    if (timeline_c.kind != c.otio_ct_timeline) {
-        std.log.err("otio_write_to_file: expected timeline, got {}\n", .{timeline_c.kind});
+    if (timeline_c.kind != c.otio_ct_timeline)
+    {
+        std.log.err(
+            "otio_write_to_file: expected timeline, got {}\n",
+            .{timeline_c.kind},
+        );
         return -1;
     }
 
     const filepath: []const u8 = std.mem.span(filepath_c);
-    const allocator = fetch_allocator(allocator_c) catch |err| {
-        std.log.err("otio_write_to_file: couldn't fetch allocator: {any}\n", .{err});
+    const allocator = fetch_allocator(allocator_c)
+    catch |err| {
+        std.log.err(
+            "otio_write_to_file: couldn't fetch allocator: {any}\n",
+            .{err},
+        );
         return -1;
     };
 
@@ -154,9 +157,13 @@ pub export fn otio_write_to_file(
         io,
         handle,
         filepath,
-        .{}, // default options
-    ) catch |err| {
-        std.log.err("otio_write_to_file: couldn't write file '{s}': {any}\n", .{ filepath, err });
+        .{},
+    )
+    catch |err| {
+        std.log.err(
+            "otio_write_to_file: couldn't write file '{s}': {any}\n",
+            .{ filepath, err },
+        );
         return -1;
     };
 
@@ -172,11 +179,12 @@ fn ptrCast(
 }
 
 fn fetch_allocator(
-    input: c.otio_Allocator
+    input: c.otio_Allocator,
 ) !std.mem.Allocator
 {
-    if (input.ref == null) {
-        std.log.err("Null allocator argument\n",.{});
+    if (input.ref == null)
+    {
+        std.log.err("Null allocator argument\n", .{});
         return error.InvalidAllocatorError;
     }
 
@@ -191,13 +199,20 @@ fn init_CompositionItemHandle(
         |ptr|
     {
         return switch (input.kind) {
-            c.otio_ct_timeline => otio.CompositionItemHandle.init(ptrCast(otio.Timeline, ptr)),
-            c.otio_ct_stack => otio.CompositionItemHandle.init(ptrCast(otio.Stack, ptr)),
-            c.otio_ct_track => otio.CompositionItemHandle.init(ptrCast(otio.Track, ptr)),
-            c.otio_ct_clip =>  otio.CompositionItemHandle.init(ptrCast(otio.Clip, ptr)),
-            c.otio_ct_gap =>   otio.CompositionItemHandle.init(ptrCast(otio.Gap, ptr)),
-            c.otio_ct_warp =>  otio.CompositionItemHandle.init(ptrCast(otio.Warp, ptr)),
-            c.otio_ct_transition =>  otio.CompositionItemHandle.init(ptrCast(otio.Transition, ptr)),
+            c.otio_ct_timeline =>
+                otio.CompositionItemHandle.init(ptrCast(otio.Timeline, ptr)),
+            c.otio_ct_stack =>
+                otio.CompositionItemHandle.init(ptrCast(otio.Stack, ptr)),
+            c.otio_ct_track =>
+                otio.CompositionItemHandle.init(ptrCast(otio.Track, ptr)),
+            c.otio_ct_clip =>
+                otio.CompositionItemHandle.init(ptrCast(otio.Clip, ptr)),
+            c.otio_ct_gap =>
+                otio.CompositionItemHandle.init(ptrCast(otio.Gap, ptr)),
+            c.otio_ct_warp =>
+                otio.CompositionItemHandle.init(ptrCast(otio.Warp, ptr)),
+            c.otio_ct_transition =>
+                otio.CompositionItemHandle.init(ptrCast(otio.Transition, ptr)),
             else => return error.ErrorReference,
         };
     }
@@ -211,13 +226,15 @@ pub fn to_c_ref(
 {
     return switch (input) {
         .timeline => |t| .{ .kind = c.otio_ct_timeline, .ref = t },
-        .stack => |t|       .{ .kind = c.otio_ct_stack,    .ref = t },
-        .track => |t|       .{ .kind = c.otio_ct_track,    .ref = t },
-        .clip =>  |t|        .{ .kind = c.otio_ct_clip,     .ref = t },
-        .gap =>   |t|         .{ .kind = c.otio_ct_gap,      .ref = t },
-        .warp =>  |t|        .{ .kind = c.otio_ct_warp,     .ref = t },
+        .stack => |t| .{ .kind = c.otio_ct_stack, .ref = t },
+        .track => |t| .{ .kind = c.otio_ct_track, .ref = t },
+        .clip => |t| .{ .kind = c.otio_ct_clip, .ref = t },
+        .gap => |t| .{ .kind = c.otio_ct_gap, .ref = t },
+        .warp => |t| .{ .kind = c.otio_ct_warp, .ref = t },
         .transition => |t| .{ .kind = c.otio_ct_transition, .ref = t },
-        // Collection is not exposed in C API - should not be passed through here
+
+        // Collection is not exposed in C API - should not be passed through
+        // here
         .collection => ERR_REF,
     };
 }
@@ -226,13 +243,14 @@ pub export fn otio_child_count_cvr(
     input: c.otio_CompositionItemHandle,
 ) c_int
 {
-    const ref: otio.CompositionItemHandle = init_CompositionItemHandle(input) catch { 
+    const ref: otio.CompositionItemHandle = init_CompositionItemHandle(input)
+    catch {
         return -1;
     };
 
     return switch (ref) {
         .timeline => |tl| @intCast(tl.tracks.children.len),
-        inline .stack, .track => |t|  @intCast(t.children.len),
+        inline .stack, .track => |t| @intCast(t.children.len),
         inline else => 0,
     };
 }
@@ -242,8 +260,9 @@ pub export fn otio_fetch_child_cvr_ind(
     c_index: c_int,
 ) c.otio_CompositionItemHandle
 {
-    const ref: otio.CompositionItemHandle = init_CompositionItemHandle(input) catch { 
-        return ERR_REF; 
+    const ref: otio.CompositionItemHandle = init_CompositionItemHandle(input)
+    catch {
+        return ERR_REF;
     };
 
     const index: usize = @intCast(c_index);
@@ -252,7 +271,7 @@ pub export fn otio_fetch_child_cvr_ind(
         .timeline => |tl| res: {
             break :res to_c_ref(tl.tracks.children[index]);
         },
-        inline .stack, .track => |t|  res: {
+        inline .stack, .track => |t| res: {
             break :res to_c_ref(t.children[index]);
         },
         inline else => return ERR_REF,
@@ -268,23 +287,19 @@ pub export fn otio_build_projection_op_map_to_media_tp_cvr(
     source: c.otio_CompositionItemHandle,
 ) c.otio_ProjectionTopology
 {
-    const allocator = fetch_allocator(
-        allocator_c
-    ) catch return ERR_PO_MAP;
+    const allocator = fetch_allocator(allocator_c) catch return ERR_PO_MAP;
 
-    const result = allocator.create(
-        otio.TemporalProjectionBuilder
-    ) catch return ERR_PO_MAP;
+    const result = allocator.create(otio.TemporalProjectionBuilder)
+    catch return ERR_PO_MAP;
 
-    const src = init_CompositionItemHandle(
-        source
-    ) catch return ERR_PO_MAP;
+    const src = init_CompositionItemHandle(source) catch return ERR_PO_MAP;
 
     result.* = otio.TemporalProjectionBuilder.init_from(
         allocator,
         src.space_node(.presentation),
-    ) catch |err| {
-        std.log.err("Couldn't build map: {any}\n", .{ err});
+    )
+    catch |err| {
+        std.log.err("Couldn't build map: {any}\n", .{err});
         return ERR_PO_MAP;
     };
 
@@ -313,9 +328,10 @@ pub export fn otio_fetch_cvr_type_str(
     _ = std.fmt.bufPrintSentinel(
         buf_slice,
         "{s}",
-        .{ space },
+        .{space},
         0,
-    ) catch |err| {
+    )
+    catch |err| {
         std.log.err("error printing to buffer: {any}\n", .{err});
         std.log.err("input buffer: '{s}'", .{buf_slice});
 
@@ -340,9 +356,10 @@ pub export fn otio_fetch_cvr_name_str(
     _ = std.fmt.bufPrintSentinel(
         buf_slice,
         "{?s}",
-        .{ item_name },
+        .{item_name},
         0,
-    ) catch |err| {
+    )
+    catch |err| {
         std.log.err("error printing to buffer: {any}\n", .{err});
         std.log.err("input buffer: '{s}'", .{buf_slice});
 
@@ -356,15 +373,13 @@ pub export fn otio_write_map_to_png(
     allocator_c: c.otio_Allocator,
     projection_builder_c: c.otio_ProjectionTopology,
     filepath_c: [*:0]const u8,
-) void 
+) void
 {
     const projection_builder = ptrCast(
         otio.TemporalProjectionBuilder,
-        projection_builder_c.ref.?
+        projection_builder_c.ref.?,
     );
-    const allocator = fetch_allocator(
-        allocator_c
-    ) catch  return ; 
+    const allocator = fetch_allocator(allocator_c) catch return;
 
     var threaded: std.Io.Threaded = .init_single_threaded;
     const io = threaded.io();
@@ -375,25 +390,20 @@ pub export fn otio_write_map_to_png(
         std.mem.span(filepath_c),
         "OTIO_TemporalHierarchy",
         .{},
-    ) catch {
-        std.log.err(
-            "couldn't write map to: '{s}'\n",
-            .{ filepath_c }
-        );
+    )
+    catch {
+        std.log.err("couldn't write map to: '{s}'\n", .{filepath_c});
         return;
     };
 
-    std.log.debug("wrote map to: '{s}'\n", .{ filepath_c });
+    std.log.debug("wrote map to: '{s}'\n", .{filepath_c});
 }
 
 pub export fn otio_po_map_fetch_num_endpoints(
     in_po_map: c.otio_ProjectionTopology,
 ) usize
 {
-    const po_map = ptrCast(
-        otio.TemporalProjectionBuilder,
-        in_po_map.ref.?
-    );
+    const po_map = ptrCast(otio.TemporalProjectionBuilder, in_po_map.ref.?);
 
     return po_map.intervals.items(.mapping_index).len;
 }
@@ -402,10 +412,7 @@ pub export fn otio_po_map_fetch_endpoints(
     in_po_map_c: c.otio_ProjectionTopology,
 ) [*]const c.otio_ContinuousInterval
 {
-    const po_map = ptrCast(
-        otio.TemporalProjectionBuilder,
-        in_po_map_c.ref.?
-    );
+    const po_map = ptrCast(otio.TemporalProjectionBuilder, in_po_map_c.ref.?);
 
     // because Ordinate is a boxed float, the ptr can be cast to a ptr to an
     // array of f32
@@ -417,10 +424,7 @@ pub export fn otio_po_map_fetch_num_operators_for_segment(
     ind: usize,
 ) usize
 {
-    const po_map = ptrCast(
-        otio.TemporalProjectionBuilder,
-        in_po_map_c.ref.?
-    );
+    const po_map = ptrCast(otio.TemporalProjectionBuilder, in_po_map_c.ref.?);
 
     return po_map.intervals.items(.mapping_index)[ind].len;
 }
@@ -432,10 +436,7 @@ pub export fn otio_po_map_fetch_op(
     result: *c.otio_ProjectionOperator,
 ) c_int
 {
-    const po_map = ptrCast(
-        otio.TemporalProjectionBuilder,
-        in_po_map_c.ref.?
-    );
+    const po_map = ptrCast(otio.TemporalProjectionBuilder, in_po_map_c.ref.?);
 
     const destination_index = (
         po_map.intervals.items(.mapping_index)[segment_ind][operator_ind]
@@ -443,15 +444,14 @@ pub export fn otio_po_map_fetch_op(
 
     const allocator = fetch_allocator(allocator_c) catch return 1;
 
-    const po = allocator.create(
-        otio.ProjectionOperator
-    ) catch return 1;
+    const po = allocator.create(otio.ProjectionOperator) catch return 1;
 
     // @TODO: Error Codes
     po.* = po_map.projection_operator_to_index(
         allocator,
         destination_index,
-    ) catch return 1;
+    )
+    catch return 1;
 
     result.ref = @constCast(@ptrCast(po));
 
@@ -467,7 +467,8 @@ fn init_ProjectionOperator(
     {
         return ptrCast(otio.ProjectionOperator, in_po_c);
     }
-    else {
+    else
+    {
         return error.NullProjectionOperator;
     }
 }
@@ -489,10 +490,8 @@ pub export fn otio_po_fetch_topology(
     result: *c.otio_Topology,
 ) c_int
 {
-    return otio_po_fetch_topology_erroring(
-        in_po_c,
-        result
-    ) catch {
+    return otio_po_fetch_topology_erroring(in_po_c, result)
+    catch {
         return -1;
     };
 }
@@ -511,7 +510,8 @@ pub export fn otio_po_fetch_destination(
     in_po_c: c.otio_ProjectionOperator,
 ) c.otio_CompositionItemHandle
 {
-    return otio_po_fetch_destination_erroring(in_po_c) catch {
+    return otio_po_fetch_destination_erroring(in_po_c)
+    catch {
         return ERR_REF;
     };
 }
@@ -530,7 +530,8 @@ pub export fn otio_po_fetch_source(
     in_po_c: c.otio_ProjectionOperator,
 ) c.otio_CompositionItemHandle
 {
-    return otio_po_fetch_source_erroring(in_po_c) catch {
+    return otio_po_fetch_source_erroring(in_po_c)
+    catch {
         return ERR_REF;
     };
 }
@@ -581,7 +582,8 @@ pub export fn otio_po_project_range_cc(
         .end = opentime.Ordinate.init(end_f32),
     };
 
-    const result_topo = po.project_range_cc(allocator, input_range) catch return -1;
+    const result_topo = po.project_range_cc(allocator, input_range)
+    catch return -1;
     const bounds = result_topo.output_bounds() orelse return -1;
 
     output_start.* = bounds.start.as(f64);
@@ -593,37 +595,41 @@ pub export fn otio_po_project_range_cc(
 /// attempt to clean up the timeline/object
 pub export fn otio_timeline_deinit(
     allocator_c: c.otio_Allocator,
-    root_c : c.otio_CompositionItemHandle,
+    root_c: c.otio_CompositionItemHandle,
 ) void
 {
     const root = (
-        init_CompositionItemHandle(root_c) catch |err| {
+        init_CompositionItemHandle(root_c)
+        catch |err| {
             std.log.err(
                 " [C-API::deinit] Error converting to object: {any}\n",
-                .{ err} ,
+                .{err},
             );
             return;
         }
     );
 
     switch (root) {
-        inline .timeline, .stack, .track => 
-            |t| (
+        inline .timeline,
+        .stack,
+        .track,
+        => |t| 
+            (
                 // @TODO: remove the need for constCast
                 //        constCast becuase CompositionItemHandle is a const*
                 //        wrapper
                 @constCast(t).deinit(
-                    fetch_allocator(allocator_c) catch @panic(
+                    fetch_allocator(allocator_c)
+                    catch @panic(
                         "Couldn't find allocator",
                     ),
                 )
-
             ),
         inline else => {},
     }
 }
 
-const ERR_TOPO:c.otio_Topology = .{ .ref = null };
+const ERR_TOPO: c.otio_Topology = .{ .ref = null };
 
 /// compute the topology for the CompositionItemHandle
 pub export fn otio_fetch_topology(
@@ -631,17 +637,12 @@ pub export fn otio_fetch_topology(
     ref_c: c.otio_CompositionItemHandle,
 ) c.otio_Topology
 {
-    const ref = init_CompositionItemHandle(ref_c) 
-        catch return ERR_TOPO;
-    const allocator = fetch_allocator(
-        allocator_c
-    ) catch return ERR_TOPO;
+    const ref = init_CompositionItemHandle(ref_c) catch return ERR_TOPO;
+    const allocator = fetch_allocator(allocator_c) catch return ERR_TOPO;
 
-    const result = allocator.create(
-        topology.Topology
-    ) catch |err|
-    {
-        std.log.err("problem building topo: {any}\n", .{ err });
+    const result = allocator.create(topology.Topology)
+    catch |err| {
+        std.log.err("problem building topo: {any}\n", .{err});
         return ERR_TOPO;
     };
 
@@ -655,7 +656,8 @@ pub export fn otio_topo_fetch_input_bounds(
     result: *c.otio_ContinuousInterval,
 ) i32
 {
-    if (topo_c.ref == null) {
+    if (topo_c.ref == null)
+    {
         std.log.err("Null topo pointer\n", .{});
 
         return -1;
@@ -681,7 +683,8 @@ pub export fn otio_topo_fetch_output_bounds(
     result: *c.otio_ContinuousInterval,
 ) i32
 {
-    if (topo_c.ref == null) {
+    if (topo_c.ref == null)
+    {
         std.log.err("Null topo pointer\n", .{});
 
         return -1;
@@ -703,7 +706,7 @@ pub export fn otio_topo_fetch_output_bounds(
 }
 
 fn init_TemporalSpace(
-    in_c: c.otio_TemporalSpace
+    in_c: c.otio_TemporalSpace,
 ) !otio.TemporalSpace
 {
     return switch (in_c) {
@@ -733,7 +736,7 @@ fn otio_fetch_discrete_info_erroring(
     if (maybe_di)
         |di|
     {
-        const rate : c.otio_Rational = switch (di.sample_rate_hz) {
+        const rate: c.otio_Rational = switch (di.sample_rate_hz) {
             .Integer => |i| .{ .num = i, .den = 1 },
             .Rational => |r| .{ .num = r.num, .den = r.den },
         };
@@ -760,8 +763,8 @@ pub export fn otio_fetch_discrete_info(
         space,
         domain,
         result,
-    ) catch 
-    {
+    )
+    catch {
         // std.log.err("couldn't fetch discrete info: {any}\n", .{err});
         return -1;
     };
@@ -776,6 +779,7 @@ fn domain_from_c(
         1 => .picture,
         2 => .audio,
         3 => .metadata,
+
         // "other" + is unsupported
         else => @panic("unsupported"),
     };
@@ -809,11 +813,9 @@ pub export fn otio_fetch_continuous_ordinate_to_discrete_index(
         val,
         space_c,
         domain,
-    ) catch |err| {
-        std.log.err(
-            "Error fetching the continuous value: {any}\n",
-            .{err}
-        );
+    )
+    catch |err| {
+        std.log.err("Error fetching the continuous value: {any}\n", .{err});
         return 0;
     };
 }
@@ -835,7 +837,7 @@ pub export fn otio_composable_bounds(
         .track => |t| t.maybe_bounds_s,
         .stack => |s| s.maybe_bounds_s,
         .timeline => null, // Timeline bounds are derived from tracks
-        .warp => null,     // Warp bounds depend on child
+        .warp => null, // Warp bounds depend on child
         .transition => |tr| tr.maybe_bounds_s,
         .collection => null, // Collection has no temporal bounds
     };
@@ -856,7 +858,8 @@ pub export fn otio_clip_media(
     result: *c.otio_MediaReference,
 ) c_int
 {
-    if (clip_c.kind != c.otio_ct_clip) {
+    if (clip_c.kind != c.otio_ct_clip)
+    {
         return -1;
     }
 
@@ -929,11 +932,15 @@ pub export fn otio_transition_kind(
     len: usize,
 ) c_int
 {
-    if (transition_c.kind != c.otio_ct_transition) {
+    if (transition_c.kind != c.otio_ct_transition)
+    {
         return -1;
     }
 
-    const transition = ptrCast(otio.Transition, transition_c.ref orelse return -1);
+    const transition = ptrCast(
+        otio.Transition,
+        transition_c.ref orelse return -1,
+    );
 
     const buf_slice = buf[0..len];
     const kind_str = transition.kind;
@@ -941,9 +948,10 @@ pub export fn otio_transition_kind(
     _ = std.fmt.bufPrintSentinel(
         buf_slice,
         "{s}",
-        .{ kind_str },
+        .{kind_str},
         0,
-    ) catch return -1;
+    )
+    catch return -1;
 
     return @intCast(kind_str.len);
 }
@@ -952,7 +960,8 @@ pub export fn otio_warp_child(
     warp_c: c.otio_CompositionItemHandle,
 ) c.otio_CompositionItemHandle
 {
-    if (warp_c.kind != c.otio_ct_warp) {
+    if (warp_c.kind != c.otio_ct_warp)
+    {
         return ERR_REF;
     }
 
@@ -985,7 +994,8 @@ pub export fn otio_po_map_fetch_segment_bounds(
         in_po_map_c.ref orelse return -1,
     );
 
-    if (segment_ind >= po_map.intervals.len) {
+    if (segment_ind >= po_map.intervals.len)
+    {
         return -1;
     }
 

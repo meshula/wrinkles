@@ -11,11 +11,13 @@ const comath = @import("comath");
 const CTX = (
     comath.ctx.fn_method.context(
         comath.ctx.simple.context(
-            comath.ctx.namespace.context(.{},)
+            comath.ctx.namespace.context(
+                .{},
+            ),
         ),
         .{
             .@"+" = "add",
-            .@"-" = &.{"sub", "negate", "neg"},
+            .@"-" = &.{ "sub", "negate", "neg" },
             .@"*" = "mul",
             .@"/" = "div",
             .@"<" = "lt",
@@ -32,35 +34,34 @@ const CTX = (
 /// ie "a + b" -> `a.add(b)`.
 pub inline fn eval(
     /// Math expression ie: "a + b - c".
-    comptime expr: []const u8, 
+    comptime expr: []const u8,
     /// Inputs ie: .{ .a = first_thing, .b = 12, .c = other_thing }.
     inputs: anytype,
 ) comath.Eval(expr, @TypeOf(CTX), @TypeOf(inputs))
 {
     @setEvalBranchQuota(100000);
-    return comath.eval(
-        expr, CTX, inputs
-    ) catch @compileError(
-        "couldn't comath: " ++ expr ++ "."
-    );
+    return comath.eval(expr, CTX, inputs)
+    catch @compileError("couldn't comath: " ++ expr ++ ".");
 }
 
 test "comath test"
 {
-    const TestType = struct{
+    const TestType = struct {
         val: f32,
 
         pub fn lt(
             self: @This(),
             rhs: f32,
-        ) bool {
+        ) bool
+        {
             return self.val < rhs;
         }
 
         pub fn add(
             self: @This(),
             rhs: f32,
-        ) @This() {
+        ) @This()
+        {
             return .{ .val = self.val + rhs };
         }
     };

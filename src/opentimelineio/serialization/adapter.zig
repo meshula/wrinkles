@@ -249,7 +249,8 @@ fn finish_read(
 // optional `read` and `write`:
 //
 //     pub fn read(allocator, *std.Io.Reader, ReadOptions) !SerializableT
-//     pub fn write(allocator, SerializableT, *std.Io.Writer, WriteOptions) !void
+//     pub fn write(allocator, SerializableT, *std.Io.Writer, WriteOptions)
+// !void
 //
 // A format is read-only if its codec has no `write`; it has no collection
 // root if there is no `CollectionCodec`.  Bundles (.tlz/.tlcz) have no codec:
@@ -275,8 +276,12 @@ fn codec_namespace(
 ) ?type
 {
     const Codec = codec_for(format) orelse return null;
-    const name = if (descriptor(format).is_collection) "CollectionCodec" else "TimelineCodec";
-    return if (@hasDecl(Codec, name)) @field(Codec, name) else null;
+    const name = if (descriptor(format).is_collection) "CollectionCodec"
+    else "TimelineCodec";
+    return (
+        if (@hasDecl(Codec, name)) @field(Codec, name)
+        else null
+    );
 }
 
 fn has_read(
@@ -314,14 +319,19 @@ fn validate_codec_fn(
     {
         if (param_type != expected)
         {
-            @compileError(std.fmt.comptimePrint(
-                "{s}: parameter {d} must be {s}",
-                .{ label, i, @typeName(expected) },
-            ));
+            @compileError(
+                std.fmt.comptimePrint(
+                    "{s}: parameter {d} must be {s}",
+                    .{ label, i, @typeName(expected) },
+                ),
+            );
         }
     }
     const ret = @typeInfo(info.return_type.?);
-    if (ret != .error_union or ret.error_union.payload != Payload)
+    if (
+        ret != .error_union
+        or ret.error_union.payload != Payload
+    )
     {
         @compileError(label ++ ": must return !" ++ @typeName(Payload));
     }
@@ -344,13 +354,11 @@ comptime {
         }
 
         const ns = codec_namespace(fmt) orelse @compileError(
-            tag ++ ": codec has no namespace for its root type"
+            tag ++ ": codec has no namespace for its root type",
         );
         const Data = serializable_types.Document(
-            if (desc.is_collection)
-                serializable_types.SerializableCollection
-            else
-                serializable_types.SerializableTimeline
+            if (desc.is_collection) serializable_types.SerializableCollection
+            else serializable_types.SerializableTimeline,
         );
 
         if (!@hasDecl(ns, "read"))
@@ -377,7 +385,7 @@ comptime {
         if (desc.is_read_only == @hasDecl(ns, "write"))
         {
             @compileError(
-                tag ++ ": is_read_only disagrees with the codec's `write`"
+                tag ++ ": is_read_only disagrees with the codec's `write`",
             );
         }
     }
@@ -404,10 +412,10 @@ pub fn read_root(
                 const doc = try ns.read(allocator, reader, options);
                 var root: SerializableRoot = .{
                     .schema_version = doc.schema_version,
-                    .content = if (comptime descriptor(fmt).is_collection)
-                        .{ .collection = doc.content }
-                    else
-                        .{ .timeline = doc.content },
+                    .content = if (comptime descriptor(fmt).is_collection) .{
+                        .collection = doc.content,
+                    }
+                    else .{ .timeline = doc.content },
                 };
                 errdefer root.deinit(allocator);
 
@@ -467,7 +475,11 @@ fn prepare_for_write_with(
     };
     if (
         target < oldest
-        or !versioning.downgrade_supported(DocumentDowngrades, current, target)
+        or !versioning.downgrade_supported(
+            DocumentDowngrades,
+            current,
+            target,
+        )
     )
     {
         return error.DowngradeNotSupported;
@@ -475,7 +487,12 @@ fn prepare_for_write_with(
 
     var copy = try root.clone(allocator);
     errdefer copy.deinit(allocator);
-    try versioning.downgrade_with(DocumentDowngrades, allocator, &copy, target);
+    try versioning.downgrade_with(
+        DocumentDowngrades,
+        allocator,
+        &copy,
+        target,
+    );
     return .{ .root = copy, .owned = true };
 }
 
@@ -536,10 +553,10 @@ pub fn write_root(
                 );
                 defer prepared.deinit(allocator);
 
-                const content = if (comptime desc.is_collection)
+                const content = if (comptime desc.is_collection) (
                     prepared.root.content.collection
-                else
-                    prepared.root.content.timeline;
+                )
+                else prepared.root.content.timeline;
                 try ns.write(
                     allocator,
                     .{
@@ -605,11 +622,17 @@ pub fn write_root_to_file(
     {
         return error.FormatIsReadOnly;
     }
-    if (desc.is_collection and root.content != .collection)
+    if (
+        desc.is_collection
+        and root.content != .collection
+    )
     {
         return error.NotATimelineFormat;
     }
-    if (!desc.is_collection and root.content != .timeline)
+    if (
+        !desc.is_collection
+        and root.content != .timeline
+    )
     {
         return error.NotACollectionFormat;
     }
@@ -809,8 +832,9 @@ pub const serializable = struct {
 const TEST_TIMELINE_PATH = "otio_sample_data/simple_cut.tla";
 const TEST_TIMELINE_METADATA_PATH = "test_files/simple_cut_with_metadata.tla";
 const TEST_COLLECTION_PATH = "test_files/sample_collection.tlca";
-const TEST_COLLECTION_METADATA_PATH = "test_files/collection_with_metadata.tlca";
-
+const TEST_COLLECTION_METADATA_PATH = (
+    "test_files/collection_with_metadata.tlca"
+);
 
 /// Build a path inside a testing TmpDir, relative to the cwd.
 fn tmp_path(
@@ -979,9 +1003,8 @@ test "adapter: read results own their memory (schema API)"
             .{ "otio_sample_data/simple_cut.otio", FileFormat.otio },
             .{ TEST_COLLECTION_PATH, FileFormat.tlca },
             .{ TEST_COLLECTION_PATH, FileFormat.tlcb },
-        }
-    )
-        |case|
+        },
+    ) |case|
     {
         const path = case[0];
         const format = case[1];
@@ -995,14 +1018,16 @@ test "adapter: read results own their memory (schema API)"
 
         // Source bytes in `format`: the file itself if it already is that
         // format, otherwise the expected value re-encoded.
-        const source = if (try FileFormat.from_path(path) == format)
+        const source = if (try FileFormat.from_path(path) == format) (
             try std.Io.Dir.cwd().readFileAlloc(
                 io,
                 path,
                 allocator,
                 .unlimited,
             )
-        else src: {
+        )
+        else
+        src: {
             var encoded: std.Io.Writer.Allocating = .init(allocator);
             errdefer encoded.deinit();
             try write_to_writer(
@@ -1015,7 +1040,10 @@ test "adapter: read results own their memory (schema API)"
             break :src try encoded.toOwnedSlice();
         };
         var source_freed = false;
-        defer if (!source_freed) allocator.free(source);
+        defer if (!source_freed)
+        {
+            allocator.free(source);
+        };
 
         var reader: std.Io.Reader = .fixed(source);
         var result = try read_from_reader(allocator, &reader, format, .{});
@@ -1045,9 +1073,8 @@ test "adapter: read results own their memory (serializable API)"
             "otio_sample_data/simple_cut.tlb",
             "otio_sample_data/simple_cut.otio",
             TEST_COLLECTION_PATH,
-        }
-    )
-        |path|
+        },
+    ) |path|
     {
         var root = try serializable.read_from_file(
             allocator,
@@ -1090,9 +1117,8 @@ test "adapter: serializable.write_to_file every writable format"
             .{ collection_root, "out.tlca" },
             .{ collection_root, "out.tlcb" },
             .{ collection_root, "out.tlcz" },
-        }
-    )
-        |case|
+        },
+    ) |case|
     {
         const root = case[0];
         const file_name = case[1];
@@ -1144,9 +1170,8 @@ test "adapter: read results own their metadata strings"
             .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tlb },
             .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlca },
             .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlcb },
-        }
-    )
-        |case|
+        },
+    ) |case|
     {
         const path = case[0];
         const format = case[1];
@@ -1156,7 +1181,9 @@ test "adapter: read results own their metadata strings"
         );
 
         // Source bytes in `format`.
-        var loaded = try serializable.read_from_file(allocator, io, path, .{});
+        var loaded = (
+            try serializable.read_from_file(allocator, io, path, .{})
+        );
         defer loaded.deinit(allocator);
         try std.testing.expect(
             switch (loaded.content) {
@@ -1179,7 +1206,10 @@ test "adapter: read results own their metadata strings"
         // Read from a private copy, then destroy the copy before encoding.
         const source = try allocator.dupe(u8, encoded.written());
         var source_freed = false;
-        defer if (!source_freed) allocator.free(source);
+        defer if (!source_freed)
+        {
+            allocator.free(source);
+        };
 
         var reader: std.Io.Reader = .fixed(source);
         var result = try read_root(allocator, &reader, format, .{});
@@ -1211,9 +1241,8 @@ test "adapter: bundles round-trip metadata and honor read options"
             .{ TEST_TIMELINE_METADATA_PATH, FileFormat.tlz, .tlb },
             .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlcz, .tla },
             .{ TEST_COLLECTION_METADATA_PATH, FileFormat.tlcz, .tlb },
-        }
-    )
-        |case|
+        },
+    ) |case|
     {
         const path = case[0];
         const bundle_format = case[1];
@@ -1312,55 +1341,63 @@ fn clip_metadata_summary(
     const w = &out.writer;
 
     switch (root.content) {
-        .timeline => |tl| try summarize_children(
-            allocator,
-            w,
-            tl.children,
-            tl.metadata_map,
-        ),
-        .collection => |coll| for (coll.children)
-            |item|
-        {
-            switch (item) {
-                .timeline => |tl| try summarize_children(
-                    allocator,
-                    w,
-                    tl.children,
-                    tl.metadata_map,
-                ),
-                .clip => |cl| try summarize_clip(
-                    allocator,
-                    w,
-                    cl,
-                    coll.metadata_map,
-                ),
-                .track => |tr| try summarize_children(
-                    allocator,
-                    w,
-                    tr.children,
-                    coll.metadata_map,
-                ),
-                .stack => |st| try summarize_children(
-                    allocator,
-                    w,
-                    st.children,
-                    coll.metadata_map,
-                ),
-                .warp => |wp| try summarize_children(
-                    allocator,
-                    w,
-                    wp.child[0..1],
-                    coll.metadata_map,
-                ),
-                .transition => |tx| try summarize_children(
-                    allocator,
-                    w,
-                    tx.container.children,
-                    coll.metadata_map,
-                ),
-                .gap => {},
-            }
-        },
+        .timeline => |tl|
+            try summarize_children(
+                allocator,
+                w,
+                tl.children,
+                tl.metadata_map,
+            ),
+        .collection => |coll|
+            for (coll.children)
+                |item|
+            {
+                switch (item) {
+                    .timeline => |tl|
+                        try summarize_children(
+                            allocator,
+                            w,
+                            tl.children,
+                            tl.metadata_map,
+                        ),
+                    .clip => |cl|
+                        try summarize_clip(
+                            allocator,
+                            w,
+                            cl,
+                            coll.metadata_map,
+                        ),
+                    .track => |tr|
+                        try summarize_children(
+                            allocator,
+                            w,
+                            tr.children,
+                            coll.metadata_map,
+                        ),
+                    .stack => |st|
+                        try summarize_children(
+                            allocator,
+                            w,
+                            st.children,
+                            coll.metadata_map,
+                        ),
+                    .warp => |wp|
+                        try summarize_children(
+                            allocator,
+                            w,
+                            wp.child[0..1],
+                            coll.metadata_map,
+                        ),
+                    .transition => |tx|
+                        try summarize_children(
+                            allocator,
+                            w,
+                            tx.container.children,
+                            coll.metadata_map,
+                        ),
+                    .gap => {},
+                }
+            },
     }
     return try out.toOwnedSlice();
 }
@@ -1377,30 +1414,34 @@ fn summarize_children(
     {
         switch (child) {
             .clip => |cl| try summarize_clip(allocator, w, cl, maybe_map),
-            .track => |tr| try summarize_children(
-                allocator,
-                w,
-                tr.children,
-                maybe_map,
-            ),
-            .stack => |st| try summarize_children(
-                allocator,
-                w,
-                st.children,
-                maybe_map,
-            ),
-            .warp => |wp| try summarize_children(
-                allocator,
-                w,
-                wp.child[0..1],
-                maybe_map,
-            ),
-            .transition => |tx| try summarize_children(
-                allocator,
-                w,
-                tx.container.children,
-                maybe_map,
-            ),
+            .track => |tr|
+                try summarize_children(
+                    allocator,
+                    w,
+                    tr.children,
+                    maybe_map,
+                ),
+            .stack => |st|
+                try summarize_children(
+                    allocator,
+                    w,
+                    st.children,
+                    maybe_map,
+                ),
+            .warp => |wp|
+                try summarize_children(
+                    allocator,
+                    w,
+                    wp.child[0..1],
+                    maybe_map,
+                ),
+            .transition => |tx|
+                try summarize_children(
+                    allocator,
+                    w,
+                    tx.container.children,
+                    maybe_map,
+                ),
             .gap => {},
         }
     }
@@ -1446,18 +1487,20 @@ test "adapter: schema handle round trip preserves metadata"
         .{
             .{ TEST_TIMELINE_METADATA_PATH, true },
             .{ TEST_COLLECTION_METADATA_PATH, false },
-        }
-    )
-        |case|
+        },
+    ) |case|
     {
         const path = case[0];
         const exact = case[1];
         errdefer std.debug.print("failed for: {s}\n", .{path});
 
         // Reference: the serializable form.
-        var direct = try serializable.read_from_file(allocator, io, path, .{});
+        var direct = (
+            try serializable.read_from_file(allocator, io, path, .{})
+        );
         defer direct.deinit(allocator);
-        const format: FileFormat = if (direct.content == .collection) .tlca else .tla;
+        const format: FileFormat = if (direct.content == .collection) .tlca
+        else .tla;
 
         // Through schema handles and back.
         var handle = try read_from_file(allocator, io, path, .{});
@@ -1477,7 +1520,7 @@ test "adapter: schema handle round trip preserves metadata"
         const actual_summary = try clip_metadata_summary(allocator, result);
         defer allocator.free(actual_summary);
         try std.testing.expect(
-            std.mem.indexOf(u8, expected_summary, "=> {") != null
+            std.mem.indexOf(u8, expected_summary, "=> {") != null,
         );
         try std.testing.expectEqualStrings(expected_summary, actual_summary);
 
@@ -1519,13 +1562,17 @@ test "adapter: SerializableRoot.clone is a deep copy"
             TEST_TIMELINE_METADATA_PATH,
             TEST_COLLECTION_METADATA_PATH,
             "test_files/simple_cut_with_media.tla",
-        }
-    )
-        |path|
+        },
+    ) |path|
     {
         errdefer std.debug.print("failed for: {s}\n", .{path});
 
-        var original = try serializable.read_from_file(allocator, io, path, .{});
+        var original = try serializable.read_from_file(
+            allocator,
+            io,
+            path,
+            .{},
+        );
         const expected = try root_as_text(allocator, original);
         defer allocator.free(expected);
 
@@ -1576,11 +1623,13 @@ test "adapter: target_version"
     // Unwritable targets fail before a file is created, input unchanged.
     inline for (
         .{
-            .{ versioning.CURRENT_SCHEMA_VERSION + 1, error.DowngradeTargetIsNewer },
+            .{
+                versioning.CURRENT_SCHEMA_VERSION + 1,
+                error.DowngradeTargetIsNewer,
+            },
             .{ 0, error.DowngradeNotSupported },
-        }
-    )
-        |case|
+        },
+    ) |case|
     {
         const path = try tmp_path(allocator, tmp, "out.tla");
         defer allocator.free(path);
@@ -1840,8 +1889,13 @@ test "adapter: document versions are required and checked per root kind"
             \\.presentation_space_discrete_partitions = .{},
             \\
         ;
-        inline for (.{ ReadOptions{}, ReadOptions{ .content_filter = .all_except_metadata } })
-            |options|
+
+        inline for (
+            .{
+                ReadOptions{},
+                ReadOptions{ .content_filter = .all_except_metadata },
+            },
+        ) |options|
         {
             var reader: std.Io.Reader = .fixed(source);
             try std.testing.expectError(

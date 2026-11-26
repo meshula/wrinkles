@@ -41,19 +41,17 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 pub fn ProjectionBuilder(
     /// A reference to a single space in the hierarchy
     comptime SpaceReferenceType: type,
-
     /// An operator which can project between different points in the hierarchy
     comptime ProjectionOperatorType: type,
-
     /// A function which can be called and given a root space to generate a
     /// `treecode.BinaryTree` specialized over the `SpaceReferenceType` of all
     /// spaces under the source space.
     comptime tree_builder_fn: (
         fn (
             std.mem.Allocator,
-            SpaceReferenceType
+            SpaceReferenceType,
         ) anyerror!treecode.BinaryTree(SpaceReferenceType)
-    )
+    ),
 ) type
 {
     return struct {
@@ -115,7 +113,7 @@ pub fn ProjectionBuilder(
             ///////////////////////////////
             const tree = (
                 try tree_builder_fn(
-                // try temporal_tree.build_temporal_tree(
+                    // try temporal_tree.build_temporal_tree(
                     allocator_parent,
                     source_reference,
                 )
@@ -143,8 +141,8 @@ pub fn ProjectionBuilder(
             const start_or_end = enum(u1) { start, end };
 
             // to sort and split the intervals
-            var unsorted_vertices : std.MultiArrayList(
-                struct{ 
+            var unsorted_vertices: std.MultiArrayList(
+                struct {
                     ordinate: opentime.Ordinate,
                     interval_index: NodeIndex,
                     kind: start_or_end,
@@ -156,24 +154,24 @@ pub fn ProjectionBuilder(
             /////////////
             const tree_nodes = tree.tree_data.slice();
 
-            const start_index = tree.index_for_node(
-                source_reference
-            ) orelse return error.SourceNotInMap;
+            const start_index = (
+                tree.index_for_node(source_reference)
+                orelse return error.SourceNotInMap
+            );
             std.debug.assert(start_index == SOURCE_INDEX);
 
-            var proj_args:TreeType.PathEndPointIndices = .{
+            var proj_args: TreeType.PathEndPointIndices = .{
                 .source = start_index,
                 .destination = start_index,
             };
 
             const codes = tree_nodes.items(.code);
             const source_code = codes[start_index];
-            const maybe_child_indices = (
-                tree_nodes.items(.child_indices)
-            );
+            const maybe_child_indices = (tree_nodes.items(.child_indices));
             const space_items = tree.nodes.items(.item);
 
-            // for each terminal space, build the topology to transform to that
+            // for each terminal space, build the topology to transform to
+            // that
             // space.  For each mapping in each topology, add the end points
             // for the mapping to the unsorted_vertices list
             for (codes, maybe_child_indices, space_items, 0..)
@@ -187,8 +185,12 @@ pub fn ProjectionBuilder(
                 }
 
                 if (
+                    
                     // only looking for terminal scopes (gaps, clips)
-                    (maybe_children[0] != null or maybe_children[1] != null)
+                    (
+                        maybe_children[0] != null
+                        or maybe_children[1] != null
+                    )
                     // skip all media spaces that don't have a path to source
                     or source_code.is_prefix_of(current_code) == false
                 )
@@ -211,7 +213,7 @@ pub fn ProjectionBuilder(
 
                 try self.mappings.ensureUnusedCapacity(
                     allocator_parent,
-                    to_dest_topo.mappings.len
+                    to_dest_topo.mappings.len,
                 );
                 try unsorted_vertices.ensureUnusedCapacity(
                     allocator_arena,
@@ -256,7 +258,7 @@ pub fn ProjectionBuilder(
             ///////////
             const sorted_vertices = unsorted_vertices.slice();
             unsorted_vertices.sortUnstable(
-                struct{
+                struct {
                     ordinates: []opentime.Ordinate,
 
                     pub fn lessThan(
@@ -270,29 +272,23 @@ pub fn ProjectionBuilder(
 
                         return a_ord.lt(b_ord);
                     }
-                }{ 
-                    .ordinates = (
-                        sorted_vertices.items(.ordinate) 
-                    )
-                }
+                }{ .ordinates = (sorted_vertices.items(.ordinate)) },
             );
 
             var cut_points: std.MultiArrayList(
-                struct{
+                struct {
                     ordinate: opentime.Ordinate,
                     indices: []NodeIndex,
                     kind: []start_or_end,
-                }
+                },
             ) = .empty;
             try cut_points.ensureTotalCapacity(
                 allocator_arena,
                 sorted_vertices.len,
             );
             defer {
-                for (
-                    cut_points.items(.indices),
-                    cut_points.items(.kind),
-                ) |indices, kinds|
+                for (cut_points.items(.indices), cut_points.items(.kind))
+                    |indices, kinds|
                 {
                     allocator_arena.free(indices);
                     allocator_arena.free(kinds);
@@ -303,7 +299,7 @@ pub fn ProjectionBuilder(
                 struct {
                     index: NodeIndex,
                     kind: start_or_end,
-                }
+                },
             ) = .empty;
 
             // merge the sorted vertices and create lists of associated
@@ -312,14 +308,14 @@ pub fn ProjectionBuilder(
             // Given the previous result:
             // [0.1, 0.2, 3.1, 3.3, 6.2, 6.3]
             // merged/sorted_lists: [
-            //            0: {1.start, 2.start}, 
-            //            3: {1.end, 3.start}, 
+            //            0: {1.start, 2.start},
+            //            3: {1.end, 3.start},
             //            6: {2.end, 3.end}
             //  ]
             ///////////
             var cut_point = sorted_vertices.items(.ordinate)[0];
             try current_intervals.append(
-                allocator_arena, 
+                allocator_arena,
                 .{
                     .index = sorted_vertices.items(.interval_index)[0],
                     .kind = sorted_vertices.items(.kind)[0],
@@ -342,7 +338,7 @@ pub fn ProjectionBuilder(
                             .ordinate = cut_point,
                             .indices = current_slice.items(.index),
                             .kind = current_slice.items(.kind),
-                        }
+                        },
                     );
                     current_intervals = .empty;
                     cut_point = vert;
@@ -366,7 +362,7 @@ pub fn ProjectionBuilder(
                         .ordinate = cut_point,
                         .indices = current_slice.items(.index),
                         .kind = current_slice.items(.kind),
-                    }
+                    },
                 );
             }
 
@@ -396,17 +392,17 @@ pub fn ProjectionBuilder(
             //     }
             // }
             // std.debug.print("done.\n", .{});
-            
+
             // split and merge intervals together
             // given: [
-            //            0: {1.start, 2.start}, 
-            //            3: {1.end, 3.start}, 
+            //            0: {1.start, 2.start},
+            //            3: {1.end, 3.start},
             //            6: {2.end, 3.end}
             //  ]
             //  track which mappings are active over which segments:
-            //  [ 
+            //  [
             //      { [0, 3): 1, 2 },
-            //      { [3, 6): 2, 3 } 
+            //      { [3, 6): 2, 3 }
             //  ]
             ////////////
             var active_mappings = try (
@@ -421,12 +417,9 @@ pub fn ProjectionBuilder(
 
             std.debug.assert(ordinates.len == cut_point_slice.len);
 
-            try self.intervals.ensureTotalCapacity(
-                allocator_parent,
-                len - 1
-            );
+            try self.intervals.ensureTotalCapacity(allocator_parent, len - 1);
 
-            var indices:  std.ArrayList(NodeIndex) = .empty;
+            var indices: std.ArrayList(NodeIndex) = .empty;
 
             for (
                 ordinates[0..len - 1],
@@ -454,9 +447,7 @@ pub fn ProjectionBuilder(
                     }
                 }
 
-                var bit_iter = (
-                    active_mappings.iterator(.{})
-                );
+                var bit_iter = (active_mappings.iterator(.{}));
 
                 try indices.ensureTotalCapacity(
                     allocator_parent,
@@ -476,7 +467,7 @@ pub fn ProjectionBuilder(
                             .end = ord_end,
                         },
                         .mapping_index = try indices.toOwnedSlice(
-                            allocator_parent
+                            allocator_parent,
                         ),
                     },
                 );
@@ -541,9 +532,7 @@ pub fn ProjectionBuilder(
                 .{
                     .source = SOURCE_INDEX,
                     .destination = (
-                        self.tree.map_node_to_index.get(
-                            destination_space
-                        ) 
+                        self.tree.map_node_to_index.get(destination_space)
                         orelse return error.DestinationSpaceNotChildOfSource
                     ),
                 },
@@ -564,7 +553,9 @@ pub fn ProjectionBuilder(
                         .source = SOURCE_INDEX,
                         .destination = (
                             self.tree.map_node_to_index.get(target)
-                            orelse return error.DestinationSpaceNotUnderSource
+                            orelse return (
+                                error.DestinationSpaceNotUnderSource
+                            )
                         ),
                     },
                 )
@@ -576,14 +567,14 @@ pub fn ProjectionBuilder(
             errdefer opentime.deinit_slice(
                 allocator,
                 topology_m.Topology,
-                inverted_topologies
+                inverted_topologies,
             );
 
-            if (inverted_topologies.len > 1) 
+            if (inverted_topologies.len > 1)
             {
                 return error.MoreThanOneInversionIsNotImplemented;
             }
-            if (inverted_topologies.len > 0) 
+            if (inverted_topologies.len > 0)
             {
                 result.src_to_dst_topo = inverted_topologies[0];
                 std.mem.swap(
@@ -593,7 +584,7 @@ pub fn ProjectionBuilder(
                 );
                 allocator.free(inverted_topologies);
             }
-            else 
+            else
             {
                 return error.NoInvertedTopologies;
             }
@@ -624,7 +615,10 @@ pub fn ProjectionBuilder(
         ) ?usize
         {
             const ib = self.input_bounds();
-            if (ib == null or ib.?.overlaps(t) == false)
+            if (
+                ib == null
+                or ib.?.overlaps(t) == false
+            )
             {
                 return null;
             }
@@ -655,18 +649,18 @@ pub fn ProjectionBuilder(
 
             return .{
                 .start = bounds[0].start,
-                .end = bounds[self.intervals.len-1].end,
+                .end = bounds[self.intervals.len - 1].end,
             };
         }
 
         pub fn format(
             self: @This(),
             writer: *std.Io.Writer,
-        ) !void 
+        ) !void
         {
             try writer.print(
                 "Total timeline interval: {?f}\n",
-                .{ self.input_bounds() },
+                .{self.input_bounds()},
             );
 
             try writer.print(
@@ -676,29 +670,26 @@ pub fn ProjectionBuilder(
             for (0..@min(100, self.intervals.len))
                 |ind|
             {
-                const first_interval_mapping = (
-                    self.intervals.get(ind)
-                );
+                const first_interval_mapping = (self.intervals.get(ind));
                 try writer.print(
                     "  Presentation Space Range: {f}\n",
-                    .{ first_interval_mapping.input_bounds }
+                    .{first_interval_mapping.input_bounds},
                 );
                 for (first_interval_mapping.mapping_index)
                     |mapping_ind|
                 {
-                    const mapping = self.mappings.get(
-                        mapping_ind
-                    );
-                    const output_bounds = (
-                        mapping.mapping.output_bounds()
-                    );
+                    const mapping = self.mappings.get(mapping_ind);
+                    const output_bounds = (mapping.mapping.output_bounds());
                     const destination = (
                         self.tree.nodes.get(mapping.destination)
                     );
 
                     try writer.print(
                         "    -> {f} | {?f}\n",
-                        .{ destination, output_bounds, }
+                        .{
+                            destination,
+                            output_bounds,
+                        },
                     );
                 }
             }
@@ -727,9 +718,9 @@ pub fn ProjectionBuilder(
 
             // check to see if end points were inverted
             if (
-                endpoints_were_swapped 
+                endpoints_were_swapped
                 and result.src_to_dst_topo.mappings.len > 0
-            ) 
+            )
             {
                 const inverted_topologies = (
                     try result.src_to_dst_topo.inverted(parent_allocator)
@@ -740,11 +731,11 @@ pub fn ProjectionBuilder(
                     inverted_topologies,
                 );
 
-                if (inverted_topologies.len > 1) 
+                if (inverted_topologies.len > 1)
                 {
                     return error.MoreThanOneInversionIsNotImplemented;
                 }
-                if (inverted_topologies.len > 0) 
+                if (inverted_topologies.len > 0)
                 {
                     result.src_to_dst_topo = inverted_topologies[0];
                     std.mem.swap(
@@ -753,7 +744,7 @@ pub fn ProjectionBuilder(
                         &result.destination,
                     );
                 }
-                else 
+                else
                 {
                     return error.NoInvertedTopologies;
                 }
@@ -775,11 +766,9 @@ pub fn ProjectionBuilder(
                 |cached_topology|
             {
                 return .{
-                    .source = (
-                        space_nodes.get(sorted_endpoints.source)
-                    ),
+                    .source = (space_nodes.get(sorted_endpoints.source)),
                     .destination = space_nodes.get(
-                        sorted_endpoints.destination
+                        sorted_endpoints.destination,
                     ),
                     .src_to_dst_topo = cached_topology,
                 };
@@ -791,13 +780,14 @@ pub fn ProjectionBuilder(
             defer arena.deinit();
             const allocator_arena = arena.allocator();
 
-            var root_to_current:topology_m.Topology = .identity_infinite;
+            var root_to_current: topology_m.Topology = .identity_infinite;
 
-            if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+            if (GRAPH_CONSTRUCTION_TRACE_MESSAGES)
             {
-                opentime.dbg_print(@src(), 
+                opentime.dbg_print(
+                    @src(),
                     "[START] root_to_current: {f}\n",
-                    .{ root_to_current }
+                    .{root_to_current},
                 );
             }
 
@@ -809,23 +799,23 @@ pub fn ProjectionBuilder(
             // compute the path length
             const path = try self.tree.path(
                 allocator_arena,
-                .{ 
+                .{
                     .source = source_index,
                     .destination = sorted_endpoints.destination,
                 },
             );
 
-            if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+            if (GRAPH_CONSTRUCTION_TRACE_MESSAGES)
             {
-                opentime.dbg_print(@src(), 
+                opentime.dbg_print(
+                    @src(),
                     "starting walk from: {f} to: {f}\n"
-                    ++ "starting projection: {f}\n"
-                    ,
+                    ++ "starting projection: {f}\n",
                     .{
                         space_nodes.get(path[0]),
                         space_nodes.get(sorted_endpoints.destination),
                         root_to_current,
-                    }
+                    },
                 );
             }
 
@@ -836,18 +826,19 @@ pub fn ProjectionBuilder(
                         sorted_endpoints.source,
                     ),
                     .destination = space_nodes.get(
-                        sorted_endpoints.destination
+                        sorted_endpoints.destination,
                     ),
                     .src_to_dst_topo = .identity_infinite,
                 };
             }
 
-            var path_step:TreeType.PathEndPointIndices = .{
+            var path_step: TreeType.PathEndPointIndices = .{
                 .source = @intCast(source_index),
                 .destination = @intCast(source_index),
             };
 
-            // walk from current_code towards destination_code - path[0] is the
+            // walk from current_code towards destination_code - path[0] is
+            // the
             // current node, can be skipped
             for (path[0..path.len - 1], path[1..])
                 |current, next|
@@ -861,11 +852,14 @@ pub fn ProjectionBuilder(
                     continue;
                 }
 
-                const next_step = codes[current].next_step_towards(codes[next]);
+                const next_step = codes[current].next_step_towards(
+                    codes[next],
+                );
 
-                if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
+                if (GRAPH_CONSTRUCTION_TRACE_MESSAGES)
+                {
                     opentime.dbg_print(
-                        @src(), 
+                        @src(),
                         "  next step {b} towards next node: {f}\n",
                         .{ next_step, space_nodes.get(next) },
                     );
@@ -880,14 +874,13 @@ pub fn ProjectionBuilder(
                     )
                 );
 
-                if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+                if (GRAPH_CONSTRUCTION_TRACE_MESSAGES)
                 {
                     opentime.dbg_print(
-                        @src(), 
+                        @src(),
                         "    joining!\n"
                         ++ "    a2b {f}/root_to_current: {f}\n"
-                        ++ "    b2c {f}/current_to_next: {f}\n"
-                        ,
+                        ++ "    b2c {f}/current_to_next: {f}\n",
                         .{
                             space_nodes.get(current),
                             root_to_current,
@@ -905,21 +898,21 @@ pub fn ProjectionBuilder(
                     },
                 );
 
-                if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+                if (GRAPH_CONSTRUCTION_TRACE_MESSAGES)
                 {
-                    opentime.dbg_print(@src(), 
+                    opentime.dbg_print(
+                        @src(),
                         "    root_to_next: {f}\n",
-                        .{root_to_next}
+                        .{root_to_next},
                     );
                     const i_b = root_to_next.input_bounds();
                     const o_b = root_to_next.output_bounds();
 
                     opentime.dbg_print(
-                        @src(), 
+                        @src(),
                         "    root_to_next (next root to current!): {f}\n"
                         ++ "    composed transform ranges {f}: {f},"
-                        ++ " {f}: {f}\n"
-                        ,
+                        ++ " {f}: {f}\n",
                         .{
                             root_to_next,
                             space_nodes.get(source_index),
@@ -952,7 +945,7 @@ pub fn ProjectionBuilder(
             return self.tree.nodes.get(destination_ind);
         }
 
-        const SingleSourceTopologyCache = struct { 
+        const SingleSourceTopologyCache = struct {
             items: []?topology_m.Topology,
 
             pub fn init(
@@ -974,7 +967,7 @@ pub fn ProjectionBuilder(
                 allocator: std.mem.Allocator,
             ) void
             {
-                for (self.items) 
+                for (self.items)
                     |*maybe_topo|
                 {
                     if (maybe_topo.*)
@@ -984,9 +977,8 @@ pub fn ProjectionBuilder(
                     }
                     maybe_topo.* = null;
                 }
-                allocator.free(self.items);   
+                allocator.free(self.items);
             }
         };
     };
 }
-

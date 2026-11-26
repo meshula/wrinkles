@@ -9,15 +9,15 @@ const ordinate = @import("ordinate.zig");
 
 /// Standard SMPTE timecode frame rates
 pub const TimecodeRate = enum(u8) {
-    rate_23_976 = 0,  // 24 * 1000 / 1001
+    rate_23_976 = 0, // 24 * 1000 / 1001
     rate_24 = 1,
     rate_25 = 2,
-    rate_29_97 = 3,   // 30 * 1000 / 1001 (NTSC)
+    rate_29_97 = 3, // 30 * 1000 / 1001 (NTSC)
     rate_30 = 4,
-    rate_47_952 = 5,  // 48 * 1000 / 1001
+    rate_47_952 = 5, // 48 * 1000 / 1001
     rate_48 = 6,
     rate_50 = 7,
-    rate_59_94 = 8,   // 60 * 1000 / 1001 (NTSC HD)
+    rate_59_94 = 8, // 60 * 1000 / 1001 (NTSC HD)
     rate_60 = 9,
 
     /// Get the actual frame rate as f64.
@@ -59,7 +59,10 @@ pub const TimecodeRate = enum(u8) {
         self: @This(),
     ) bool
     {
-        return self == .rate_29_97 or self == .rate_59_94;
+        return (
+            self == .rate_29_97
+            or self == .rate_59_94
+        );
     }
 
     /// Number of frames dropped per minute (except every 10th minute).
@@ -107,17 +110,39 @@ pub const Timecode = struct {
         is_drop_frame: bool,
     ) TimecodeError!@This()
     {
-        if (hours > 23) return error.hours_out_of_range;
-        if (minutes > 59) return error.minutes_out_of_range;
-        if (seconds > 59) return error.seconds_out_of_range;
-        if (frames >= rate.nominal_fps()) return error.frames_out_of_range;
-        if (is_drop_frame and !rate.supports_drop_frame()) {
+        if (hours > 23)
+        {
+            return error.hours_out_of_range;
+        }
+        if (minutes > 59)
+        {
+            return error.minutes_out_of_range;
+        }
+        if (seconds > 59)
+        {
+            return error.seconds_out_of_range;
+        }
+        if (frames >= rate.nominal_fps())
+        {
+            return error.frames_out_of_range;
+        }
+        if (
+            is_drop_frame
+            and !rate.supports_drop_frame()
+        )
+        {
             return error.drop_frame_not_supported;
         }
         // Check for dropped frame numbers in drop-frame mode
-        if (is_drop_frame and seconds == 0 and @mod(minutes, 10) != 0) {
+        if (
+            is_drop_frame
+            and seconds == 0
+            and @mod(minutes, 10) != 0
+        )
+        {
             const drop_count = rate.drop_frames_per_minute();
-            if (frames < drop_count) {
+            if (frames < drop_count)
+            {
                 return error.dropped_frame_number;
             }
         }
@@ -140,16 +165,26 @@ pub const Timecode = struct {
         const frames_per_minute = nominal * 60;
         const frames_per_hour = frames_per_minute * 60;
 
-        var total: i64 = @as(i64, self.hours) * frames_per_hour +
-            @as(i64, self.minutes) * frames_per_minute +
-            @as(i64, self.seconds) * nominal +
-            @as(i64, self.frames);
+        var total: i64 = (
+            @as(i64, self.hours) * frames_per_hour
+            + @as(i64, self.minutes) * frames_per_minute
+            + @as(i64, self.seconds) * nominal
+            + @as(i64, self.frames)
+        );
 
-        if (self.is_drop_frame) {
+        if (self.is_drop_frame)
+        {
             const drop_per_min = @as(i64, self.rate.drop_frames_per_minute());
-            const total_minutes = @as(i64, self.hours) * 60 + @as(i64, self.minutes);
-            // Frames dropped = drop_per_min * (total_minutes - floor(total_minutes/10))
-            const drops = drop_per_min * (total_minutes - @divFloor(total_minutes, 10));
+            const total_minutes = (
+                @as(i64, self.hours) * 60
+                + @as(i64, self.minutes)
+            );
+            // Frames dropped = drop_per_min * (total_minutes -
+            // floor(total_minutes/10))
+            const drops = (
+                drop_per_min
+                * (total_minutes - @divFloor(total_minutes, 10))
+            );
             total -= drops;
         }
 
@@ -163,11 +198,24 @@ pub fn is_valid_smpte_rate(
 ) bool
 {
     const rates = [_]f64{
-        24000.0 / 1001.0, 24.0, 25.0, 30000.0 / 1001.0, 30.0,
-        48000.0 / 1001.0, 48.0, 50.0, 60000.0 / 1001.0, 60.0,
+        24000.0 / 1001.0,
+        24.0,
+        25.0,
+        30000.0 / 1001.0,
+        30.0,
+        48000.0 / 1001.0,
+        48.0,
+        50.0,
+        60000.0 / 1001.0,
+        60.0,
     };
-    for (rates) |r| {
-        if (@abs(rate_hz - r) < 0.1) return true;
+    for (rates)
+        |r|
+    {
+        if (@abs(rate_hz - r) < 0.1)
+        {
+            return true;
+        }
     }
     return false;
 }
@@ -179,9 +227,15 @@ pub fn nearest_smpte_rate(
 {
     var min_dist: f64 = std.math.inf(f64);
     var best: ?TimecodeRate = null;
-    inline for (std.meta.tags(TimecodeRate)) |rate| {
+    inline for (std.meta.tags(TimecodeRate))
+        |rate|
+    {
         const dist = @abs(rate_hz - rate.as_f64());
-        if (dist < min_dist and dist < 0.5) {
+        if (
+            dist < min_dist
+            and dist < 0.5
+        )
+        {
             min_dist = dist;
             best = rate;
         }
@@ -200,26 +254,41 @@ pub fn from_timecode(
     rate: TimecodeRate,
 ) TimecodeError!Timecode
 {
-    if (input.len < 11) return error.invalid_timecode_string;
+    if (input.len < 11)
+    {
+        return error.invalid_timecode_string;
+    }
 
     // Check for drop-frame separator
     const is_drop_frame = input[8] == ';';
-    if (!is_drop_frame and input[8] != ':') {
+    if (
+        !is_drop_frame
+        and input[8] != ':'
+    )
+    {
         return error.invalid_timecode_string;
     }
 
     // Parse components
-    const hours = parse_two_digits(input[0..2]) orelse
-        return error.invalid_timecode_string;
-    const minutes = parse_two_digits(input[3..5]) orelse
-        return error.invalid_timecode_string;
-    const seconds = parse_two_digits(input[6..8]) orelse
-        return error.invalid_timecode_string;
-    const frames = parse_two_digits(input[9..11]) orelse
-        return error.invalid_timecode_string;
+    const hours = parse_two_digits(input[0..2]) orelse return (
+        error.invalid_timecode_string
+    );
+    const minutes = parse_two_digits(input[3..5]) orelse return (
+        error.invalid_timecode_string
+    );
+    const seconds = parse_two_digits(input[6..8]) orelse return (
+        error.invalid_timecode_string
+    );
+    const frames = parse_two_digits(input[9..11]) orelse return (
+        error.invalid_timecode_string
+    );
 
     // Verify separators
-    if (input[2] != ':' or input[5] != ':') {
+    if (
+        input[2] != ':'
+        or input[5] != ':'
+    )
+    {
         return error.invalid_timecode_string;
     }
 
@@ -231,10 +300,21 @@ fn parse_two_digits(
     s: []const u8,
 ) ?u8
 {
-    if (s.len != 2) return null;
+    if (s.len != 2)
+    {
+        return null;
+    }
     const d1 = s[0];
     const d2 = s[1];
-    if (d1 < '0' or d1 > '9' or d2 < '0' or d2 > '9') return null;
+    if (
+        d1 < '0'
+        or d1 > '9'
+        or d2 < '0'
+        or d2 > '9'
+    )
+    {
+        return null;
+    }
     return (d1 - '0') * 10 + (d2 - '0');
 }
 
@@ -274,8 +354,15 @@ pub fn ordinate_to_timecode(
     drop_frame: bool,
 ) TimecodeError!Timecode
 {
-    if (ord.v < 0) return error.negative_value;
-    if (drop_frame and !rate.supports_drop_frame()) {
+    if (ord.v < 0)
+    {
+        return error.negative_value;
+    }
+    if (
+        drop_frame
+        and !rate.supports_drop_frame()
+    )
+    {
         return error.drop_frame_not_supported;
     }
 
@@ -291,7 +378,8 @@ pub fn ordinate_to_timecode(
     total_frames = @mod(total_frames, frames_per_day);
 
     // Add back dropped frames for drop-frame timecode
-    if (drop_frame) {
+    if (drop_frame)
+    {
         total_frames = compensate_for_drop_frame(total_frames, rate);
     }
 
@@ -332,9 +420,13 @@ fn compensate_for_drop_frame(
     var result = frame_number + num_10min_blocks * 9 * drop_per_min;
 
     // Handle remaining frames within the current 10-minute block
-    if (remaining >= frames_per_minute) {
+    if (remaining >= frames_per_minute)
+    {
         remaining -= frames_per_minute;
-        const additional_minutes = @divFloor(remaining, frames_per_min_after_first);
+        const additional_minutes = @divFloor(
+            remaining,
+            frames_per_min_after_first,
+        );
         result += (additional_minutes + 1) * drop_per_min;
     }
 
@@ -364,10 +456,22 @@ test "TimecodeRate: as_f64 values"
 
 test "TimecodeRate: nominal_fps"
 {
-    try std.testing.expectEqual(@as(u8, 24), TimecodeRate.rate_23_976.nominal_fps());
-    try std.testing.expectEqual(@as(u8, 24), TimecodeRate.rate_24.nominal_fps());
-    try std.testing.expectEqual(@as(u8, 30), TimecodeRate.rate_29_97.nominal_fps());
-    try std.testing.expectEqual(@as(u8, 60), TimecodeRate.rate_59_94.nominal_fps());
+    try std.testing.expectEqual(
+        @as(u8, 24),
+        TimecodeRate.rate_23_976.nominal_fps(),
+    );
+    try std.testing.expectEqual(
+        @as(u8, 24),
+        TimecodeRate.rate_24.nominal_fps(),
+    );
+    try std.testing.expectEqual(
+        @as(u8, 30),
+        TimecodeRate.rate_29_97.nominal_fps(),
+    );
+    try std.testing.expectEqual(
+        @as(u8, 60),
+        TimecodeRate.rate_59_94.nominal_fps(),
+    );
 }
 
 test "TimecodeRate: supports_drop_frame"
@@ -478,7 +582,7 @@ test "timecode_to_ordinate: basic conversion"
 
 test "ordinate_to_timecode: basic conversion"
 {
-    const ord = ordinate.Ordinate.init(3661.5);  // 1h 1m 1s + 12 frames
+    const ord = ordinate.Ordinate.init(3661.5); // 1h 1m 1s + 12 frames
     const tc = try ordinate_to_timecode(ord, .rate_24, false);
     try std.testing.expectEqual(@as(u8, 1), tc.hours);
     try std.testing.expectEqual(@as(u8, 1), tc.minutes);
@@ -506,9 +610,18 @@ test "is_valid_smpte_rate"
 
 test "nearest_smpte_rate"
 {
-    try std.testing.expectEqual(TimecodeRate.rate_24, nearest_smpte_rate(24.0).?);
-    try std.testing.expectEqual(TimecodeRate.rate_29_97, nearest_smpte_rate(29.97).?);
-    try std.testing.expectEqual(TimecodeRate.rate_30, nearest_smpte_rate(30.0).?);
+    try std.testing.expectEqual(
+        TimecodeRate.rate_24,
+        nearest_smpte_rate(24.0).?,
+    );
+    try std.testing.expectEqual(
+        TimecodeRate.rate_29_97,
+        nearest_smpte_rate(29.97).?,
+    );
+    try std.testing.expectEqual(
+        TimecodeRate.rate_30,
+        nearest_smpte_rate(30.0).?,
+    );
     try std.testing.expectEqual(null, nearest_smpte_rate(15.0));
 }
 

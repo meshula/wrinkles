@@ -1,6 +1,5 @@
 //! testing specifically the curve projection
 
-
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 
@@ -11,18 +10,19 @@ const curve = @import("root.zig");
 fn expectNotEqual(
     expected: anytype,
     actual: @TypeOf(expected),
-) !void 
+) !void
 {
-    std.testing.expect(expected != actual) catch {
+    std.testing.expect(expected != actual)
+    catch {
         std.log.err(
             "expected not equal values, both are: {}\n",
             .{expected},
         );
-        return error.TestExpectedNotEqual; 
+        return error.TestExpectedNotEqual;
     };
 }
 
-test "segment projection:  identity projection" 
+test "segment projection:  identity projection"
 {
     // note that intervals are identical
     var identity_s = curve.Bezier.Segment.init_from_start_end(
@@ -43,7 +43,7 @@ test "segment projection:  identity projection"
     try opentime.expectOrdinateEqual(double_s.p3.out, result.p3.out);
 }
 
-test "segment projection: linear projection" 
+test "segment projection: linear projection"
 {
     const m: opentime.Ordinate.InnerType = 4;
 
@@ -90,12 +90,11 @@ test "segment projection: linear projection"
     );
     try opentime.expectOrdinateEqual(
         double_s.eval_at(0.75).out.mul(m),
-       result.eval_at(0.75).out,
+        result.eval_at(0.75).out,
     );
 }
 
-
-test "segment projection: bezier projected through linear" 
+test "segment projection: bezier projected through linear"
 {
     const m: opentime.Ordinate.InnerType = 2;
 
@@ -117,8 +116,8 @@ test "segment projection: bezier projected through linear"
     var result = double_s.project_segment(bezier_s);
 
     try opentime.expectOrdinateEqual(
-        bezier_s.eval_at(0   ).out.mul(m),
-        result.eval_at(0   ).out
+        bezier_s.eval_at(0).out.mul(m),
+        result.eval_at(0).out,
     );
 
     try opentime.expectOrdinateEqual(
@@ -126,8 +125,8 @@ test "segment projection: bezier projected through linear"
         result.eval_at(0.25).out,
     );
     try opentime.expectOrdinateEqual(
-        bezier_s.eval_at(0.5 ).out.mul(m),
-        result.eval_at(0.5 ).out,
+        bezier_s.eval_at(0.5).out.mul(m),
+        result.eval_at(0.5).out,
     );
     try opentime.expectOrdinateEqual(
         bezier_s.eval_at(0.75).out.mul(m),
@@ -135,7 +134,7 @@ test "segment projection: bezier projected through linear"
     );
 }
 
-test "segment projection: bezier projected through linear 2" 
+test "segment projection: bezier projected through linear 2"
 {
     // This test demonstrates that _just_ projecting the bezier control points
     // isn't enough to projet the curve itself through another curve.
@@ -150,11 +149,11 @@ test "segment projection: bezier projected through linear 2"
     // pushing the middle control points up and down to make a slight S curve
     var scurve_s = curve.Bezier.Segment.init_f32(
         .{
-            .p0 = .{ .in = 0, .out = 0},
-            .p1 = .{ .in = 1.0/3.0, .out = 1.0/3.0 - off },
-            .p2 = .{ .in = 2.0/3.0, .out = 2.0/3.0 + off },
-            .p3 = .{ .in = 1, .out = 1},
-        }
+            .p0 = .{ .in = 0, .out = 0 },
+            .p1 = .{ .in = 1.0 / 3.0, .out = 1.0 / 3.0 - off },
+            .p2 = .{ .in = 2.0 / 3.0, .out = 2.0 / 3.0 + off },
+            .p3 = .{ .in = 1, .out = 1 },
+        },
     );
 
     // upside down u shaped curve
@@ -164,7 +163,7 @@ test "segment projection: bezier projected through linear 2"
             .p1 = .{ .in = 0, .out = 1 },
             .p2 = .{ .in = 1, .out = 1 },
             .p3 = .{ .in = 1, .out = 0 },
-        }
+        },
     );
 
     var result = scurve_s.project_segment(ushape_s);
@@ -173,7 +172,10 @@ test "segment projection: bezier projected through linear 2"
     try expectEqual(ushape_s.eval_at(0).out, result.eval_at(0).out);
 
     // ...but midpoints shoulld be different
-    // try expectNotEqual(curve._eval_bezier(0.25, ushape_s), curve._eval_bezier(0.25, result));
-    // try expectNotEqual(curve._eval_bezier(0.5,  ushape_s), curve._eval_bezier(0.5,  result));
-    // try expectNotEqual(curve._eval_bezier(0.75, ushape_s), curve._eval_bezier(0.75, result));
+    // try expectNotEqual(curve._eval_bezier(0.25, ushape_s),
+    // curve._eval_bezier(0.25, result));
+    // try expectNotEqual(curve._eval_bezier(0.5,  ushape_s),
+    // curve._eval_bezier(0.5,  result));
+    // try expectNotEqual(curve._eval_bezier(0.75, ushape_s),
+    // curve._eval_bezier(0.75, result));
 }

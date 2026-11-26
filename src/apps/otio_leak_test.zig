@@ -7,7 +7,7 @@ const otio = @import("opentimelineio");
 
 pub fn main(
     init: std.process.Init,
-) !void 
+) !void
 {
     const io = init.io;
 
@@ -28,7 +28,7 @@ pub fn main(
         );
 
         const read_prog = parent_prog.start(
-            "Checking files for leaks...", 
+            "Checking files for leaks...",
             cmd_args.target_files.len,
         );
         defer read_prog.end();
@@ -36,14 +36,14 @@ pub fn main(
         for (cmd_args.target_files)
             |fpath|
         {
-            var buf:[1024]u8 = undefined;
-            const prog_str =  try std.fmt.bufPrint(
+            var buf: [1024]u8 = undefined;
+            const prog_str = try std.fmt.bufPrint(
                 &buf,
                 "Reading: {s}",
-                .{ fpath },
+                .{fpath},
             );
             const read_file_prog = read_prog.start(
-                prog_str, 
+                prog_str,
                 0,
             );
             defer read_file_prog.end();
@@ -70,7 +70,7 @@ pub fn main(
 
             if (did_leak == .leak)
             {
-                std.log.err("Leaked on file: {s}\n", .{ fpath });
+                std.log.err("Leaked on file: {s}\n", .{fpath});
             }
         }
     }
@@ -81,7 +81,7 @@ pub fn main(
 /// Usage message for argument parsing.
 pub fn usage(
     msg: []const u8,
-) void 
+) void
 {
     std.debug.print(
         \\
@@ -95,7 +95,8 @@ pub fn usage(
         \\
         \\{s}
         \\
-        , .{msg}
+        ,
+        .{msg},
     );
     std.process.exit(1);
 }
@@ -104,7 +105,7 @@ fn _parse_args(
     allocator: std.mem.Allocator,
     args: std.process.Args,
 ) !struct {
-    target_files: [][]const u8, 
+    target_files: [][]const u8,
 }
 {
     var arg_iter = args.iterate();
@@ -118,8 +119,8 @@ fn _parse_args(
     defer target_files.deinit(allocator);
 
     // read all the filepaths from the commandline
-    while (arg_iter.next()) 
-        |nextarg| 
+    while (arg_iter.next())
+        |nextarg|
     {
         arg_count += 1;
         const fpath: [:0]const u8 = nextarg;
@@ -127,14 +128,16 @@ fn _parse_args(
         if (
             std.mem.eql(u8, fpath, "--help")
             or std.mem.eql(u8, fpath, "-h")
-        ) {
+        )
+        {
             usage("");
         }
-       
+
         try target_files.append(allocator, nextarg);
     }
 
-    if (arg_count < 1) {
+    if (arg_count < 1)
+    {
         usage("No files given.");
     }
 

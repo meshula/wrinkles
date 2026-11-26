@@ -7,7 +7,7 @@ const interval_m = @import("interval.zig");
 
 /// Contains the result of a projection, which can be an instant (single
 /// ordinate), a range (continuous interval) or an out of bounds result.
-pub const ProjectionResult = union (enum) {
+pub const ProjectionResult = union(enum) {
     /// The projection resulted in an ordinate.
     success_ordinate: ordinate_m.Ordinate,
 
@@ -24,7 +24,8 @@ pub const ProjectionResult = union (enum) {
         pub const OutOfBounds = error.OutOfBounds;
     };
 
-    /// Fetch the finite result or return an error if it is not a finite sucess.
+    /// Fetch the finite result or return an error if it is not a finite
+    /// sucess.
     pub fn ordinate(
         self: @This(),
     ) !ordinate_m.Ordinate
@@ -52,21 +53,24 @@ pub const ProjectionResult = union (enum) {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
         switch (self) {
-            .success_ordinate => |ord| try writer.print(
-                "ProjResult{{ .ordinate = {d} }}",
-                .{ ord },
-            ),
-            .success_interval => |inf| try writer.print(
-                "ProjResult{{ .interval = {s} }}",
-                .{ inf },
-            ),
-            .out_of_bounds => try writer.print(
-                "ProjResult{{ .out_of_bounds }}",
-                .{},
-            ),
+            .success_ordinate => |ord|
+                try writer.print(
+                    "ProjResult{{ .ordinate = {d} }}",
+                    .{ord},
+                ),
+            .success_interval => |inf|
+                try writer.print(
+                    "ProjResult{{ .interval = {s} }}",
+                    .{inf},
+                ),
+            .out_of_bounds =>
+                try writer.print(
+                    "ProjResult{{ .out_of_bounds }}",
+                    .{},
+                ),
         }
     }
 };

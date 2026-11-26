@@ -1,8 +1,8 @@
 //! Continuous Interval definition/Implementation
 
-const std = @import("std"); 
+const std = @import("std");
 
-const ordinate = @import("ordinate.zig"); 
+const ordinate = @import("ordinate.zig");
 
 /// Right open interval in a continuous metric space.
 pub const ContinuousInterval = struct {
@@ -19,8 +19,8 @@ pub const ContinuousInterval = struct {
     };
 
     /// [-inf, +inf)
-    pub const inf_neg_to_pos : ContinuousInterval = .{
-        .start = ordinate.Ordinate.inf_neg, 
+    pub const inf_neg_to_pos: ContinuousInterval = .{
+        .start = ordinate.Ordinate.inf_neg,
         .end = ordinate.Ordinate.inf,
     };
 
@@ -36,11 +36,12 @@ pub const ContinuousInterval = struct {
         };
     }
 
-    /// Compute the duration of the interval, if either boundary is not finite,
+    /// Compute the duration of the interval, if either boundary is not
+    /// finite,
     /// the duration is infinite.
     pub fn duration(
         self: @This(),
-    ) ordinate.Ordinate 
+    ) ordinate.Ordinate
     {
         if (self.is_infinite())
         {
@@ -71,17 +72,16 @@ pub const ContinuousInterval = struct {
     pub fn overlaps(
         self: @This(),
         ord: ordinate.Ordinate,
-    ) bool 
+    ) bool
     {
         return (
             (
-             self.is_instant()
-             and self.start.eql(ord)
+                self.is_instant()
+                and self.start.eql(ord)
             )
-            or 
-            (
-             (ord.gteq(self.start))
-             and (ord.lt(self.end))
+            or (
+                (ord.gteq(self.start))
+                and (ord.lt(self.end))
             )
         );
     }
@@ -91,7 +91,10 @@ pub const ContinuousInterval = struct {
         self: @This(),
     ) bool
     {
-        return (self.start.is_inf() or self.end.is_inf());
+        return (
+            self.start.is_inf()
+            or self.end.is_inf()
+        );
     }
 
     /// Detect if this interval starts and ends at the same ordinate.
@@ -106,14 +109,14 @@ pub const ContinuousInterval = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
         try writer.print(
             "c@[{d}, {d})",
             .{
                 self.start,
                 self.end,
-            }
+            },
         );
     }
 };
@@ -121,8 +124,8 @@ pub const ContinuousInterval = struct {
 /// A convienence type for building intervals from the
 /// `ordinate.Ordinate.InnerType`.
 pub const ContinuousInterval_InnerType = struct {
-    start : ordinate.Ordinate.InnerType,
-    end : ordinate.Ordinate.InnerType,
+    start: ordinate.Ordinate.InnerType,
+    end: ordinate.Ordinate.InnerType,
 };
 
 test "ContinuousInterval: is_infinite"
@@ -153,7 +156,7 @@ test "ContinuousInterval: is_infinite"
 pub fn extend(
     fst: ContinuousInterval,
     snd: ContinuousInterval,
-) ContinuousInterval 
+) ContinuousInterval
 {
     return .{
         .start = ordinate.min(fst.start, snd.start),
@@ -169,25 +172,85 @@ test "ContinuousInterval: extend"
         res: ContinuousInterval,
     };
     const tests = [_]TestStruct{
-        .{ 
-            .fst = ContinuousInterval.init(.{ .start = 0, .end = 10, }),
-            .snd = ContinuousInterval.init(.{ .start = 8, .end = 12, }),
-            .res = ContinuousInterval.init(.{ .start = 0, .end = 12, }),
+        .{
+            .fst = ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 10,
+                },
+            ),
+            .snd = ContinuousInterval.init(
+                .{
+                    .start = 8,
+                    .end = 12,
+                },
+            ),
+            .res = ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 12,
+                },
+            ),
         },
-        .{ 
-            .fst = ContinuousInterval.init(.{ .start = 0, .end = 10, }),
-            .snd = ContinuousInterval.init(.{ .start = -2, .end = 9, }),
-            .res = ContinuousInterval.init(.{ .start = -2, .end = 10,}),
+        .{
+            .fst = ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 10,
+                },
+            ),
+            .snd = ContinuousInterval.init(
+                .{
+                    .start = -2,
+                    .end = 9,
+                },
+            ),
+            .res = ContinuousInterval.init(
+                .{
+                    .start = -2,
+                    .end = 10,
+                },
+            ),
         },
-        .{ 
-            .fst = ContinuousInterval.init(.{ .start = 0, .end = 10,  }),
-            .snd = ContinuousInterval.init(.{ .start = -2, .end = 12, }),
-            .res = ContinuousInterval.init(.{ .start = -2, .end = 12, }),
+        .{
+            .fst = ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 10,
+                },
+            ),
+            .snd = ContinuousInterval.init(
+                .{
+                    .start = -2,
+                    .end = 12,
+                },
+            ),
+            .res = ContinuousInterval.init(
+                .{
+                    .start = -2,
+                    .end = 12,
+                },
+            ),
         },
-        .{ 
-            .fst = ContinuousInterval.init(.{ .start = 0, .end = 2,  }),
-            .snd = ContinuousInterval.init(.{ .start = 4, .end = 12, }),
-            .res = ContinuousInterval.init(.{ .start = 0, .end = 12, }),
+        .{
+            .fst = ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 2,
+                },
+            ),
+            .snd = ContinuousInterval.init(
+                .{
+                    .start = 4,
+                    .end = 12,
+                },
+            ),
+            .res = ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 12,
+                },
+            ),
         },
     };
 
@@ -196,14 +259,8 @@ test "ContinuousInterval: extend"
     {
         const measured = extend(t.fst, t.snd);
 
-        try std.testing.expectEqual(
-            t.res.start,
-            measured.start
-        );
-        try std.testing.expectEqual(
-            t.res.end,
-            measured.end
-        );
+        try std.testing.expectEqual(t.res.start, measured.start);
+        try std.testing.expectEqual(t.res.end, measured.end);
     }
 }
 
@@ -211,68 +268,123 @@ test "ContinuousInterval: extend"
 pub fn any_overlap(
     fst: ContinuousInterval,
     snd: ContinuousInterval,
-) bool 
+) bool
 {
     const fst_is_instant = fst.is_instant();
     const snd_is_instant = snd.is_instant();
     return (
-        // for cases when one interval starts and ends on the same point, allow
+        // for cases when one interval starts and ends on the same point,
+        // allow
         // allow that point to overlap (because of the clusivity the start
         // point).
         (
-             fst_is_instant
-             and fst.start.gteq(snd.start)
-             and fst.start.lt(snd.end)
-        ) or (
+            fst_is_instant
+            and fst.start.gteq(snd.start)
+            and fst.start.lt(snd.end)
+        )
+        or (
             snd_is_instant
             and snd.start.gteq(fst.start)
             and snd.start.lt(fst.end)
-        ) or (
-        // for cases where BOTH intervals are the same point, check if they all
-        // match
-        //
+        )
+        or (
+            // for cases where BOTH intervals are the same point, check if
+            // they all
+            // match
+            //
             fst_is_instant
             and snd_is_instant
             and fst.start.eql(snd.start)
-        ) or (
-        // general case
-         fst.start.lt(snd.end)
-         and fst.end.gt(snd.start)
+        )
+        or (
+            // general case
+            fst.start.lt(snd.end)
+            and fst.end.gt(snd.start)
         )
     );
 }
 
 test "ContinuousInterval: any_overlap"
-{ 
+{
     const TestStruct = struct {
         fst: ContinuousInterval,
         snd: ContinuousInterval,
         res: bool,
     };
     const tests = [_]TestStruct{
-        .{ 
-            .fst = ContinuousInterval.init(.{ .start = 0, .end = 10, }),
-            .snd = ContinuousInterval.init(.{ .start = 8, .end = 12, }),
+        .{
+            .fst = ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 10,
+                },
+            ),
+            .snd = ContinuousInterval.init(
+                .{
+                    .start = 8,
+                    .end = 12,
+                },
+            ),
             .res = true,
         },
-        .{ 
-            .fst = ContinuousInterval.init(.{ .start = 0, .end = 10, }),
-            .snd = ContinuousInterval.init(.{ .start = -2, .end = 9, }),
+        .{
+            .fst = ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 10,
+                },
+            ),
+            .snd = ContinuousInterval.init(
+                .{
+                    .start = -2,
+                    .end = 9,
+                },
+            ),
             .res = true,
         },
-        .{ 
-            .fst = ContinuousInterval.init(.{ .start = 0, .end = 10, }),
-            .snd = ContinuousInterval.init(.{ .start = -2, .end = 12, }),
+        .{
+            .fst = ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 10,
+                },
+            ),
+            .snd = ContinuousInterval.init(
+                .{
+                    .start = -2,
+                    .end = 12,
+                },
+            ),
             .res = true,
         },
-        .{ 
-            .fst = ContinuousInterval.init(.{ .start = 0, .end = 4, }),
-            .snd = ContinuousInterval.init(.{ .start = 5, .end = 12, }),
+        .{
+            .fst = ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 4,
+                },
+            ),
+            .snd = ContinuousInterval.init(
+                .{
+                    .start = 5,
+                    .end = 12,
+                },
+            ),
             .res = false,
         },
-        .{ 
-            .fst = ContinuousInterval.init(.{ .start = 0, .end = 4, }),
-            .snd = ContinuousInterval.init(.{ .start = -2, .end = 0, }),
+        .{
+            .fst = ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 4,
+                },
+            ),
+            .snd = ContinuousInterval.init(
+                .{
+                    .start = -2,
+                    .end = 0,
+                },
+            ),
             .res = false,
         },
     };
@@ -293,9 +405,10 @@ test "ContinuousInterval: any_overlap"
 pub fn intersect(
     fst: ContinuousInterval,
     snd: ContinuousInterval,
-) ?ContinuousInterval 
+) ?ContinuousInterval
 {
-    if (any_overlap(fst, snd) == false) {
+    if (any_overlap(fst, snd) == false)
+    {
         return null;
     }
 
@@ -305,18 +418,13 @@ pub fn intersect(
     };
 }
 
-test "intersection test - contained" 
+test "intersection test - contained"
 {
     const int1 = ContinuousInterval.init(
         .{ .start = 0, .end = 10 },
     );
-    const int2 = ContinuousInterval.init(
-        .{ .start = 1, .end = 3 }
-    );
-    const res = intersect(
-        int1, 
-        int2
-    ) orelse return error.ShouldIntersect;
+    const int2 = ContinuousInterval.init(.{ .start = 1, .end = 3 });
+    const res = intersect(int1, int2) orelse return error.ShouldIntersect;
 
     try ordinate.expectOrdinateEqual(
         res.start,
@@ -328,15 +436,11 @@ test "intersection test - contained"
     );
 }
 
-test "intersection test - infinite" {
+test "intersection test - infinite"
+{
     const int1 = ContinuousInterval.inf_neg_to_pos;
-    const int2 = ContinuousInterval.init(
-        .{ .start = 1, .end = 3 }
-    );
-    const res = intersect(
-        int1,
-        int2
-    ) orelse return error.ShouldIntersect;
+    const int2 = ContinuousInterval.init(.{ .start = 1, .end = 3 });
+    const res = intersect(int1, int2) orelse return error.ShouldIntersect;
 
     try ordinate.expectOrdinateEqual(
         res.start,
@@ -348,30 +452,33 @@ test "intersection test - infinite" {
     );
 }
 
-test "ContinuousInterval Tests" 
+test "ContinuousInterval Tests"
 {
     const ival = ContinuousInterval.init(
-        .{ .start = 10, .end = 20, },
+        .{
+            .start = 10,
+            .end = 20,
+        },
     );
 
     try std.testing.expectEqual(
         ival,
-        ContinuousInterval.from_start_duration(
-            ival.start,
-            ival.duration()
-        )
+        ContinuousInterval.from_start_duration(ival.start, ival.duration()),
     );
 }
 
-test "ContinuousInterval: Overlap tests" 
+test "ContinuousInterval: Overlap tests"
 {
     const ival = ContinuousInterval.init(
-        .{ .start = 10, .end = 20, },
+        .{
+            .start = 10,
+            .end = 20,
+        },
     );
 
     try std.testing.expect(!ival.overlaps(ordinate.Ordinate.init(0)));
-    try std.testing.expect( ival.overlaps(ordinate.Ordinate.init(10)));
-    try std.testing.expect( ival.overlaps(ordinate.Ordinate.init(15)));
+    try std.testing.expect(ival.overlaps(ordinate.Ordinate.init(10)));
+    try std.testing.expect(ival.overlaps(ordinate.Ordinate.init(15)));
     try std.testing.expect(!ival.overlaps(ordinate.Ordinate.init(20)));
     try std.testing.expect(!ival.overlaps(ordinate.Ordinate.init(30)));
 }
@@ -379,13 +486,19 @@ test "ContinuousInterval: Overlap tests"
 test "ContinuousInterval: is_instant"
 {
     const is_not_point = ContinuousInterval.init(
-        .{ .start = 0, .end = 0.1, }
+        .{
+            .start = 0,
+            .end = 0.1,
+        },
     );
 
     try std.testing.expect(is_not_point.is_instant() != true);
 
     const collapsed = ContinuousInterval.init(
-        .{ .start = 10, .end = 10, }
+        .{
+            .start = 10,
+            .end = 10,
+        },
     );
 
     try std.testing.expect(collapsed.is_instant());

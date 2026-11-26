@@ -88,7 +88,8 @@ pub const bundle_utils = @import("bundle_utils.zig");
 pub const legacy_json = @import("legacy_json.zig");
 pub const versioning = @import("versioning.zig");
 
-test {
+test 
+{
     _ = adapter;
     _ = ascii;
     _ = binary;

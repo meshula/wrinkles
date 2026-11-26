@@ -76,26 +76,15 @@ test "MarkerColor: string conversion round-trip"
 
 test "MarkerColor: invalid string returns null"
 {
-    try std.testing.expectEqual(
-        null,
-        MarkerColor.from_string("INVALID")
-    );
-    try std.testing.expectEqual(
-        null,
-        MarkerColor.from_string("asdfasdf")
-    );
-    try std.testing.expectEqual(
-        null,
-        MarkerColor.from_string("")
-    );
+    try std.testing.expectEqual(null, MarkerColor.from_string("INVALID"));
+    try std.testing.expectEqual(null, MarkerColor.from_string("asdfasdf"));
+    try std.testing.expectEqual(null, MarkerColor.from_string(""));
 }
 
 test "Marker: creation with default color"
 {
     const marker = Marker{
-        .marked_range = .init(
-            .{ .start = 0, .end = 10 }
-        ),
+        .marked_range = .init(.{ .start = 0, .end = 10 }),
     };
 
     try std.testing.expectEqual(.red, marker.color);
@@ -106,9 +95,7 @@ test "Marker: creation with default color"
 test "Marker: zero-duration point marker"
 {
     const marker = Marker{
-        .marked_range = .init(
-            .{ .start = 10, .end = 10 }
-        ),
+        .marked_range = .init(.{ .start = 10, .end = 10 }),
         .color = .yellow,
     };
 

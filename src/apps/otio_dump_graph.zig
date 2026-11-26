@@ -5,7 +5,6 @@ const otio = @import("opentimelineio");
 
 const builtin = @import("builtin");
 
-
 const State = struct {
     input_otio: []const u8,
     output_png: []const u8,
@@ -24,12 +23,12 @@ const State = struct {
 fn _parse_args(
     allocator: std.mem.Allocator,
     args: std.process.Args,
-) !State 
+) !State
 {
     var arg_iter = args.iterate();
 
-    var input_otio_fpath:[]const u8 = undefined;
-    var output_png_fpath:[]const u8 = undefined;
+    var input_otio_fpath: []const u8 = undefined;
+    var output_png_fpath: []const u8 = undefined;
 
     // ignore the app name, always first in args
     _ = arg_iter.skip();
@@ -37,8 +36,8 @@ fn _parse_args(
     var arg_count: usize = 0;
 
     // read all the filepaths from the commandline
-    while (arg_iter.next()) 
-        |nextarg| 
+    while (arg_iter.next())
+        |nextarg|
     {
         arg_count += 1;
         const fpath: [:0]const u8 = nextarg;
@@ -46,10 +45,11 @@ fn _parse_args(
         if (
             string.eql_latin_s8(fpath, "--help")
             or (string.eql_latin_s8(fpath, "-h"))
-        ) {
+        )
+        {
             usage("");
         }
-        
+
         switch (arg_count) {
             1 => {
                 input_otio_fpath = try allocator.dupe(u8, fpath);
@@ -63,7 +63,8 @@ fn _parse_args(
         }
     }
 
-    if (arg_count < 2) {
+    if (arg_count < 2)
+    {
         usage("Not enough arguments.");
     }
 
@@ -76,7 +77,7 @@ fn _parse_args(
 /// Usage message for argument parsing.
 pub fn usage(
     msg: []const u8,
-) void 
+) void
 {
     std.debug.print(
         \\
@@ -89,7 +90,8 @@ pub fn usage(
         \\  -h --help: print this message and exit
         \\
         \\{s}
-        , .{msg}
+        ,
+        .{msg},
     );
     std.process.exit(1);
 }
@@ -127,7 +129,8 @@ pub fn main(
         io,
         state.input_otio,
         .{},
-    ) catch |e| switch (e) {
+    )
+    catch |e| switch (e) {
         error.FileNotFound => found = false,
         else => return e,
     };
@@ -135,7 +138,7 @@ pub fn main(
     {
         std.log.err(
             "File: {s} does not exist or is not accessible.",
-            .{ state.input_otio }
+            .{state.input_otio},
         );
     }
 
@@ -187,10 +190,10 @@ pub fn main(
     for (tree.nodes.items(.item), tree.nodes.items(.space))
         |item, space|
     {
-        std.debug.print("  {f}.{s}\n", .{item, @tagName(space)});
+        std.debug.print("  {f}.{s}\n", .{ item, @tagName(space) });
     }
 
     parent_prog.completeOne();
 
-    std.log.info("Wrote: {s}\n", .{ state.output_png });
+    std.log.info("Wrote: {s}\n", .{state.output_png});
 }

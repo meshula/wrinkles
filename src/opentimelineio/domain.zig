@@ -10,7 +10,7 @@ const string = @import("string_stuff");
 
 /// A Domain narrows an operation to a particular media domain (E
 /// picture, audio, etc).
-pub const Domain = union (enum) {
+pub const Domain = union(enum) {
     /// Temporal domain (@TODO: remove?)
     time,
 

@@ -12,6 +12,7 @@ const std = @import("std");
 const ordinate = @import("ordinate.zig");
 pub const Ordinate = ordinate.Ordinate;
 pub const expectOrdinateEqual = ordinate.expectOrdinateEqual;
+
 // unary
 pub const abs = ordinate.abs;
 
@@ -30,17 +31,18 @@ pub const sort = ordinate.sort;
 // comath interface
 const comath_wrapper = @import("comath_wrapper.zig");
 pub const eval = comath_wrapper.eval;
-// @}
 
+// @}
 // interval @{
 pub const interval = @import("interval.zig");
 pub const ContinuousInterval = interval.ContinuousInterval;
 pub const ContinuousInterval_BaseType = interval.ContinuousInterval_InnerType;
-// @}
 
+// @}
 // transform @{
 pub const transform = @import("transform.zig");
 pub const AffineTransform1D = transform.AffineTransform1D;
+
 // @}
 
 pub const dual = @import("dual.zig");
@@ -69,10 +71,13 @@ pub const from_timecode = timecode.from_timecode;
 pub const to_timecode = timecode.to_timecode;
 pub const timecode_to_ordinate = timecode.timecode_to_ordinate;
 pub const ordinate_to_timecode = timecode.ordinate_to_timecode;
+
 // @}
 
-/// Clone return a new slice with each thing in the slice having been .cloned()
-/// from the thing in the original list.  Assumes that clone takes an allocator
+/// Clone return a new slice with each thing in the slice having been
+/// .cloned()
+/// from the thing in the original list.  Assumes that clone takes an
+/// allocator
 /// argument and returns in the same order.
 pub fn slice_with_cloned_contents_allocator(
     allocator: std.mem.Allocator,
@@ -96,10 +101,11 @@ pub fn slice_with_cloned_contents_allocator(
     return try result.toOwnedSlice(allocator);
 }
 
-/// Call .deinit(allocator) on all the items in the slice, then free the slice.
+/// Call .deinit(allocator) on all the items in the slice, then free the
+/// slice.
 pub fn deinit_slice(
     allocator: std.mem.Allocator,
-    comptime T:type,
+    comptime T: type,
     slice_to_deinit: []const T,
 ) void
 {
@@ -111,7 +117,8 @@ pub fn deinit_slice(
     allocator.free(slice_to_deinit);
 }
 
-test {
+test 
+{
     _ = lerp_math;
     _ = ordinate;
     _ = interval;
@@ -121,4 +128,3 @@ test {
     _ = projection_result;
     _ = timecode;
 }
-

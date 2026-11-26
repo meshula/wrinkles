@@ -36,30 +36,26 @@ pub fn ControlPointOf(
         pub const ControlPointType = @This();
 
         /// (0, 0)
-        pub const zero = ControlPointType.init(
-            .{ .in = 0, .out = 0 }
-        );
+        pub const zero = ControlPointType.init(.{ .in = 0, .out = 0 });
 
         /// (1, 1)
-        pub const one = ControlPointType.init(
-            .{ .in = 1, .out = 1 }
-        );
+        pub const one = ControlPointType.init(.{ .in = 1, .out = 1 });
 
         pub inline fn init(
             from: ControlPoint_InnerType,
         ) ControlPointType
         {
-            return .{ 
-                .in =  OrdinateType.init(from.in),
+            return .{
+                .in = OrdinateType.init(from.in),
                 .out = OrdinateType.init(from.out),
             };
-       }
+        }
 
         /// polymorphic dispatch for multiply
         pub inline fn mul(
             self: @This(),
             rhs: anytype,
-        ) ControlPointType 
+        ) ControlPointType
         {
             return switch (@TypeOf(rhs)) {
                 ControlPointType => self.mul_cp(rhs),
@@ -107,10 +103,10 @@ pub fn ControlPointOf(
         pub fn div_num(
             self: @This(),
             val: anytype,
-        ) ControlPointType 
+        ) ControlPointType
         {
             return .{
-                .in  = self.in.div(val),
+                .in = self.in.div(val),
                 .out = self.out.div(val),
             };
         }
@@ -119,10 +115,10 @@ pub fn ControlPointOf(
         pub fn div_cp(
             self: @This(),
             val: ControlPointType,
-        ) ControlPointType 
+        ) ControlPointType
         {
             return .{
-                .in  = self.in.div(val.in),
+                .in = self.in.div(val.in),
                 .out = self.out.div(val.out),
             };
         }
@@ -131,7 +127,7 @@ pub fn ControlPointOf(
         pub fn add(
             self: @This(),
             rhs: anytype,
-        ) ControlPointType 
+        ) ControlPointType
         {
             return switch (@typeInfo(@TypeOf(rhs))) {
                 .@"struct" => self.add_cp(rhs),
@@ -143,7 +139,7 @@ pub fn ControlPointOf(
         pub fn add_num(
             self: @This(),
             rhs: anytype,
-        ) ControlPointType 
+        ) ControlPointType
         {
             return .{
                 .in = self.in + rhs,
@@ -155,7 +151,7 @@ pub fn ControlPointOf(
         pub fn add_cp(
             self: @This(),
             rhs: ControlPointType,
-        ) ControlPointType 
+        ) ControlPointType
         {
             return .{
                 .in = self.in.add(rhs.in),
@@ -167,7 +163,7 @@ pub fn ControlPointOf(
         pub fn sub(
             self: @This(),
             rhs: anytype,
-        ) ControlPointType 
+        ) ControlPointType
         {
             return switch (@typeInfo(@TypeOf(rhs))) {
                 .@"struct" => self.sub_cp(rhs),
@@ -179,7 +175,7 @@ pub fn ControlPointOf(
         pub fn sub_num(
             self: @This(),
             rhs: anytype,
-        ) ControlPointType 
+        ) ControlPointType
         {
             // @TODO: doesn't look like this gets called
             return .{
@@ -192,7 +188,7 @@ pub fn ControlPointOf(
         pub fn sub_cp(
             self: @This(),
             rhs: ControlPointType,
-        ) ControlPointType 
+        ) ControlPointType
         {
             return .{
                 .in = self.in.sub(rhs.in),
@@ -213,29 +209,33 @@ pub fn ControlPointOf(
         /// compute the normalized vector for the point
         pub fn normalized(
             self: @This(),
-        ) ControlPointType 
+        ) ControlPointType
         {
-            const d = self.distance(.{ .in=0, .out=0 });
-            return .{ .in = self.in/d, .out = self.out/d };
+            const d = self.distance(.{ .in = 0, .out = 0 });
+            return .{ .in = self.in / d, .out = self.out / d };
         }
 
         /// build a string of the control point
         pub fn debug_json_str(
             self: @This(),
             allocator: std.mem.Allocator,
-        ) ![]const u8 
+        ) ![]const u8
         {
             return try std.fmt.allocPrint(
                 allocator,
-            \\{{ "in": {d:.6}, "out": {d:.6} }}
-            , .{ self.in, self.out, },
+                \\{{ "in": {d:.6}, "out": {d:.6} }}
+                ,
+                .{
+                    self.in,
+                    self.out,
+                },
             );
         }
 
         pub fn format(
             self: @This(),
             writer: *std.Io.Writer,
-        ) !void 
+        ) !void
         {
             try writer.print("({d}, {d})", .{ self.in, self.out });
         }
@@ -253,86 +253,68 @@ pub const Dual_CP = opentime.dual.DualOf(ControlPoint);
 /// A convienence type for building ControlPoints from the
 /// `ordinate.Ordinate.InnerType`.
 pub const ControlPoint_InnerType = ControlPointOf(
-    opentime.Ordinate.InnerType, 
+    opentime.Ordinate.InnerType,
 );
 
 /// check equality between two control points
 pub fn expectControlPointEqual(
     lhs: ControlPoint,
     rhs: ControlPoint,
-) !void 
+) !void
 {
-    inline for (.{ "in", "out" }) 
-        |k| 
+    inline for (.{ "in", "out" })
+        |k|
     {
         errdefer std.log.err(
             "Error: expected {any} got {any}\n",
-            .{ lhs, rhs }
+            .{ lhs, rhs },
         );
 
-        try opentime.expectOrdinateEqual(
-            @field(lhs, k),
-            @field(rhs, k)
-        );
+        try opentime.expectOrdinateEqual(@field(lhs, k), @field(rhs, k));
     }
 }
 
 // @{ TESTS
-test "ControlPoint: add" 
-{ 
-    const cp1 = ControlPoint.init(
-        .{ .in = 0, .out = 10 }
-    );
-    const cp2 = ControlPoint.init(
-        .{ .in = 20, .out = -10 }
-    );
+test "ControlPoint: add"
+{
+    const cp1 = ControlPoint.init(.{ .in = 0, .out = 10 });
+    const cp2 = ControlPoint.init(.{ .in = 20, .out = -10 });
 
-    const result = ControlPoint.init(
-        .{ .in = 20, .out = 0 }
-    );
+    const result = ControlPoint.init(.{ .in = 20, .out = 0 });
 
     try expectControlPointEqual(cp1.add(cp2), result);
 }
 
-test "ControlPoint: sub" 
-{ 
-    const cp1 = ControlPoint.init(
-        .{ .in = 0, .out = 10 }
-    );
-    const cp2 = ControlPoint.init(
-        .{ .in = 20, .out = -10 }
-    );
+test "ControlPoint: sub"
+{
+    const cp1 = ControlPoint.init(.{ .in = 0, .out = 10 });
+    const cp2 = ControlPoint.init(.{ .in = 20, .out = -10 });
 
-    const result = ControlPoint.init(
-        .{ .in = -20, .out = 20 }
-    );
+    const result = ControlPoint.init(.{ .in = -20, .out = 20 });
 
     try expectControlPointEqual(cp1.sub(cp2), result);
 }
 
-test "ControlPoint: mul" 
-{ 
-    const cp1=ControlPoint.init(.{ .in = 0.0, .out = 10.0 });
+test "ControlPoint: mul"
+{
+    const cp1 = ControlPoint.init(.{ .in = 0.0, .out = 10.0 });
     const scale = -10.0;
 
-    const expected=ControlPoint.init(.{ .in = 0.0, .out = -100 });
+    const expected = ControlPoint.init(.{ .in = 0.0, .out = -100 });
     const mul_direct = cp1.mul_num(scale);
     const mul_implct = cp1.mul(scale);
 
-    errdefer std.log.err("result: {any}\n", .{ mul_implct });
+    errdefer std.log.err("result: {any}\n", .{mul_implct});
 
     try expectControlPointEqual(mul_direct, mul_implct);
     try expectControlPointEqual(expected, mul_implct);
 }
 
-test "distance: 345 triangle" 
+test "distance: 345 triangle"
 {
-    const a=ControlPoint.init(.{ .in = 3, .out = -3 });
-    const b=ControlPoint.init(.{ .in = 6, .out = 1 });
+    const a = ControlPoint.init(.{ .in = 3, .out = -3 });
+    const b = ControlPoint.init(.{ .in = 6, .out = 1 });
 
-    try std.testing.expectEqual(
-        opentime.Ordinate.init(5),
-        a.distance(b)
-    );
+    try std.testing.expectEqual(opentime.Ordinate.init(5), a.distance(b));
 }
 // @}

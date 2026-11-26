@@ -9,14 +9,14 @@
 pub const treecode = @import("treecode.zig");
 pub const Treecode = treecode.Treecode;
 pub const TreecodeWord = treecode.TreecodeWord;
-pub const TreecodeHashMap= treecode.TreecodeHashMap;
-pub const l_or_r= treecode.l_or_r;
-pub const path_exists= treecode.path_exists;
+pub const TreecodeHashMap = treecode.TreecodeHashMap;
+pub const l_or_r = treecode.l_or_r;
+pub const path_exists = treecode.path_exists;
 
 pub const binary_tree = @import("binary_tree.zig");
 pub const BinaryTree = binary_tree.BinaryTree;
 
-test
+test 
 {
     _ = treecode;
     _ = binary_tree;

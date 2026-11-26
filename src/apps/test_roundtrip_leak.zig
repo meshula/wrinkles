@@ -46,10 +46,12 @@ fn testRoundtrip(
     );
     defer allocator.free(tlb_content);
 
-    const tlb_doc = try serialization.binary.deserialize_to_serializable_timeline(
-        allocator,
-        tlb_content,
-        .all,
+    const tlb_doc = (
+        try serialization.binary.deserialize_to_serializable_timeline(
+            allocator,
+            tlb_content,
+            .all,
+        )
     );
     var from_tlb: serialization.serializable.Root = .{
         .schema_version = tlb_doc.schema_version,
@@ -77,7 +79,7 @@ fn testRoundtrip(
 
 pub fn main(
     init: std.process.Init,
-) !void 
+) !void
 {
     const io = init.io;
 
@@ -86,9 +88,12 @@ pub fn main(
 
     defer {
         const check = gpa.deinit();
-        if (check == .leak) {
+        if (check == .leak)
+        {
             std.debug.print("\n*** MEMORY LEAK DETECTED ***\n", .{});
-        } else {
+        }
+        else
+        {
             std.debug.print("\n*** NO LEAKS ***\n", .{});
         }
     }
@@ -96,50 +101,92 @@ pub fn main(
 
     // Test files to check
     const test_pairs = [_]struct { tla: []const u8, tlb: []const u8 }{
-        .{ .tla = "test_files/just_warp.tla", .tlb = "test_files/just_warp.tlb" },
-        .{ .tla = "test_files/just_warp_bez.tla", .tlb = "test_files/just_warp_bez.tlb" },
-        .{ .tla = "test_files/just_transition.tla", .tlb = "test_files/just_transition.tlb" },
-        .{ .tla = "test_files/just_clip.tla", .tlb = "test_files/just_clip.tlb" },
-        .{ .tla = "test_files/just_track.tla", .tlb = "test_files/just_track.tlb" },
-        .{ .tla = "test_files/simple_cut.tla", .tlb = "test_files/simple_cut.tlb" },
-        .{ .tla = "test_files/simple_cut_with_markers.tla", .tlb = "test_files/simple_cut_with_markers.tlb" },
-        .{ .tla = "test_files/warp_on_warp.tla", .tlb = "test_files/warp_on_warp.tlb" },
-        .{ .tla = "otio_sample_data/clip_example.tla", .tlb = "otio_sample_data/clip_example.tlb" },
-        .{ .tla = "otio_sample_data/transition.tla", .tlb = "otio_sample_data/transition.tlb" },
+        .{
+            .tla = "test_files/just_warp.tla",
+            .tlb = "test_files/just_warp.tlb",
+        },
+        .{
+            .tla = "test_files/just_warp_bez.tla",
+            .tlb = "test_files/just_warp_bez.tlb",
+        },
+        .{
+            .tla = "test_files/just_transition.tla",
+            .tlb = "test_files/just_transition.tlb",
+        },
+        .{
+            .tla = "test_files/just_clip.tla",
+            .tlb = "test_files/just_clip.tlb",
+        },
+        .{
+            .tla = "test_files/just_track.tla",
+            .tlb = "test_files/just_track.tlb",
+        },
+        .{
+            .tla = "test_files/simple_cut.tla",
+            .tlb = "test_files/simple_cut.tlb",
+        },
+        .{
+            .tla = "test_files/simple_cut_with_markers.tla",
+            .tlb = "test_files/simple_cut_with_markers.tlb",
+        },
+        .{
+            .tla = "test_files/warp_on_warp.tla",
+            .tlb = "test_files/warp_on_warp.tlb",
+        },
+        .{
+            .tla = "otio_sample_data/clip_example.tla",
+            .tlb = "otio_sample_data/clip_example.tlb",
+        },
+        .{
+            .tla = "otio_sample_data/transition.tla",
+            .tlb = "otio_sample_data/transition.tlb",
+        },
     };
 
-    std.debug.print("Testing roundtrip for {d} file pairs...\n\n", .{test_pairs.len});
+    std.debug.print(
+        "Testing roundtrip for {d} file pairs...\n\n",
+        .{test_pairs.len},
+    );
 
     var passed: usize = 0;
     var failed: usize = 0;
 
-    for (test_pairs) 
-        |pair| 
+    for (test_pairs)
+        |pair|
     {
         // Check if files exist
-        std.Io.Dir.cwd().access(io, pair.tla, .{}) catch {
+        std.Io.Dir.cwd().access(io, pair.tla, .{})
+        catch {
             std.debug.print("  {s}... SKIP (file not found)\n", .{pair.tla});
             continue;
         };
-        std.Io.Dir.cwd().access(io, pair.tlb, .{}) catch {
+        std.Io.Dir.cwd().access(io, pair.tlb, .{})
+        catch {
             std.debug.print("  {s}... SKIP (tlb not found)\n", .{pair.tla});
             continue;
         };
 
-        const match = testRoundtrip(allocator, io, pair.tla, pair.tlb) catch |err| {
+        const match = testRoundtrip(allocator, io, pair.tla, pair.tlb)
+        catch |err| {
             std.debug.print("  {s}... ERROR: {}\n", .{ pair.tla, err });
             failed += 1;
             continue;
         };
 
-        if (match) {
+        if (match)
+        {
             std.debug.print("  {s}... OK\n", .{pair.tla});
             passed += 1;
-        } else {
+        }
+        else
+        {
             std.debug.print("  {s}... MISMATCH\n", .{pair.tla});
             failed += 1;
         }
     }
 
-    std.debug.print("\n=== Results: {d} passed, {d} failed ===\n", .{ passed, failed });
+    std.debug.print(
+        "\n=== Results: {d} passed, {d} failed ===\n",
+        .{ passed, failed },
+    );
 }

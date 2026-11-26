@@ -1,11 +1,11 @@
 //! Implementation of a 1d Affine transformation
 
-const std = @import("std"); 
+const std = @import("std");
 
 const ordinate = @import("ordinate.zig");
 const comath_wrapper = @import("comath_wrapper.zig");
 const interval = @import("interval.zig");
-const ContinuousInterval = interval.ContinuousInterval; 
+const ContinuousInterval = interval.ContinuousInterval;
 
 /// Represents a homogenous-coordinates transform matrix of the form:
 /// 
@@ -35,7 +35,7 @@ pub const AffineTransform1D = struct {
     {
         return comath_wrapper.eval(
             "ord * scale + offset",
-            .{ .ord = ord, .scale = self.scale, .offset = self.offset }
+            .{ .ord = ord, .scale = self.scale, .offset = self.offset },
         );
     }
 
@@ -47,7 +47,7 @@ pub const AffineTransform1D = struct {
     {
         return .{
             .start = self.applied_to_ordinate(cint.start),
-            .end = self.applied_to_ordinate(cint.end)
+            .end = self.applied_to_ordinate(cint.end),
         };
     }
 
@@ -57,8 +57,10 @@ pub const AffineTransform1D = struct {
     pub fn applied_to_bounds(
         self: @This(),
         bnds: ContinuousInterval,
-    ) ContinuousInterval {
-        if (self.scale.lt(0)) {
+    ) ContinuousInterval
+    {
+        if (self.scale.lt(0))
+        {
             return .{
                 .start = self.applied_to_ordinate(bnds.end),
                 .end = self.applied_to_ordinate(bnds.start),
@@ -72,13 +74,16 @@ pub const AffineTransform1D = struct {
     pub fn applied_to_transform(
         self: @This(),
         rhs: AffineTransform1D,
-    ) AffineTransform1D 
+    ) AffineTransform1D
     {
         return .{
             .offset = self.applied_to_ordinate(rhs.offset),
             .scale = comath_wrapper.eval(
                 "rhs_scale * self_scale",
-                .{ .rhs_scale = rhs.scale , .self_scale = self.scale,},
+                .{
+                    .rhs_scale = rhs.scale,
+                    .self_scale = self.scale,
+                },
             ),
         };
     }
@@ -121,7 +126,8 @@ pub const AffineTransform1D = struct {
                 "(-offset)/scale",
                 .{ .offset = self.offset, .scale = self.scale },
             ),
-            .scale = comath_wrapper.eval("one/scale",
+            .scale = comath_wrapper.eval(
+                "one/scale",
                 .{ .one = ordinate.Ordinate.one, .scale = self.scale },
             ),
         };
@@ -131,47 +137,42 @@ pub const AffineTransform1D = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
         try writer.print(
             "Aff1D{{ offset: {d} scale: {d} }}",
             .{
                 self.offset,
                 self.scale,
-            }
+            },
         );
     }
 };
 
-test "AffineTransform1D: offset test" 
+test "AffineTransform1D: offset test"
 {
     const cti = ContinuousInterval.init(
-        .{ .start = 10, .end = 20, }
+        .{
+            .start = 10,
+            .end = 20,
+        },
     );
 
-    const xform = AffineTransform1D {
+    const xform = AffineTransform1D{
         .offset = ordinate.Ordinate.init(10),
         .scale = ordinate.Ordinate.init(1),
     };
 
     const result: ContinuousInterval = xform.applied_to_interval(cti);
-    
-    try std.testing.expectEqual(
-        ContinuousInterval.init(
-            .{ .start = 20, .end = 30 }
-        ),
-        result
-    );
 
     try std.testing.expectEqual(
-        ordinate.Ordinate.init(10),
-        result.duration()
+        ContinuousInterval.init(.{ .start = 20, .end = 30 }),
+        result,
     );
 
-    try std.testing.expectEqual(
-        cti.duration(),
-        result.duration()
-    );
+    try std.testing.expectEqual(ordinate.Ordinate.init(10), result.duration());
+
+    try std.testing.expectEqual(cti.duration(), result.duration());
 
     const result_xform = xform.applied_to_transform(xform);
 
@@ -180,17 +181,20 @@ test "AffineTransform1D: offset test"
         AffineTransform1D{
             .offset = ordinate.Ordinate.init(20),
             .scale = ordinate.Ordinate.init(1),
-        }
+        },
     );
 }
 
-test "AffineTransform1D: scale test" 
+test "AffineTransform1D: scale test"
 {
     const cti = ContinuousInterval.init(
-        .{ .start = 10, .end = 20, }
+        .{
+            .start = 10,
+            .end = 20,
+        },
     );
 
-    const xform = AffineTransform1D {
+    const xform = AffineTransform1D{
         .offset = ordinate.Ordinate.init(10),
         .scale = ordinate.Ordinate.init(2),
     };
@@ -199,9 +203,12 @@ test "AffineTransform1D: scale test"
 
     try std.testing.expectEqual(
         ContinuousInterval.init(
-            .{ .start = 30, .end = 50, }
+            .{
+                .start = 30,
+                .end = 50,
+            },
         ),
-        result
+        result,
     );
 
     try std.testing.expectEqual(
@@ -212,7 +219,7 @@ test "AffineTransform1D: scale test"
     const result_xform = xform.applied_to_transform(xform);
 
     try std.testing.expectEqual(
-        AffineTransform1D {
+        AffineTransform1D{
             .offset = ordinate.Ordinate.init(30),
             .scale = ordinate.Ordinate.init(4),
         },
@@ -220,9 +227,9 @@ test "AffineTransform1D: scale test"
     );
 }
 
-test "AffineTransform1D: invert test" 
+test "AffineTransform1D: invert test"
 {
-    const xform = AffineTransform1D {
+    const xform = AffineTransform1D{
         .offset = ordinate.Ordinate.init(10),
         .scale = ordinate.Ordinate.init(2),
     };
@@ -233,25 +240,23 @@ test "AffineTransform1D: invert test"
 
     try std.testing.expect(inverted.scale.eql(0) != true);
 
-    const identity = xform.applied_to_transform(
-        xform.inverted()
-    );
+    const identity = xform.applied_to_transform(xform.inverted());
 
     try std.testing.expectEqual(ordinate.Ordinate.zero, identity.offset);
     try std.testing.expectEqual(ordinate.Ordinate.one, identity.scale);
 
-    const pt=ordinate.Ordinate.init(10);
+    const pt = ordinate.Ordinate.init(10);
 
     const result = xform.inverted().applied_to_ordinate(
-        xform.applied_to_ordinate(pt)
+        xform.applied_to_ordinate(pt),
     );
 
     try std.testing.expectEqual(pt, result);
 }
 
-test "AffineTransform1D: applied_to_bounds" 
+test "AffineTransform1D: applied_to_bounds"
 {
-    const xform = AffineTransform1D {
+    const xform = AffineTransform1D{
         .offset = ordinate.Ordinate.init(10),
         .scale = ordinate.Ordinate.init(-1),
     };

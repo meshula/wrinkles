@@ -88,12 +88,14 @@ test "json_metadata: clone is independent of the source and deinit frees it"
     const allocator = std.testing.allocator;
 
     var arena = std.heap.ArenaAllocator.init(allocator);
-    const parsed = try std.json.parseFromSliceLeaky(
-        std.json.Value,
-        arena.allocator(),
-        \\{"scene": "001", "takes": [1, 2.5, null, true], "nested": {"a": "b"}}
-        ,
-        .{},
+    const parsed = (
+        try std.json.parseFromSliceLeaky(
+            std.json.Value,
+            arena.allocator(),
+            \\{"scene": "001", "takes": [1, 2.5, null, true], "nested": {"a": "b"}}
+            ,
+            .{},
+        )
     );
 
     const copy = try clone(allocator, parsed);

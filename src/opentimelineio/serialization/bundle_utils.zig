@@ -120,7 +120,10 @@ pub fn get_basename(
     while (i > 0)
         : (i -= 1)
     {
-        if (path[i] == '/' or path[i] == '\\')
+        if (
+            path[i] == '/'
+            or path[i] == '\\'
+        )
         {
             return path[i + 1..];
         }
@@ -212,8 +215,9 @@ test "tlz_bundle_utils: guarantee_unique_basenames failure"
 {
     const paths = [_][]const u8{
         "path/to/file.txt",
-        "other/path/file.txt",  // Duplicate basename!
+        "other/path/file.txt",
     };
+    // Duplicate basename!
 
     const result = guarantee_unique_basenames(&paths);
     try std.testing.expectError(error.DuplicateBasename, result);

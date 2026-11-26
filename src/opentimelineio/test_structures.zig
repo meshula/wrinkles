@@ -1,4 +1,3 @@
-
 const opentime = @import("opentime");
 
 // TEST STRUCTS
@@ -21,16 +20,16 @@ pub const T_O_4 = opentime.Ordinate.init(4);
 pub const T_O_6 = opentime.Ordinate.init(6);
 
 pub const T_ORD_ARR_0_8_16_21 = [_]opentime.Ordinate{
-            .zero,
-            opentime.Ordinate.init(8),
-            opentime.Ordinate.init(16),
-            opentime.Ordinate.init(21),
+    .zero,
+    opentime.Ordinate.init(8),
+    opentime.Ordinate.init(16),
+    opentime.Ordinate.init(21),
 };
 pub const T_ORD_ARR_0_8_13_21 = [_]opentime.Ordinate{
-            .zero,
-            opentime.Ordinate.init(8),
-            opentime.Ordinate.init(13),
-            opentime.Ordinate.init(21),
+    .zero,
+    opentime.Ordinate.init(8),
+    opentime.Ordinate.init(13),
+    opentime.Ordinate.init(21),
 };
 
 pub const T_O_8 = opentime.Ordinate.init(8);
@@ -41,4 +40,3 @@ pub const T_INTERVAL_ARR_0_8_12_20 = [_]opentime.ContinuousInterval{
     .{ .start = T_O_8, .end = T_O_12 },
     .{ .start = T_O_12, .end = T_O_20 },
 };
-

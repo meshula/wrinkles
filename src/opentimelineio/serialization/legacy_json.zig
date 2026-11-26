@@ -41,7 +41,7 @@ const TransformTypes = enum {
 };
 
 fn maybe_object(
-    maybe_obj: ?std.json.Value
+    maybe_obj: ?std.json.Value,
 ) ?std.json.ObjectMap
 {
     if (maybe_obj)
@@ -63,10 +63,11 @@ fn maybe_string(
 ) !?[]const u8
 {
     return (
-        if (_read_maybe([]const u8, obj, key)) 
-            |s| 
+        if (_read_maybe([]const u8, obj, key))
+            |s|
             try allocator.dupe(u8, s)
-        else null
+        else
+            null
     );
 }
 
@@ -76,10 +77,11 @@ fn maybe_object_child(
 ) ?std.json.ObjectMap
 {
     return (
-        if (maybe_object(object)) 
-            |obj| 
-        maybe_object(obj.get(key)) orelse null
-        else null
+        if (maybe_object(object))
+            |obj|
+            maybe_object(obj.get(key)) orelse null
+        else
+            null
     );
 }
 
@@ -89,16 +91,17 @@ fn maybe_range(
 ) ?opentime.ContinuousInterval
 {
     return (
-        if (maybe_object(object.get(key))) 
-            |range_container| 
-        _read_range(range_container) 
-        else null
+        if (maybe_object(object.get(key)))
+            |range_container|
+            _read_range(range_container)
+        else
+            null
     );
 }
 
 fn read_transform(
     allocator: std.mem.Allocator,
-    obj:std.json.ObjectMap,
+    obj: std.json.ObjectMap,
 ) !topology.Topology
 {
     const schema = try read_schema(
@@ -108,25 +111,27 @@ fn read_transform(
 
     switch (schema) {
         .AffineTransform1D => {
-            const transform:opentime.AffineTransform1D = (
-                if (obj.get("input_to_output_xform")) 
-                    |xform_json| 
-                .{
-                    .offset = (
-                        if (maybe_object_child(xform_json, "offset")) 
-                            |offset_json| 
-                        read_ordinate_from_rt(offset_json) orelse .zero
-                        else .zero
-                    ),
-                    .scale = (
-                        if (maybe_object_child(xform_json, "scale")) 
-                            |scale_json| 
-                        read_ordinate_from_rt(scale_json) 
-                        orelse .one
-                        else .one
-                    ),
-                } 
-                else .identity
+            const transform: opentime.AffineTransform1D = (
+                if (obj.get("input_to_output_xform"))
+                    |xform_json|
+                    .{
+                        .offset = (
+                            if (maybe_object_child(xform_json, "offset"))
+                                |offset_json|
+                                read_ordinate_from_rt(offset_json) orelse .zero
+                            else
+                                .zero
+                        ),
+                        .scale = (
+                            if (maybe_object_child(xform_json, "scale"))
+                                |scale_json|
+                                read_ordinate_from_rt(scale_json) orelse .one
+                            else
+                                .one
+                        ),
+                    }
+                else
+                    .identity
             );
 
             const range: opentime.ContinuousInterval = (
@@ -248,7 +253,7 @@ fn read_transform(
                             .p1 = buffer.items[1],
                             .p2 = buffer.items[2],
                             .p3 = buffer.items[3],
-                        }
+                        },
                     },
                 },
             );
@@ -264,8 +269,11 @@ fn read_schema(
 ) !EnumType
 {
     const full_string = (
-        if (obj.get("OTIO_SCHEMA")) |val| val.string
-        else return error.NotAnOtioSchemaObject
+        if (obj.get("OTIO_SCHEMA"))
+            |val|
+            val.string
+        else
+            return error.NotAnOtioSchemaObject
     );
 
     var split_schema_string = std.mem.splitSequence(
@@ -275,20 +283,26 @@ fn read_schema(
     );
 
     const schema_str = (
-        if (split_schema_string.next()) |str| str 
-        else return error.MalformedSchemaString
+        if (split_schema_string.next())
+            |str|
+            str
+        else
+            return error.MalformedSchemaString
     );
 
     errdefer std.log.err("No schema: {s}\n", .{schema_str});
     return (
-        if (std.meta.stringToEnum(EnumType, schema_str)) |schema| schema
-        else error.NoSuchSchema
+        if (std.meta.stringToEnum(EnumType, schema_str))
+            |schema|
+            schema
+        else
+            error.NoSuchSchema
     );
 }
 
 fn read_float(
-    obj:std.json.Value
-) opentime.Ordinate.InnerType 
+    obj: std.json.Value,
+) opentime.Ordinate.InnerType
 {
     return switch (obj) {
         .integer => |i| @floatFromInt(i),
@@ -298,8 +312,8 @@ fn read_float(
 }
 
 fn read_ordinate(
-    obj:std.json.Value
-) opentime.Ordinate 
+    obj: std.json.Value,
+) opentime.Ordinate
 {
     return switch (obj) {
         inline .integer, .float => |v| opentime.Ordinate.init(v),
@@ -308,18 +322,18 @@ fn read_ordinate(
 }
 
 fn read_ordinate_from_rt(
-    obj:?std.json.ObjectMap
-) ?opentime.Ordinate 
+    obj: ?std.json.ObjectMap,
+) ?opentime.Ordinate
 {
-    if (obj) 
-        |o| 
+    if (obj)
+        |o|
     {
         const value = read_float(o.get("value").?);
         const rate = read_float(o.get("rate").?);
 
         return opentime.Ordinate.init(value / rate);
-    } 
-    else 
+    }
+    else
     {
         return null;
     }
@@ -329,53 +343,54 @@ fn read_ordinate_from_rt(
 /// OTIO writes rates as JSON floats (`24.0`) as often as integers (`24`);
 /// both are accepted when the value is a positive whole number.
 fn read_rate(
-    maybe_obj:?std.json.ObjectMap
+    maybe_obj: ?std.json.ObjectMap,
 ) ?u32
 {
     const obj = maybe_obj orelse return null;
     const value = obj.get("rate") orelse return null;
     const max_rate: f64 = @floatFromInt(std.math.maxInt(u32));
     return switch (value) {
-        .integer => |i| (
-            if (i > 0 and i <= std.math.maxInt(u32)) @as(u32, @intCast(i))
-            else null
-        ),
-        .float => |f| (
-            if (f > 0 and f <= max_rate and @floor(f) == f)
-                @as(u32, @intFromFloat(f))
-            else
-                null
-        ),
+        .integer => |i|
+            (
+                if (i > 0
+                and i <= std.math.maxInt(u32)) @as(u32, @intCast(i))
+                else null
+            ),
+        .float => |f|
+            (
+                if (f > 0
+                and f <= max_rate
+                and @floor(f) == f) @as(u32, @intFromFloat(f))
+                else null
+            ),
         else => null,
     };
 }
 
 fn read_time_range(
-    maybe_obj:?std.json.ObjectMap
-) ?interval.ContinuousInterval 
+    maybe_obj: ?std.json.ObjectMap,
+) ?interval.ContinuousInterval
 {
-    if (maybe_obj) 
-        |o| 
+    if (maybe_obj)
+        |o|
     {
         const start_time = (
             read_ordinate_from_rt(o.get("start_time").?.object).?
         );
-        const duration = (
-            read_ordinate_from_rt(o.get("duration").?.object).?
-        );
-        return .{ 
-            .start = start_time, 
+        const duration = (read_ordinate_from_rt(o.get("duration").?.object).?);
+        return .{
+            .start = start_time,
             .end = start_time.add(duration),
         };
-    } 
-    else 
+    }
+    else
     {
         return null;
     }
 }
 
 fn _read_range(
-    maybe_obj: ?std.json.ObjectMap
+    maybe_obj: ?std.json.ObjectMap,
 ) ?interval.ContinuousInterval
 {
     if (maybe_obj == null)
@@ -386,8 +401,8 @@ fn _read_range(
     const obj = maybe_obj.?;
 
     // prefer source range
-    if (obj.get("source_range")) 
-        |sr| 
+    if (obj.get("source_range"))
+        |sr|
     {
         switch (sr) {
             .object => |o| return read_time_range(o),
@@ -400,16 +415,16 @@ fn _read_range(
         |mr|
     {
         switch (mr) {
-            .object => |mr_o| 
-                if (mr_o.get("available_range")) 
-                    |ar| 
-                {
-                    switch (ar) {
-                        .object => |o| return read_time_range(o),
-                        else => return null,
-                    }
-                },
-                else => return null,
+            .object => |mr_o|
+                if (mr_o.get("available_range"))
+                    |ar|
+                    {
+                        switch (ar) {
+                            .object => |o| return read_time_range(o),
+                            else => return null,
+                        }
+                    },
+            else => return null,
         }
     }
 
@@ -417,7 +432,7 @@ fn _read_range(
 }
 
 fn _read_rate(
-    maybe_obj: ?std.json.ObjectMap
+    maybe_obj: ?std.json.ObjectMap,
 ) ?u32
 {
     if (maybe_obj == null)
@@ -427,15 +442,15 @@ fn _read_rate(
 
     const obj = maybe_obj.?;
 
-    if (obj.get("source_range")) 
-        |sr| 
+    if (obj.get("source_range"))
+        |sr|
     {
         switch (sr) {
             .object => |o| {
-                if (o.get("start_time")) 
-                    |st| 
+                if (o.get("start_time"))
+                    |st|
                 {
-                    switch (st){
+                    switch (st) {
                         .object => |sto| return read_rate(sto),
                         else => {},
                     }
@@ -443,21 +458,21 @@ fn _read_rate(
             },
             else => {},
         }
-    } 
-    else if (obj.get("media_reference")) 
-        |mrv| 
+    }
+    else if (obj.get("media_reference"))
+        |mrv|
     {
         switch (mrv) {
             .object => |mr| {
-                if (mr.get("available_range")) 
-                    |ar| 
+                if (mr.get("available_range"))
+                    |ar|
                 {
                     switch (ar) {
                         .object => |o| {
-                            if (o.get("start_time")) 
-                                |st| 
+                            if (o.get("start_time"))
+                                |st|
                             {
-                                switch (st){
+                                switch (st) {
                                     .object => |sto| return read_rate(sto),
                                     else => {},
                                 }
@@ -467,7 +482,7 @@ fn _read_rate(
                     }
                 }
             },
-            else =>{},
+            else => {},
         }
     }
 
@@ -522,17 +537,17 @@ inline fn read_children(
             allocator,
             track.object,
             content_filter,
-        ) catch |err|
-        {
+        )
+        catch |err| {
             switch (err) {
                 error.NoSuchSchema => {
                     std.log.err(
                         "Skipping: {s}\n",
                         .{
                             (
-                             track.object.get("OTIO_SCHEMA")
-                             orelse std.json.Value{.string = ""}
-                            ).string
+                                track.object.get("OTIO_SCHEMA")
+                                orelse std.json.Value{ .string = "" }
+                            ).string,
                         },
                     );
                     continue;
@@ -575,11 +590,11 @@ fn _read_maybe(
     };
 
     return (
-        if (obj.get(key)) 
-            |val| 
+        if (obj.get(key))
+            |val|
             switch (val) {
-                type_key => |typed_val| return 
-                    switch (type_key) {
+                type_key => |typed_val|
+                    return switch (type_key) {
                         .integer => @intCast(typed_val),
                         .float => @floatCast(typed_val),
                         .string => typed_val,
@@ -588,7 +603,8 @@ fn _read_maybe(
                     },
                 else => return null,
             }
-        else null
+        else
+            null
     );
 }
 
@@ -603,7 +619,7 @@ fn read_media_reference(
             []const u8,
             media_ref_obj,
             "OTIO_SCHEMA",
-        ) 
+        )
         orelse return .null_picture
     );
 
@@ -614,7 +630,7 @@ fn read_media_reference(
             schema,
             "ImageSequenceReference",
         )
-    ) 
+    )
     {
         const target_url_base = try allocator.dupe(
             u8,
@@ -651,8 +667,8 @@ fn read_media_reference(
         ) orelse 1;
 
         const frame_step = _read_maybe(
-            i32, 
-            media_ref_obj, 
+            i32,
+            media_ref_obj,
             "frame_step",
         ) orelse 1;
         if (frame_step != 1)
@@ -680,8 +696,7 @@ fn read_media_reference(
             "missing_frame_policy",
         ) orelse "error";
 
-        const missing_frame_policy: 
-            otio.schema.ImageSequenceReference.MissingFramePolicy = (
+        const missing_frame_policy: otio.schema.ImageSequenceReference.MissingFramePolicy = (
             .from_maybe_string(
                 missing_frame_policy_str,
             )
@@ -716,28 +731,28 @@ fn read_media_reference(
     }
 
     // Parse ExternalReference (URI)
-    if (std.mem.startsWith(u8, schema, "ExternalReference")) 
+    if (std.mem.startsWith(u8, schema, "ExternalReference"))
     {
         const target_url = try allocator.dupe(
             u8,
             _read_maybe(
-                []const u8, 
-                media_ref_obj, 
+                []const u8,
+                media_ref_obj,
                 "target_url",
             ) orelse "",
         );
 
         const maybe_bounds = _read_maybe(
-            opentime.ContinuousInterval, 
+            opentime.ContinuousInterval,
             media_ref_obj,
             "available_range",
         );
-        
+
         return .{
-            .data_reference = .{ 
-                .uri = .{ 
-                    .target_uri = target_url, 
-                }, 
+            .data_reference = .{
+                .uri = .{
+                    .target_uri = target_url,
+                },
             },
             .maybe_bounds_s = maybe_bounds,
             .domain = .picture,
@@ -771,7 +786,7 @@ fn read_markers(
 
         // Read marker name
         const marker_name = (
-            try maybe_string(allocator, marker_obj, "name") 
+            try maybe_string(allocator, marker_obj, "name")
             orelse ""
         );
 
@@ -779,18 +794,21 @@ fn read_markers(
         const marked_range = (
             if (marker_obj.get("marked_range"))
                 |range_val|
-            switch (range_val) {
-                .object => |range_obj| (
-                    read_time_range(range_obj)
-                    orelse opentime.ContinuousInterval.init(
-                        .{ .start = 0, .end = 0 },
-                    )
-                ),
-                else => opentime.ContinuousInterval.init(
-                    .{ .start = 0, .end = 0 },
-                ),
-            }
-            else opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 })
+                switch (range_val) {
+                    .object => |range_obj|
+                        (
+                            read_time_range(range_obj)
+                            orelse opentime.ContinuousInterval.init(
+                                .{ .start = 0, .end = 0 },
+                            )
+                        ),
+                    else =>
+                        opentime.ContinuousInterval.init(
+                            .{ .start = 0, .end = 0 },
+                        ),
+                }
+            else
+                opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 })
         );
 
         // Read color
@@ -845,17 +863,14 @@ fn read_otio_object(
     LengthMismatch,
     DuplicateField,
     OnlyFrameStepOfOneIsSupportedForImageSequences,
-} !otio.CompositionItemHandle
+}!otio.CompositionItemHandle
 {
     const schema_enum = try read_schema(
         SerializableObjectTypes,
         obj,
     );
 
-    const name = (
-        try maybe_string(allocator, obj, "name") 
-        orelse ""
-    );
+    const name = (try maybe_string(allocator, obj, "name") orelse "");
 
     switch (schema_enum) {
         .Timeline => {
@@ -883,7 +898,7 @@ fn read_otio_object(
                 if (maybe_object(json_ddp.get("presentation")))
                     |json_ddp_pres|
                 {
-                    inline for (&[_][]const u8{"picture", "audio"})
+                    inline for (&[_][]const u8{ "picture", "audio" })
                         |field|
                     {
                         if (json_ddp_pres.get(field))
@@ -897,7 +912,7 @@ fn read_otio_object(
                             var json_blob = (
                                 try std.json.parseFromValue(
                                     sampling.SampleIndexGenerator,
-                                    allocator, 
+                                    allocator,
                                     json_domain,
                                     .{
                                         .allocate = .alloc_if_needed,
@@ -924,14 +939,16 @@ fn read_otio_object(
             const markers = (
                 if (obj.get("markers"))
                     |markers_val|
-                switch (markers_val) {
-                    .array => |arr| try read_markers(
-                        allocator,
-                        arr,
-                    ),
-                    else => try allocator.alloc(otio.Marker, 0),
-                }
-                else try allocator.alloc(otio.Marker, 0)
+                    switch (markers_val) {
+                        .array => |arr|
+                            try read_markers(
+                                allocator,
+                                arr,
+                            ),
+                        else => try allocator.alloc(otio.Marker, 0),
+                    }
+                else
+                    try allocator.alloc(otio.Marker, 0)
             );
 
             tl.* = .{
@@ -950,14 +967,16 @@ fn read_otio_object(
             const markers = (
                 if (obj.get("markers"))
                     |markers_val|
-                switch (markers_val) {
-                    .array => |arr| try read_markers(
-                        allocator,
-                        arr,
-                    ),
-                    else => try allocator.alloc(otio.Marker, 0),
-                }
-                else try allocator.alloc(otio.Marker, 0)
+                    switch (markers_val) {
+                        .array => |arr|
+                            try read_markers(
+                                allocator,
+                                arr,
+                            ),
+                        else => try allocator.alloc(otio.Marker, 0),
+                    }
+                else
+                    try allocator.alloc(otio.Marker, 0)
             );
 
             var st = try allocator.create(otio.Stack);
@@ -984,14 +1003,16 @@ fn read_otio_object(
             const markers = (
                 if (obj.get("markers"))
                     |markers_val|
-                switch (markers_val) {
-                    .array => |arr| try read_markers(
-                        allocator,
-                        arr,
-                    ),
-                    else => try allocator.alloc(otio.Marker, 0),
-                }
-                else try allocator.alloc(otio.Marker, 0)
+                    switch (markers_val) {
+                        .array => |arr|
+                            try read_markers(
+                                allocator,
+                                arr,
+                            ),
+                        else => try allocator.alloc(otio.Marker, 0),
+                    }
+                else
+                    try allocator.alloc(otio.Marker, 0)
             );
 
             var tr = try allocator.create(otio.Track);
@@ -1025,58 +1046,66 @@ fn read_otio_object(
             // Read metadata if present (store raw JSON value)
             // Skip if options specify all_except_metadata
             const maybe_metadata: ?std.json.Value = (
-                if (content_filter == .all_except_metadata)
-                    null
+                if (content_filter == .all_except_metadata) null
                 else if (obj.get("metadata"))
                     |meta_val|
-                blk: {
-                    // Only store non-empty metadata objects
-                    if (
-                        std.meta.activeTag(meta_val) == .object 
-                        and meta_val.object.count() > 0
-                    ) 
-                    {
-                        // meta_val lives in the JSON parse arena; the clip
-                        // must own its copy.
-                        break :blk try json_metadata.clone(allocator, meta_val);
+                    blk: {
+                        // Only store non-empty metadata objects
+                        if (
+                            std.meta.activeTag(meta_val) == .object
+                            and meta_val.object.count() > 0
+                        )
+                        {
+                            // meta_val lives in the JSON parse arena; the
+                            // clip
+                            // must own its copy.
+                            break :blk try json_metadata.clone(
+                                allocator,
+                                meta_val,
+                            );
+                        }
+                        break :blk null;
                     }
-                    break :blk null;
-                }
-                else null
+                else
+                    null
             );
 
             // Read markers if present
             const markers = (
                 if (obj.get("markers"))
                     |markers_val|
-                switch (markers_val) {
-                    .array => |arr| try read_markers(
-                        allocator,
-                        arr,
-                    ),
-                    else => try allocator.alloc(otio.Marker, 0),
-                }
-                else try allocator.alloc(otio.Marker, 0)
+                    switch (markers_val) {
+                        .array => |arr|
+                            try read_markers(
+                                allocator,
+                                arr,
+                            ),
+                        else => try allocator.alloc(otio.Marker, 0),
+                    }
+                else
+                    try allocator.alloc(otio.Marker, 0)
             );
 
             // Read media reference if present
             const media_ref = (
                 if (obj.get("media_reference"))
                     |mr_val|
-                switch (mr_val) {
-                    .object => |mr_obj| try read_media_reference(
-                        allocator,
-                        mr_obj,
-                    ),
-                    else => otio.schema.MediaReference.null_picture,
-                }
-                else otio.schema.MediaReference.null_picture
+                    switch (mr_val) {
+                        .object => |mr_obj|
+                            try read_media_reference(
+                                allocator,
+                                mr_obj,
+                            ),
+                        else => otio.schema.MediaReference.null_picture,
+                    }
+                else
+                    otio.schema.MediaReference.null_picture
             );
 
             var cl = try allocator.create(otio.Clip);
             cl.* = .{
                 .name = name,
-                .maybe_bounds_s  = range,
+                .maybe_bounds_s = range,
                 .media = media_ref,
                 .maybe_metadata_json = maybe_metadata,
                 .markers = markers,
@@ -1104,14 +1133,16 @@ fn read_otio_object(
             const markers = (
                 if (obj.get("markers"))
                     |markers_val|
-                switch (markers_val) {
-                    .array => |arr| try read_markers(
-                        allocator,
-                        arr,
-                    ),
-                    else => try allocator.alloc(otio.Marker, 0),
-                }
-                else try allocator.alloc(otio.Marker, 0)
+                    switch (markers_val) {
+                        .array => |arr|
+                            try read_markers(
+                                allocator,
+                                arr,
+                            ),
+                        else => try allocator.alloc(otio.Marker, 0),
+                    }
+                else
+                    try allocator.alloc(otio.Marker, 0)
             );
 
             const gp = try allocator.create(otio.Gap);
@@ -1149,34 +1180,36 @@ fn read_otio_object(
             const container = (
                 if (obj.get("container"))
                     |container_value|
-                blk: {
-                    const container_json = try read_otio_object(
-                        allocator,
-                        container_value.object,
-                        content_filter,
-                    );
-                    const result = otio.Stack {
-                        .name = container_json.stack.name,
-                        .children = container_json.stack.children,
-                    };
-                    allocator.destroy(container_json.stack);
-                    break :blk result;
-                }
-                else otio.Stack {
-                    .name = "",
-                    .children = &.{},
-                }
+                    blk: {
+                        const container_json = try read_otio_object(
+                            allocator,
+                            container_value.object,
+                            content_filter,
+                        );
+                        const result = otio.Stack{
+                            .name = container_json.stack.name,
+                            .children = container_json.stack.children,
+                        };
+                        allocator.destroy(container_json.stack);
+                        break :blk result;
+                    }
+                else
+                    otio.Stack{
+                        .name = "",
+                        .children = &.{},
+                    }
             );
 
             // Handle missing kind field (use transition_type or default)
             const kind = (
                 if (try maybe_string(allocator, obj, "kind"))
                     |k|
-                k
+                    k
                 else if (try maybe_string(allocator, obj, "transition_type"))
                     |tt|
-                tt
-                else try allocator.dupe(u8, "SMPTE_Dissolve")
+                    tt
+                else
+                    try allocator.dupe(u8, "SMPTE_Dissolve")
             );
 
             tx.* = .{
@@ -1207,7 +1240,7 @@ pub fn read_from_file(
     var file_reader = fi.reader(io, &.{});
     const source = try file_reader.interface.allocRemaining(
         in_allocator,
-        .limited(1024*1024),
+        .limited(1024 * 1024),
     );
     defer in_allocator.free(source);
 
@@ -1259,10 +1292,10 @@ test "read_from_file test (simple)"
     var tl_ref = try read_from_file(
         std.testing.allocator,
         io,
-        "sample_otio_files/"++otio_fpath,
+        "sample_otio_files/" ++ otio_fpath,
         .all,
     );
-    defer  tl_ref.deinit(allocator); 
+    defer tl_ref.deinit(allocator);
 
     const track0 = tl_ref.timeline.tracks.children[0].track;
 
@@ -1296,7 +1329,7 @@ test "read_from_file test (simple)"
             target_clip_ptr.space_node(.media),
         )
     );
-    
+
     try tl_pres_projection_builder.tree.write_dot_graph(
         allocator,
         io,
@@ -1313,7 +1346,7 @@ test "read_from_file test (simple)"
     );
 }
 
-test "read_from_file test (multiple, smoke)" 
+test "read_from_file test (multiple, smoke)"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -1324,10 +1357,10 @@ test "read_from_file test (multiple, smoke)"
     var tl = try read_from_file(
         std.testing.allocator,
         io,
-        "sample_otio_files/"++otio_fpath,
+        "sample_otio_files/" ++ otio_fpath,
         .all,
     );
-    defer  tl.deinit(allocator);
+    defer tl.deinit(allocator);
 }
 
 test "read_from_file with all_except_metadata on OTIO JSON file"
@@ -1407,7 +1440,10 @@ fn wrap_in_timeline(
         .children = track_children,
     };
 
-    const timeline_children = try allocator.alloc(serializable.SerializableComposable, 1);
+    const timeline_children = try allocator.alloc(
+        serializable.SerializableComposable,
+        1,
+    );
     timeline_children[0] = .{ .track = ser_track };
 
     return serializable.SerializableTimeline{
@@ -1421,10 +1457,13 @@ fn wrap_in_timeline(
     };
 }
 
-/// Convert OTIO JSON to serializable.SerializableTimeline, preserving metadata.
+/// Convert OTIO JSON to serializable.SerializableTimeline, preserving
+/// metadata.
 ///
-/// This function converts OTIO JSON to serializable.SerializableTimeline without going through
-/// the runtime Schema, which would lose metadata. Use this for file conversion
+/// This function converts OTIO JSON to serializable.SerializableTimeline
+/// without going through
+/// the runtime Schema, which would lose metadata. Use this for file
+/// conversion
 /// tools that need to preserve metadata (e.g., otiocat).
 ///
 /// Non-Timeline root objects (Clip, Track, Warp, etc.) are automatically
@@ -1432,7 +1471,7 @@ fn wrap_in_timeline(
 fn otio_json_to_serializable_timeline(
     allocator: std.mem.Allocator,
     json_source: []const u8,
-) !serializable.SerializableTimeline 
+) !serializable.SerializableTimeline
 {
     // Parse OTIO JSON to runtime Schema (clips contain metadata)
     var composition_handle = try read_from_string(
@@ -1450,67 +1489,116 @@ fn otio_json_to_serializable_timeline(
     };
 
     // Convert to serializable.SerializableTimeline based on root object type
-    const intermediate_tl: serializable.SerializableTimeline = switch (composition_handle) {
-        .timeline => |tl| try serializable.SerializableTimeline.from(
-            allocator,
-            tl,
-        ),
+    const intermediate_tl: serializable.SerializableTimeline = switch (
+        composition_handle
+    )
+    {
+        .timeline => |tl|
+            try serializable.SerializableTimeline.from(
+                allocator,
+                tl,
+            ),
 
-        .clip => |clip_ptr| try wrap_in_timeline(
-            allocator,
-            .{ .clip = try serializable.SerializableClip.from(allocator, clip_ptr.*, &meta_ctx) },
-            clip_ptr.name,
-            &metadata_map,
-        ),
+        .clip => |clip_ptr|
+            try wrap_in_timeline(
+                allocator,
+                .{
+                    .clip = try serializable.SerializableClip.from(
+                        allocator,
+                        clip_ptr.*,
+                        &meta_ctx,
+                    ),
+                },
+                clip_ptr.name,
+                &metadata_map,
+            ),
 
-        .gap => |gap_ptr| try wrap_in_timeline(
-            allocator,
-            .{ .gap = try serializable.SerializableGap.from(allocator, gap_ptr.*) },
-            gap_ptr.name,
-            &metadata_map,
-        ),
+        .gap => |gap_ptr|
+            try wrap_in_timeline(
+                allocator,
+                .{
+                    .gap = try serializable.SerializableGap.from(
+                        allocator,
+                        gap_ptr.*,
+                    ),
+                },
+                gap_ptr.name,
+                &metadata_map,
+            ),
 
         .track => |track_ptr| blk: {
             // Track goes directly into timeline children (no wrapper track)
-            const ser_track = try serializable.SerializableTrack.from(allocator, track_ptr.*, &meta_ctx);
-            const timeline_children = try allocator.alloc(serializable.SerializableComposable, 1);
+            const ser_track = try serializable.SerializableTrack.from(
+                allocator,
+                track_ptr.*,
+                &meta_ctx,
+            );
+            const timeline_children = try allocator.alloc(
+                serializable.SerializableComposable,
+                1,
+            );
             timeline_children[0] = .{ .track = ser_track };
 
             break :blk serializable.SerializableTimeline{
                 .name = try allocator.dupe(u8, track_ptr.name),
                 .children = timeline_children,
                 .presentation_space_discrete_partitions = .{},
-                .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+                .metadata_map = if (metadata_map.fields.count() > 0) (
+                    metadata_map
+                )
+                else null,
             };
         },
 
         .stack => |stack_ptr| blk: {
             // Stack children become timeline children directly
-            const ser_stack = try serializable.SerializableStack.from(allocator, stack_ptr.*, &meta_ctx);
+            const ser_stack = try serializable.SerializableStack.from(
+                allocator,
+                stack_ptr.*,
+                &meta_ctx,
+            );
 
             break :blk serializable.SerializableTimeline{
                 .name = try allocator.dupe(u8, stack_ptr.name),
                 .children = ser_stack.children,
                 .presentation_space_discrete_partitions = .{},
-                .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+                .metadata_map = if (metadata_map.fields.count() > 0) (
+                    metadata_map
+                )
+                else null,
             };
         },
 
-        .warp => |warp_ptr| try wrap_in_timeline(
-            allocator,
-            .{ .warp = try serializable.SerializableWarp.from(allocator, warp_ptr.*, &meta_ctx) },
-            warp_ptr.name,
-            &metadata_map,
-        ),
+        .warp => |warp_ptr|
+            try wrap_in_timeline(
+                allocator,
+                .{
+                    .warp = try serializable.SerializableWarp.from(
+                        allocator,
+                        warp_ptr.*,
+                        &meta_ctx,
+                    ),
+                },
+                warp_ptr.name,
+                &metadata_map,
+            ),
 
-        .transition => |trans_ptr| try wrap_in_timeline(
-            allocator,
-            .{ .transition = try serializable.SerializableTransition.from(allocator, trans_ptr.*, &meta_ctx) },
-            trans_ptr.name,
-            &metadata_map,
-        ),
+        .transition => |trans_ptr|
+            try wrap_in_timeline(
+                allocator,
+                .{
+                    .transition = try serializable.SerializableTransition.from(
+                        allocator,
+                        trans_ptr.*,
+                        &meta_ctx,
+                    ),
+                },
+                trans_ptr.name,
+                &metadata_map,
+            ),
 
-        // Collections cannot be converted to timeline - use serialize_collection instead
+        // Collections cannot be converted to timeline - use
+        // serialize_collection instead
         .collection => return error.UnsupportedRootObject,
     };
 
@@ -1535,7 +1623,10 @@ pub const TimelineCodec = struct {
         // OTIO JSON is schema version 0; the adapter upgrades it.
         return .{
             .schema_version = OTIO_JSON_VERSION,
-            .content = try otio_json_to_serializable_timeline(allocator, source),
+            .content = try otio_json_to_serializable_timeline(
+                allocator,
+                source,
+            ),
         };
     }
 };

@@ -29,7 +29,6 @@
 //!   "DiscreteParameterization"?  The sampling library calls this a
 //!   `SampleIndexGenerator`.  Maybe thats better?
 
-
 const std = @import("std");
 
 const opentime = @import("opentime");
@@ -50,7 +49,8 @@ pub const Marker = marker.Marker;
 pub const MarkerColor = marker.MarkerColor;
 
 /// Indicates whether samples should be interpolated when the parameter space
-/// (usually time) is warped.  Examples include audio (interpolated) vs picture
+/// (usually time) is warped.  Examples include audio (interpolated) vs
+/// picture
 /// (snapped, typically)
 pub const ResamplingBehavior = enum {
     interpolate,
@@ -63,7 +63,8 @@ pub const ResamplingBehavior = enum {
 /// tripping is preserved.  Users can also set this explicity.  The default
 /// value is "automatic", which picks based on a heuristic.
 pub const BoundsWritePolicy = enum {
-    /// Write bounds as discrete sample indices if a discrete partition exists,
+    /// Write bounds as discrete sample indices if a discrete partition
+    /// exists,
     /// otherwise write as continuous time values.
     automatic,
     /// Always write bounds as discrete sample indices.
@@ -76,7 +77,7 @@ pub const BoundsWritePolicy = enum {
 /// A reference described by a URI that is interpreted by clients in some way.
 pub const URIReference = struct {
     /// URI encoded in a string for locating the data for referenced media.
-    target_uri : string_stuff.latin_s8,
+    target_uri: string_stuff.latin_s8,
 };
 
 /// A procedurally described Signal.
@@ -139,20 +140,20 @@ pub const ImageSequenceReference = struct {
     /// Policy for handling missing frames in image sequences.
     pub const MissingFramePolicy = enum {
         // Raise error
-        @"error",  
-        hold,      // Hold last frame
-        black,     // Show black/transparent
-        
+        @"error",
+        hold, // Hold last frame
+        black, // Show black/transparent
+
         pub fn from_maybe_string(
             maybe_str: ?[]const u8,
         ) MissingFramePolicy
         {
             return (
-                if (maybe_str) |str| std.meta.stringToEnum(
-                    MissingFramePolicy,
-                    str
-                ) orelse .@"error"
-                else .@"error" 
+                if (maybe_str)
+                    |str|
+                    std.meta.stringToEnum(MissingFramePolicy, str) orelse .@"error"
+                else
+                    .@"error"
             );
         }
     };
@@ -240,11 +241,12 @@ pub const MediaReference = struct {
 
 /// Clip places a media reference in a track.
 ///
-/// Has a name and an  optional media space bound that can be imposed, intended
+/// Has a name and an  optional media space bound that can be imposed,
+/// intended
 /// to make it easier to swap out references.
 pub const Clip = struct {
     /// Name for labelling and human readability.
-    name:       string.latin_s8 = "",
+    name: string.latin_s8 = "",
 
     /// A trim on the media space, in the media coordinate system.
     maybe_bounds_s: ?opentime.ContinuousInterval = null,
@@ -279,18 +281,17 @@ pub const Clip = struct {
     pub fn bounds_of(
         self: @This(),
         target_space: references.TemporalSpace,
-    ) !opentime.ContinuousInterval 
+    ) !opentime.ContinuousInterval
     {
-        if (
-            self.maybe_bounds_s 
-            orelse self.media.maybe_bounds_s
-        ) |bounds|
+        if (self.maybe_bounds_s orelse self.media.maybe_bounds_s)
+            |bounds|
         {
             return switch (target_space) {
-                .presentation => .{
-                    .start = .zero,
-                    .end = bounds.duration(),
-                },
+                .presentation =>
+                    .{
+                        .start = .zero,
+                        .end = bounds.duration(),
+                    },
                 .media => bounds,
                 else => error.UnsupportedSpaceError,
             };
@@ -304,11 +305,10 @@ pub const Clip = struct {
     pub fn topology_pres_to_media(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !topology_m.Topology 
+    ) !topology_m.Topology
     {
         const media_bounds = (
-            self.maybe_bounds_s 
-            orelse self.media.maybe_bounds_s 
+            self.maybe_bounds_s orelse self.media.maybe_bounds_s
             orelse return error.NotImplementedFetchTopology
         );
 
@@ -322,14 +322,15 @@ pub const Clip = struct {
         const presentation_bounds = (
             opentime.ContinuousInterval{
                 .start = opentime.Ordinate.zero,
-                .end = media_bounds.duration()
+                .end = media_bounds.duration(),
+
             }
         );
 
         const presentation_to_media_topo = (
             try topology_m.Topology.init_affine(
                 allocator,
-                topology_m.MappingAffine {
+                topology_m.MappingAffine{
                     .input_to_output_xform = presentation_to_media_xform,
                     .input_bounds_val = presentation_bounds,
                 },
@@ -347,8 +348,8 @@ pub const Clip = struct {
     {
         allocator.free(self.name);
         self.media.deinit(allocator);
-        for (self.markers) 
-            |*m| 
+        for (self.markers)
+            |*m|
         {
             m.deinit(allocator);
         }
@@ -369,14 +370,14 @@ pub const Clip = struct {
     }
 };
 
-test "Clip: spaces list" 
+test "Clip: spaces list"
 {
     var cl: Clip = .null_picture;
 
     try std.testing.expectEqualSlices(
         references.TemporalSpace,
         &.{ .presentation, .media },
-        cl.handle().available_local_spaces()
+        cl.handle().available_local_spaces(),
     );
 }
 
@@ -387,8 +388,8 @@ test "Clip: presentation space/media space bounds"
     var cl: Clip = .{
         .media = .{
             .maybe_bounds_s = .init(
-                .{.start = 5, .end = 15},
-            ), 
+                .{ .start = 5, .end = 15 },
+            ),
             .data_reference = .null,
             .domain = .picture,
         },
@@ -400,8 +401,8 @@ test "Clip: presentation space/media space bounds"
     try std.testing.expectEqual(
         // should 0->duration
         opentime.ContinuousInterval{
-                .start = .zero,
-                .end = cl.media.maybe_bounds_s.?.duration(),
+            .start = .zero,
+            .end = cl.media.maybe_bounds_s.?.duration(),
         },
         cl_topo.input_bounds(),
     );
@@ -424,20 +425,20 @@ test "Clip: presentation space/media space bounds"
     );
 }
 
-
 /// A duration of the temporal space for which no media is mapped.  
 ///
 /// Silent, Transparent.  Regions of the timeline for which there are no media
 /// mapped, ie only gaps are undefined as far as pixels/audio is concerned.
 pub const Gap = struct {
     /// Name for labelling and human readability.
-    name:       string.latin_s8 = "",
+    name: string.latin_s8 = "",
 
     /// Define the bounds for gap.
     ///
     /// NOTES:
     ///
-    /// * Unlike the other schema objects, the bounds for a gap is required and
+    /// * Unlike the other schema objects, the bounds for a gap is required
+    /// and
     ///   not optional.
     /// * The bounds are present so that folks can "cut in" on the intrinsic
     ///   space without shifting markers
@@ -457,8 +458,8 @@ pub const Gap = struct {
     ) void
     {
         allocator.free(self.name);
-        for (self.markers) 
-            |*m| 
+        for (self.markers)
+            |*m|
         {
             @constCast(m).deinit(allocator);
         }
@@ -490,7 +491,7 @@ pub const Transition = struct {
     container: Stack,
 
     /// Name for labelling and human readability.
-    name:      string.latin_s8 = "",
+    name: string.latin_s8 = "",
 
     /// The "kind" of the transition to use.  IE "wipe" "dissolve" etc.
     kind: string.latin_s8,
@@ -500,7 +501,7 @@ pub const Transition = struct {
 
     /// The internal temporal coordinate systems Timelines.
     pub const available_local_spaces: []const references.TemporalSpace = (
-        &.{ .presentation }
+        &.{.presentation}
     );
 
     /// Build a handle to this Transition.
@@ -526,7 +527,7 @@ pub const Transition = struct {
                 .{
                     .input_bounds_val = explicit_bounds,
                     .input_to_output_xform = .identity,
-                }
+                },
             );
         }
         // Try to get topology from container
@@ -536,7 +537,7 @@ pub const Transition = struct {
 
         // If container topology is empty (no children and no bounds),
         // return a zero-duration identity topology
-        if (container_topo.input_bounds() == null) 
+        if (container_topo.input_bounds() == null)
         {
             return try topology_m.Topology.init_identity(
                 allocator,
@@ -566,7 +567,7 @@ pub const Transition = struct {
 /// the child space of the warp.
 pub const Warp = struct {
     /// Name for labelling and human readability.
-    name:       string.latin_s8 = "",
+    name: string.latin_s8 = "",
 
     /// The child object of the warp.  Effectively warping the presentation
     /// space of the child.
@@ -577,7 +578,7 @@ pub const Warp = struct {
 
     /// The internal temporal coordinate systems of the Warp.
     pub const available_local_spaces: []const references.TemporalSpace = (
-        &.{ .presentation }
+        &.{.presentation}
     );
 
     pub fn deinit(
@@ -630,7 +631,7 @@ pub const Warp = struct {
             .{
                 .a2b = self.transform,
                 .b2c = child_bounds_topo,
-            }
+            },
         );
         defer warped_to_child.deinit(allocator);
 
@@ -650,7 +651,7 @@ pub const Warp = struct {
                     .offset = warped_range.start,
                     .scale = .one,
                 },
-            }
+            },
         );
         defer presentation_to_warped.deinit(allocator);
 
@@ -667,9 +668,10 @@ pub const Warp = struct {
 /// a container in which each contained item is right-met over time
 pub const Track = struct {
     /// Name for labelling and human readability.
-    name:       string.latin_s8 = "",
+    name: string.latin_s8 = "",
 
-    /// Optional bounds in seconds. If present, overrides bounds computed from children.
+    /// Optional bounds in seconds. If present, overrides bounds computed from
+    /// children.
     maybe_bounds_s: ?opentime.ContinuousInterval = null,
 
     /// Child objects of the track, listed from first to last in temporal
@@ -743,13 +745,15 @@ pub const Track = struct {
                 |b|
             {
                 maybe_bounds = opentime.interval.extend(b, it_bound);
-            } else {
+            }
+            else
+            {
                 maybe_bounds = it_bound;
             }
         }
 
         // unpack the optional
-        const result_bound:opentime.ContinuousInterval = (
+        const result_bound: opentime.ContinuousInterval = (
             maybe_bounds
             orelse return .empty
         );
@@ -760,7 +764,8 @@ pub const Track = struct {
         );
     }
 
-    /// builds a transform from the previous child spce to the one passed in the
+    /// builds a transform from the previous child spce to the one passed in
+    /// the
     /// child_space_reference
     ///
     /// because graphs are constructed:
@@ -780,7 +785,7 @@ pub const Track = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         current_child_index: usize,
-    ) !topology_m.Topology 
+    ) !topology_m.Topology
     {
         // offset the next child by the duration of the previous child
         // presentation space (everything has a presentation space)
@@ -792,11 +797,10 @@ pub const Track = struct {
         );
 
         std.debug.assert(current_child_pres_range.is_infinite() == false);
-        const current_child_duration = (
-            current_child_pres_range.duration()
-        );
+        const current_child_duration = (current_child_pres_range.duration());
 
-        // the transform to the next child space, compensates for this duration
+        // the transform to the next child space, compensates for this
+        // duration
         return try topology_m.Topology.init_affine(
             allocator,
             .{
@@ -807,8 +811,9 @@ pub const Track = struct {
                 .input_to_output_xform = .{
                     .offset = current_child_duration.neg(),
                     .scale = .one,
-                }
-            }
+                },
+
+            },
         );
     }
 
@@ -824,7 +829,7 @@ pub const Track = struct {
 /// children of a stack are simultaneous in time
 pub const Stack = struct {
     /// Name for labelling and human readability.
-    name:       string.latin_s8 = "",
+    name: string.latin_s8 = "",
 
     /// Optional bounds in seconds. If present, overrides bounds computed from
     /// children.
@@ -885,7 +890,7 @@ pub const Stack = struct {
                 .{
                     .input_bounds_val = explicit_bounds,
                     .input_to_output_xform = .identity,
-                }
+                },
             );
         }
 
@@ -902,7 +907,9 @@ pub const Stack = struct {
                 |b|
             {
                 bounds = opentime.interval.extend(b, it_bound);
-            } else {
+            }
+            else
+            {
                 bounds = it_bound;
             }
         }
@@ -915,10 +922,13 @@ pub const Stack = struct {
                 .{
                     .input_bounds_val = b,
                     .input_to_output_xform = .identity,
-                }
+                },
             );
-        } else {
-            // No children and no explicit bounds - return zero-duration identity
+        }
+        else
+        {
+            // No children and no explicit bounds - return zero-duration
+            // identity
             // instead of empty topology to avoid InvalidChildTopology errors
             // when this stack is used as a child of another container
             return try topology_m.Topology.init_identity(
@@ -948,16 +958,18 @@ pub const DiscretePartitionDomainMap = struct {
     /// Discrete Partition for the "audio" domain.
     audio: ?sampling.SampleIndexGenerator,
 
+    // other: ?std.StringHashMapUnmanaged(sampling.SampleIndexGenerator) =
+    // null,
+
     /// Non-picture/audio domain discretizations can be stored here, ie:
     ///   "Gyroscope"
     ///   "Fireworks"
-    // other: ?std.StringHashMapUnmanaged(sampling.SampleIndexGenerator) = null,
-
     /// no discrete partitions for any domains
-    pub const no_discretizations : DiscretePartitionDomainMap = .{
+    pub const no_discretizations: DiscretePartitionDomainMap = .{
         .picture = null,
         .audio = null,
         // .other = null,
+
     };
 };
 
@@ -972,14 +984,14 @@ pub const DiscretePartitionDomainMap = struct {
 /// for the various child objects might be, the output is fixed at that
 /// description.
 pub const Timeline = struct {
-
     /// Name for labelling and human readability.
-    name:       string.latin_s8 = "",
+    name: string.latin_s8 = "",
 
     /// Container for children of the Timeline.
     tracks: Stack = .empty,
 
-    /// Discrete space descriptions for the presentation space of the timeline.
+    /// Discrete space descriptions for the presentation space of the
+    /// timeline.
     discrete_space_partitions: struct {
         presentation: DiscretePartitionDomainMap,
 
@@ -1009,8 +1021,8 @@ pub const Timeline = struct {
     {
         allocator.free(self.name);
         self.tracks.deinit(allocator);
-        for (self.markers) 
-            |*m| 
+        for (self.markers)
+            |*m|
         {
             m.deinit(allocator);
         }
@@ -1022,7 +1034,8 @@ pub const Timeline = struct {
         }
     }
 
-    /// Presentation space of Timeline -> presentation space of `Tracks` stack.
+    /// Presentation space of Timeline -> presentation space of `Tracks`
+    /// stack.
     pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -1042,7 +1055,8 @@ pub const Timeline = struct {
 
 /// A collection of composition items.
 ///
-/// Collections can hold timelines, tracks, clips, and other composition items.
+/// Collections can hold timelines, tracks, clips, and other composition
+/// items.
 /// Unlike Timeline, a Collection has no temporal meaning - it's simply a
 /// container for organizing related items (e.g., all timelines in a project).
 pub const Collection = struct {
@@ -1092,13 +1106,13 @@ pub const Collection = struct {
     }
 };
 
-test "clip topology construction" 
+test "clip topology construction"
 {
     const allocator = std.testing.allocator;
 
     // setting the bounds on the clip
     {
-        var cl = Clip {
+        var cl = Clip{
             .media = .null_picture,
             .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
@@ -1126,7 +1140,7 @@ test "clip topology construction"
 
     // setting the bounds on the media
     {
-        var cl = Clip {
+        var cl = Clip{
             .media = .{
                 .data_reference = .null,
                 .maybe_bounds_s = test_data.T_INT_1_TO_9,
@@ -1157,18 +1171,16 @@ test "clip topology construction"
     }
 }
 
-test "track topology construction" 
+test "track topology construction"
 {
     const allocator = std.testing.allocator;
 
-    var cl = Clip {
+    var cl = Clip{
         .media = .null_picture,
-        .maybe_bounds_s = test_data.T_INT_1_TO_9, 
+        .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
 
-    var tr_children = [_]references.CompositionItemHandle{
-        cl.handle()
-    };
+    var tr_children = [_]references.CompositionItemHandle{cl.handle()};
     var tr: Track = .{
         .children = &tr_children,
     };
@@ -1200,20 +1212,20 @@ test "warp topology"
 
     // setting the bounds on the clip
     {
-        var cl = Clip {
+        var cl = Clip{
             .media = .null_picture,
             .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
 
-        const xform = opentime.AffineTransform1D {
+        const xform = opentime.AffineTransform1D{
             .offset = .zero,
             .scale = .{ .v = 2 },
         };
 
-        const wp = Warp {
+        const wp = Warp{
             .child = cl.handle(),
             .transform = try topology_m.Topology.init_affine(
-                allocator, 
+                allocator,
                 .{
                     .input_to_output_xform = xform,
                     .input_bounds_val = .inf_neg_to_pos,
@@ -1225,7 +1237,7 @@ test "warp topology"
         const topo = try wp.topology_pres_to_intrinsic(allocator);
         defer topo.deinit(allocator);
 
-        const range = opentime.ContinuousInterval {
+        const range = opentime.ContinuousInterval{
             .start = .one,
             .end = .{ .v = 5 },
         };
@@ -1246,27 +1258,27 @@ test "warp topology"
             opentime.ContinuousInterval{
                 .start = .zero,
                 .end = test_data.T_INT_1_TO_9.duration(),
-        },
+            },
             topo.output_bounds(),
         );
     }
 
     // with an offset (no change)
     {
-        var cl = Clip {
+        var cl = Clip{
             .media = .null_picture,
             .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
 
-        const xform = opentime.AffineTransform1D {
+        const xform = opentime.AffineTransform1D{
             .offset = .one,
             .scale = .{ .v = 2 },
         };
 
-        const wp = Warp {
+        const wp = Warp{
             .child = cl.handle(),
             .transform = try topology_m.Topology.init_affine(
-                allocator, 
+                allocator,
                 .{
                     .input_to_output_xform = xform,
                     .input_bounds_val = .inf_neg_to_pos,
@@ -1278,7 +1290,7 @@ test "warp topology"
         const topo = try wp.topology_pres_to_intrinsic(allocator);
         defer topo.deinit(allocator);
 
-        const range = opentime.ContinuousInterval {
+        const range = opentime.ContinuousInterval{
             .start = .one,
             .end = .{ .v = 5 },
         };
@@ -1299,27 +1311,27 @@ test "warp topology"
             opentime.ContinuousInterval{
                 .start = .zero,
                 .end = test_data.T_INT_1_TO_9.duration(),
-        },
+            },
             topo.output_bounds(),
         );
     }
 
     // negative scale
     {
-        var cl = Clip {
+        var cl = Clip{
             .media = .null_picture,
             .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
 
-        const xform = opentime.AffineTransform1D {
+        const xform = opentime.AffineTransform1D{
             .offset = .zero,
             .scale = opentime.Ordinate.init(-2),
         };
 
-        const wp = Warp {
+        const wp = Warp{
             .child = cl.handle(),
             .transform = try topology_m.Topology.init_affine(
-                allocator, 
+                allocator,
                 .{
                     .input_to_output_xform = xform,
                     .input_bounds_val = .inf_neg_to_pos,
@@ -1331,7 +1343,7 @@ test "warp topology"
         const wp_pres_to_child = try wp.topology_pres_to_intrinsic(allocator);
         defer wp_pres_to_child.deinit(allocator);
 
-        const range = opentime.ContinuousInterval {
+        const range = opentime.ContinuousInterval{
             .start = .one,
             .end = .{ .v = 5 },
         };
@@ -1364,13 +1376,11 @@ test "warp topology"
         try std.testing.expectEqual(
             child_bounds.end,
             wp_pres_to_child.project_instantaneous_cc(
-                expected_input_bounds.start
+                expected_input_bounds.start,
             ).ordinate(),
         );
 
-        const inverted = try wp_pres_to_child.inverted(
-            allocator
-        );
+        const inverted = try wp_pres_to_child.inverted(allocator);
         const wp_child_to_pres = inverted[0];
         defer {
             wp_child_to_pres.deinit(allocator);
@@ -1379,9 +1389,7 @@ test "warp topology"
 
         try std.testing.expectEqual(
             expected_input_bounds.end,
-            wp_child_to_pres.project_instantaneous_cc(
-                child_bounds.start
-            ).ordinate(),
+            wp_child_to_pres.project_instantaneous_cc(child_bounds.start).ordinate(),
         );
     }
 }
@@ -1434,10 +1442,7 @@ test "ImageSequenceReference: URL generation with no padding"
     );
     defer allocator.free(url);
 
-    try std.testing.expectEqualStrings(
-        "/path/to/frames/frame_42.exr",
-        url
-    );
+    try std.testing.expectEqualStrings("/path/to/frames/frame_42.exr", url);
 }
 
 test "ImageSequenceReference: URL generation with 4-digit padding"

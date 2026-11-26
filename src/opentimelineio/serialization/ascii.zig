@@ -28,28 +28,40 @@ const serializable = @import("serializable.zig");
 // Intermediate representation types and helpers (see serializable.zig)
 const MetadataMap = serializable.MetadataMap;
 const MetadataValue = serializable.MetadataValue;
-const SerializableAffineTransform1D = serializable.SerializableAffineTransform1D;
+const SerializableAffineTransform1D = (
+    serializable.SerializableAffineTransform1D
+);
 const SerializableBezierCurve = serializable.SerializableBezierCurve;
 const SerializableBounds = serializable.SerializableBounds;
 const SerializableClip = serializable.SerializableClip;
 const SerializableCollection = serializable.SerializableCollection;
 const SerializableCollectionItem = serializable.SerializableCollectionItem;
 const SerializableComposable = serializable.SerializableComposable;
-const SerializableContinuousInterval = serializable.SerializableContinuousInterval;
+const SerializableContinuousInterval = (
+    serializable.SerializableContinuousInterval
+);
 const SerializableControlPoint = serializable.SerializableControlPoint;
-const SerializableDiscretePartitionDomainMap = serializable.SerializableDiscretePartitionDomainMap;
+const SerializableDiscretePartitionDomainMap = (
+    serializable.SerializableDiscretePartitionDomainMap
+);
 const SerializableDomain = serializable.SerializableDomain;
 const SerializableGap = serializable.SerializableGap;
-const SerializableImageSequenceReference = serializable.SerializableImageSequenceReference;
+const SerializableImageSequenceReference = (
+    serializable.SerializableImageSequenceReference
+);
 const SerializableLinearCurve = serializable.SerializableLinearCurve;
 const SerializableMapping = serializable.SerializableMapping;
 const SerializableMappingAffine = serializable.SerializableMappingAffine;
 const SerializableMappingLinear = serializable.SerializableMappingLinear;
 const SerializableMarker = serializable.SerializableMarker;
-const SerializableMediaDataReference = serializable.SerializableMediaDataReference;
+const SerializableMediaDataReference = (
+    serializable.SerializableMediaDataReference
+);
 const SerializableMediaReference = serializable.SerializableMediaReference;
 const SerializableRateSpecifier = serializable.SerializableRateSpecifier;
-const SerializableSampleIndexGenerator = serializable.SerializableSampleIndexGenerator;
+const SerializableSampleIndexGenerator = (
+    serializable.SerializableSampleIndexGenerator
+);
 const SerializableSignalGenerator = serializable.SerializableSignalGenerator;
 const SerializableSignalReference = serializable.SerializableSignalReference;
 const SerializableStack = serializable.SerializableStack;
@@ -59,12 +71,19 @@ const SerializableTrack = serializable.SerializableTrack;
 const SerializableTransition = serializable.SerializableTransition;
 const SerializableURIReference = serializable.SerializableURIReference;
 const SerializableWarp = serializable.SerializableWarp;
-const bezier_curve_to_serializable = serializable.bezier_curve_to_serializable;
-const linear_curve_to_serializable = serializable.linear_curve_to_serializable;
-const serializable_to_bezier_curve = serializable.serializable_to_bezier_curve;
-const serializable_to_linear_curve = serializable.serializable_to_linear_curve;
+const bezier_curve_to_serializable = (
+    serializable.bezier_curve_to_serializable
+);
+const linear_curve_to_serializable = (
+    serializable.linear_curve_to_serializable
+);
+const serializable_to_bezier_curve = (
+    serializable.serializable_to_bezier_curve
+);
+const serializable_to_linear_curve = (
+    serializable.serializable_to_linear_curve
+);
 const serializable_to_timeline = serializable.serializable_to_timeline;
-
 
 /// A placeholder that consumes one complete ziggy value from the token stream
 /// and discards it without allocating or building any data.
@@ -205,20 +224,22 @@ fn document_layout(
     comptime Tr: type,
     content: anytype,
     schema_version: u32,
-) if (@TypeOf(content) == Tr.Timeline)
-    TimelineDocument(Tr, ?MetadataMap)
-else
-    CollectionDocument(Tr)
+) (
+    if (@TypeOf(content) == Tr.Timeline) 
+        TimelineDocument(Tr, ?MetadataMap)
+    else CollectionDocument(Tr)
+)
 {
     const Content = @TypeOf(content);
-    const Layout = if (Content == Tr.Timeline)
-        TimelineDocument(Tr, ?MetadataMap)
-    else
-        CollectionDocument(Tr);
+    const Layout = if (Content == Tr.Timeline) TimelineDocument(
+        Tr,
+        ?MetadataMap,
+    )
+    else CollectionDocument(Tr);
 
     const content_fields = @typeInfo(Content).@"struct".field_names;
     comptime std.debug.assert(
-        @typeInfo(Layout).@"struct".field_names.len == content_fields.len + 1
+        @typeInfo(Layout).@"struct".field_names.len == content_fields.len + 1,
     );
 
     var result: Layout = undefined;
@@ -313,11 +334,7 @@ const InlineMetadata = struct {
             result.metadata = (
                 if (value.metadata_hash)
                     |hash|
-                    if (self.maybe_map)
-                        |mm|
-                        mm.fields.get(hash)
-                    else
-                        null
+                    if (self.maybe_map) |mm| mm.fields.get(hash) else null
                 else
                     null
             );
@@ -356,16 +373,17 @@ fn FoldInlineMetadata(
         map: *?MetadataMap,
 
         pub const mode: serializable.ConvertMode = .share;
-        pub const Error = error{
-            OutOfMemory,
-            ConflictingClipMetadata,
-        };
+        pub const Error = error{OutOfMemory, ConflictingClipMetadata};
 
         pub fn overrides(
             comptime T: type,
         ) bool
         {
-            return T == Tr.Clip or T == Tr.Timeline or T == Tr.Collection;
+            return (
+                T == Tr.Clip
+                or T == Tr.Timeline
+                or T == Tr.Collection
+            );
         }
 
         pub fn override(
@@ -394,10 +412,10 @@ fn FoldInlineMetadata(
         {
             var result: Dst = undefined;
             result.metadata_map = (
-                if (@FieldType(Src, "metadata_map") == ?MetadataMap)
+                if (@FieldType(Src, "metadata_map") == ?MetadataMap) (
                     value.metadata_map
-                else
-                    null
+                )
+                else null
             );
 
             var inner: @This() = .{ .map = &result.metadata_map };
@@ -456,11 +474,10 @@ fn FoldInlineMetadata(
             const json = serializable.metadata_value_to_json(
                 allocator,
                 value,
-            ) catch
-                |err|
-                switch (err) {
-                    error.OutOfMemory => return error.OutOfMemory,
-                };
+            )
+            catch |err| switch (err) {
+                error.OutOfMemory => return error.OutOfMemory,
+            };
             const key = serializable.MetadataContext.hash_key(json);
 
             if (self.map.* == null)
@@ -478,11 +495,9 @@ fn FoldInlineMetadata(
     };
 }
 
-
 // ----------------------------------------------------------------------------
 // Main Serialization Entry Points (using tla)
 // ----------------------------------------------------------------------------
-
 // @TODO: collapse these serialize functions that recursively call components
 //        down
 
@@ -500,10 +515,14 @@ fn serialize_bezier_curve(
     );
 
     // Use ziggy to serialize
-    try ziggy.serialize(ser_bezier, .{
-        .whitespace = .space_4,
-        .emit_null_fields = false,
-    }, writer);
+    try ziggy.serialize(
+        ser_bezier,
+        .{
+            .whitespace = .space_4,
+            .emit_null_fields = false,
+        },
+        writer,
+    );
 }
 
 /// Deserialize a Bezier curve from tla format source string.
@@ -537,10 +556,14 @@ fn serialize_linear_curve(
     const ser_linear = try linear_curve_to_serializable(allocator, linear);
 
     // Use ziggy to serialize
-    try ziggy.serialize(ser_linear, .{
-        .whitespace = .space_4,
-        .emit_null_fields = false,
-    }, writer);
+    try ziggy.serialize(
+        ser_linear,
+        .{
+            .whitespace = .space_4,
+            .emit_null_fields = false,
+        },
+        writer,
+    );
 }
 
 /// Deserialize a Linear curve from tla format source string.
@@ -575,7 +598,10 @@ fn test_encode(
     errdefer out.deinit();
     try Codec.write(
         allocator,
-        .{ .schema_version = versioning.CURRENT_SCHEMA_VERSION, .content = data },
+        .{
+            .schema_version = versioning.CURRENT_SCHEMA_VERSION,
+            .content = data,
+        },
         &out.writer,
         .{ .metadata_mode = metadata_mode },
     );
@@ -793,8 +819,10 @@ fn expect_matches_schema(
         const line = std.mem.count(u8, source[0..start], "\n") + 1;
         const line_start = (
             if (std.mem.lastIndexOfScalar(u8, source[0..start], '\n'))
-                |nl| nl + 1
-            else 0
+                |nl|
+                nl + 1
+            else
+                0
         );
         const line_end = (
             std.mem.indexOfScalarPos(u8, source, start, '\n')
@@ -827,7 +855,8 @@ fn expect_all_modes_match_schema(
 {
     const is_collection = @TypeOf(value) == SerializableCollection;
     const schema_name = (
-        if (is_collection) "tlca.ziggy-schema" else "tla.ziggy-schema"
+        if (is_collection) "tlca.ziggy-schema"
+        else "tla.ziggy-schema"
     );
     const schema_src = if (is_collection) TLCA_SCHEMA else TLA_SCHEMA;
 
@@ -851,15 +880,16 @@ fn expect_all_modes_match_schema(
         );
         try buf.writer.writeByte(0);
         const written = buf.written();
-        const source: [:0]const u8 = written[0 .. written.len - 1 :0];
+        const source: [:0]const u8 = written[0..written.len - 1:0];
 
         expect_matches_schema(
             allocator,
             schema_name,
             schema_src,
             source,
-        ) catch |err| {
-            std.debug.print("(metadata mode: {t})\n", .{ mode });
+        )
+        catch |err| {
+            std.debug.print("(metadata mode: {t})\n", .{mode});
             return err;
         };
 
@@ -913,7 +943,8 @@ fn expect_all_names_serialized(
         |field_name|
     {
         const needle = (
-            if (is_struct) "." ++ field_name ++ " =" else "." ++ field_name
+            if (is_struct) "." ++ field_name ++ " ="
+            else "." ++ field_name
         );
         if (!contains_ident(text, needle))
         {
@@ -997,7 +1028,11 @@ fn schema_coverage_timeline(
     var metadata_map: MetadataMap = .empty;
     var clip_metadata: MetadataMap = .empty;
     try clip_metadata.fields.put(allocator, "scene", .{ .bytes = "001" });
-    try metadata_map.fields.put(allocator, "0123456789abcdef", .{ .kv = clip_metadata });
+    try metadata_map.fields.put(
+        allocator,
+        "0123456789abcdef",
+        .{ .kv = clip_metadata },
+    );
 
     var clips: std.ArrayList(SerializableComposable) = .empty;
     for (media_variants, 0..)
@@ -1011,7 +1046,8 @@ fn schema_coverage_timeline(
                     .bounds_s = .{ .discrete = .{ 0, 24 } },
                     .media = media,
                     .metadata_hash = (
-                        if (i == 0) "0123456789abcdef" else null
+                        if (i == 0) "0123456789abcdef"
+                        else null
                     ),
                     .markers = markers,
                 },
@@ -1098,14 +1134,14 @@ fn schema_coverage_timeline(
         .stack = .{
             .name = "stack",
             .bounds_s = .{ .discrete = .{ 0, 100 } },
-            .children = try allocator.dupe(SerializableComposable, &.{ track }),
+            .children = try allocator.dupe(SerializableComposable, &.{track}),
             .markers = markers,
         },
     };
 
     return .{
         .name = "schema coverage",
-        .children = try allocator.dupe(SerializableComposable, &.{ stack }),
+        .children = try allocator.dupe(SerializableComposable, &.{stack}),
         .presentation_space_discrete_partitions = .{
             .picture = rate_ntsc,
             .audio = rate_24,
@@ -1126,35 +1162,36 @@ test "tla schema: every serializable type and variant matches the schema"
 
     // the sample above has to keep exercising everything the serializer
     // can write
-    inline for (.{
-        SerializableTimeline,
-        SerializableDiscretePartitionDomainMap,
-        SerializableMarker,
-        SerializableComposable,
-        SerializableClip,
-        SerializableGap,
-        SerializableTrack,
-        SerializableStack,
-        SerializableWarp,
-        SerializableTransition,
-        SerializableTopology,
-        SerializableMapping,
-        SerializableMappingAffine,
-        SerializableMappingLinear,
-        SerializableAffineTransform1D,
-        SerializableBounds,
-        SerializableMediaReference,
-        SerializableMediaDataReference,
-        SerializableURIReference,
-        SerializableSignalReference,
-        SerializableSignalGenerator,
-        SerializableImageSequenceReference,
-        SerializableDomain,
-        SerializableSampleIndexGenerator,
-        SerializableRateSpecifier,
-        TlaClip(?MetadataValue),
-    })
-        |T|
+    inline for (
+        .{
+            SerializableTimeline,
+            SerializableDiscretePartitionDomainMap,
+            SerializableMarker,
+            SerializableComposable,
+            SerializableClip,
+            SerializableGap,
+            SerializableTrack,
+            SerializableStack,
+            SerializableWarp,
+            SerializableTransition,
+            SerializableTopology,
+            SerializableMapping,
+            SerializableMappingAffine,
+            SerializableMappingLinear,
+            SerializableAffineTransform1D,
+            SerializableBounds,
+            SerializableMediaReference,
+            SerializableMediaDataReference,
+            SerializableURIReference,
+            SerializableSignalReference,
+            SerializableSignalGenerator,
+            SerializableImageSequenceReference,
+            SerializableDomain,
+            SerializableSampleIndexGenerator,
+            SerializableRateSpecifier,
+            TlaClip(?MetadataValue),
+        },
+    ) |T|
     {
         try expect_all_names_serialized(T, text);
     }
@@ -1190,12 +1227,14 @@ test "tla schema: fixtures match the schema when re-serialized"
         defer arena.deinit();
         const allocator = arena.allocator();
 
-        const tl = test_read_file(TimelineCodec, allocator, io, path) catch |err| {
+        const tl = test_read_file(TimelineCodec, allocator, io, path)
+        catch |err| {
             std.debug.print("unable to read {s}: {t}\n", .{ path, err });
             return err;
         };
-        _ = expect_all_modes_match_schema(allocator, tl) catch |err| {
-            std.debug.print("(fixture: {s})\n", .{ path });
+        _ = expect_all_modes_match_schema(allocator, tl)
+        catch |err| {
+            std.debug.print("(fixture: {s})\n", .{path});
             return err;
         };
     }
@@ -1207,7 +1246,8 @@ test "tlca schema: checked-in file is up to date with the generator"
     std.testing.expectEqualStrings(
         generator.TLCA_SCHEMA,
         TLCA_SCHEMA,
-    ) catch |err| {
+    )
+    catch |err| {
         std.debug.print(
             "tlca.ziggy-schema is stale: run `zig build update_tlca_schema`\n",
             .{},
@@ -1247,10 +1287,11 @@ test "tlca schema: every collection item kind matches the schema"
             },
             .gap => |gap| try items.append(allocator, .{ .gap = gap }),
             .warp => |warp| try items.append(allocator, .{ .warp = warp }),
-            .transition => |tr| try items.append(
-                allocator,
-                .{ .transition = tr },
-            ),
+            .transition => |tr|
+                try items.append(
+                    allocator,
+                    .{ .transition = tr },
+                ),
             .track, .stack => {},
         }
     }
@@ -1288,12 +1329,14 @@ test "tlca schema: fixtures match the schema when re-serialized"
             allocator,
             io,
             path,
-        ) catch |err| {
+        )
+        catch |err| {
             std.debug.print("unable to read {s}: {t}\n", .{ path, err });
             return err;
         };
-        _ = expect_all_modes_match_schema(allocator, collection) catch |err| {
-            std.debug.print("(fixture: {s})\n", .{ path });
+        _ = expect_all_modes_match_schema(allocator, collection)
+        catch |err| {
+            std.debug.print("(fixture: {s})\n", .{path});
             return err;
         };
     }
@@ -1302,7 +1345,6 @@ test "tlca schema: fixtures match the schema when re-serialized"
 // ----------------------------------------------------------------------------
 // TLA / TLCA writers (metadata output modes)
 // ----------------------------------------------------------------------------
-
 
 /// Write `doc` (a `SerializableTimeline` or `SerializableCollection`
 /// document) as TLA/TLCA with the given metadata mode.
@@ -1346,10 +1388,8 @@ fn write_document(
         },
         .inline_metadata => {
             const InlineContent = (
-                if (Content == SerializableTimeline)
-                    TlaTree.Timeline
-                else
-                    TlaTree.Collection
+                if (Content == SerializableTimeline) TlaTree.Timeline
+                else TlaTree.Collection
             );
             var hooks: InlineMetadata = .{};
             const inlined = try serializable.convert(
@@ -1455,7 +1495,11 @@ test "tla: inline metadata reads back into the metadata map"
         .{ TimelineCodec, "test_files/simple_cut_with_metadata.tla", true },
         .{ TimelineCodec, "test_files/just_clip_with_metadata.tla", true },
         .{ TimelineCodec, "test_files/stress_heavy_metadata.tla", false },
-        .{ CollectionCodec, "test_files/collection_with_metadata.tlca", false },
+        .{
+            CollectionCodec,
+            "test_files/collection_with_metadata.tlca",
+            false,
+        },
     };
     inline for (cases)
         |case|
@@ -1600,7 +1644,9 @@ test "collection serialization: tlca round-trip"
                 .name = "Test Clip",
                 .bounds_s = .{ .continuous = .{ 0.0, 5.0 } },
                 .media = .{
-                    .data_reference = .{ .uri = .{ .target_uri = "file:///test.mov" } },
+                    .data_reference = .{
+                        .uri = .{ .target_uri = "file:///test.mov" },
+                    },
                     .bounds_s = .{ .continuous = .{ 0.0, 10.0 } },
                     .domain = .picture,
                 },
@@ -1630,9 +1676,15 @@ test "collection serialization: tlca round-trip"
 
     // Verify
     try std.testing.expectEqualStrings("Test Collection", roundtrip.name);
-    try std.testing.expectEqualStrings("A test collection", roundtrip.description);
+    try std.testing.expectEqualStrings(
+        "A test collection",
+        roundtrip.description,
+    );
     try std.testing.expectEqual(@as(usize, 1), roundtrip.children.len);
-    try std.testing.expectEqualStrings("Test Clip", roundtrip.children[0].clip.name);
+    try std.testing.expectEqualStrings(
+        "Test Clip",
+        roundtrip.children[0].clip.name,
+    );
 }
 
 test "collection serialization: tlcb round-trip"
@@ -1666,14 +1718,25 @@ test "collection serialization: tlcb round-trip"
     defer allocator.free(buffer);
 
     // Deserialize back
-    var roundtrip = try test_decode(binary.CollectionCodec, allocator, buffer);
+    var roundtrip = (
+        try test_decode(binary.CollectionCodec, allocator, buffer)
+    );
     defer roundtrip.deinit(allocator);
 
     // Verify
-    try std.testing.expectEqualStrings("Binary Test Collection", roundtrip.name);
-    try std.testing.expectEqualStrings("A binary test collection", roundtrip.description);
+    try std.testing.expectEqualStrings(
+        "Binary Test Collection",
+        roundtrip.name,
+    );
+    try std.testing.expectEqualStrings(
+        "A binary test collection",
+        roundtrip.description,
+    );
     try std.testing.expectEqual(@as(usize, 1), roundtrip.children.len);
-    try std.testing.expectEqualStrings("Test Gap", roundtrip.children[0].gap.name);
+    try std.testing.expectEqualStrings(
+        "Test Gap",
+        roundtrip.children[0].gap.name,
+    );
 }
 
 test "collection serialization: tlca to tlcb cross-format"
@@ -1722,13 +1785,23 @@ test "collection serialization: tlca to tlcb cross-format"
     defer allocator.free(tlcb_buffer);
 
     // Read TLCB back
-    var from_tlcb = try test_decode(binary.CollectionCodec, allocator, tlcb_buffer);
+    var from_tlcb = try test_decode(
+        binary.CollectionCodec,
+        allocator,
+        tlcb_buffer,
+    );
     defer from_tlcb.deinit(allocator);
 
     // Verify
-    try std.testing.expectEqualStrings("Cross-Format Collection", from_tlcb.name);
+    try std.testing.expectEqualStrings(
+        "Cross-Format Collection",
+        from_tlcb.name,
+    );
     try std.testing.expectEqual(@as(usize, 1), from_tlcb.children.len);
-    try std.testing.expectEqualStrings("Embedded Timeline", from_tlcb.children[0].timeline.name);
+    try std.testing.expectEqualStrings(
+        "Embedded Timeline",
+        from_tlcb.children[0].timeline.name,
+    );
 }
 
 // ----------------------------------------------------------------------------
@@ -1771,9 +1844,12 @@ fn parse_ziggy(
         &meta,
         .{},
     );
-    const content = try FoldInlineMetadata(
-        Layout.Tree
-    ).convert_with_own_map(Layout, Content, scratch, parsed);
+    const content = try FoldInlineMetadata(Layout.Tree).convert_with_own_map(
+        Layout,
+        Content,
+        scratch,
+        parsed,
+    );
 
     return .{
         .schema_version = parsed.schema_version,
@@ -1790,19 +1866,22 @@ pub const TimelineCodec = struct {
     ) !serializable.Document(SerializableTimeline)
     {
         return switch (options.content_filter) {
-            .all => try parse_ziggy(
-                TimelineDocument(TlaTree, ?MetadataMap),
-                SerializableTimeline,
-                allocator,
-                reader,
-            ),
+            .all =>
+                try parse_ziggy(
+                    TimelineDocument(TlaTree, ?MetadataMap),
+                    SerializableTimeline,
+                    allocator,
+                    reader,
+                ),
+
             // Skips the metadata tokens without building values.
-            .all_except_metadata => try parse_ziggy(
-                TimelineDocument(TlaTreeSkipMetadata, SkippedValue),
-                SerializableTimeline,
-                allocator,
-                reader,
-            ),
+            .all_except_metadata =>
+                try parse_ziggy(
+                    TimelineDocument(TlaTreeSkipMetadata, SkippedValue),
+                    SerializableTimeline,
+                    allocator,
+                    reader,
+                ),
         };
     }
 
@@ -1857,4 +1936,3 @@ pub const CollectionCodec = struct {
         );
     }
 };
-

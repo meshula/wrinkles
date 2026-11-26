@@ -20,7 +20,7 @@ pub fn LinearOf(
         const LinearType = LinearOf(ControlPointType);
 
         /// An empty curve with no knots.
-        pub const empty = LinearType {
+        pub const empty = LinearType{
             .knots = &.{},
         };
 
@@ -31,24 +31,22 @@ pub fn LinearOf(
             knots: []const ControlPointType,
 
             /// An empty curve with no knots.
-            pub const empty = Monotonic {
-                .knots =  &.{} 
-            };
+            pub const empty = Monotonic{ .knots = &.{} };
 
             pub fn deinit(
                 self: @This(),
                 allocator: std.mem.Allocator,
-            ) void 
+            ) void
             {
                 allocator.free(self.knots);
             }
 
             pub fn clone(
                 self: @This(),
-                allocator: std.mem.Allocator
+                allocator: std.mem.Allocator,
             ) !@This()
             {
-                return .{ 
+                return .{
                     .knots = try allocator.dupe(
                         ControlPointType,
                         self.knots,
@@ -59,19 +57,20 @@ pub fn LinearOf(
             /// compute both the input and output extents for the curve
             /// exhaustively.  [0] is the minimum and [1] is the maximum
             pub fn extents(
-                self:@This(),
-            ) ?[2]ControlPointType 
+                self: @This(),
+            ) ?[2]ControlPointType
             {
                 if (self.knots.len == 0)
                 {
                     return null;
                 }
 
-                var min:ControlPointType = self.knots[0];
-                var max:ControlPointType = self.knots[0];
+                var min: ControlPointType = self.knots[0];
+                var max: ControlPointType = self.knots[0];
 
-                inline for (&.{ self.knots[0], self.knots[self.knots.len-1] }) 
-                    |knot| 
+                inline for (
+                    &.{ self.knots[0], self.knots[self.knots.len - 1] },
+                ) |knot|
                 {
                     min = .{
                         .in = opentime.min(min.in, knot.in),
@@ -87,14 +86,15 @@ pub fn LinearOf(
 
             /// compute both the input extents for the curve exhaustively
             pub fn extents_input(
-                self:@This(),
+                self: @This(),
             ) ?opentime.ContinuousInterval
             {
-                if (self.knots.len < 1) {
+                if (self.knots.len < 1)
+                {
                     return null;
                 }
                 const fst = self.knots[0].in;
-                const lst = self.knots[self.knots.len-1].in;
+                const lst = self.knots[self.knots.len - 1].in;
                 return .{
                     .start = opentime.min(fst, lst),
                     .end = opentime.max(fst, lst),
@@ -103,14 +103,15 @@ pub fn LinearOf(
 
             /// compute both the output extents for the curve exhaustively
             pub fn extents_output(
-                self:@This(),
+                self: @This(),
             ) ?opentime.ContinuousInterval
             {
-                if (self.knots.len == 0) {
+                if (self.knots.len == 0)
+                {
                     return null;
                 }
                 const fst = self.knots[0].out;
-                const lst = self.knots[self.knots.len-1].out;
+                const lst = self.knots[self.knots.len - 1].out;
                 return .{
                     .start = opentime.min(fst, lst),
                     .end = opentime.max(fst, lst),
@@ -124,17 +125,14 @@ pub fn LinearOf(
 
             pub fn nearest_knot_indices_output(
                 self: @This(),
-                output_ord: ControlPointType.OrdinateType, 
+                output_ord: ControlPointType.OrdinateType,
             ) ?NearestIndices
             {
-                const ob = (
-                    self.extents_output() 
-                    orelse return null
-                );
+                const ob = (self.extents_output() orelse return null);
 
                 // out of bounds
                 if (
-                    self.knots.len == 0 
+                    self.knots.len == 0
                     or opentime.gt(output_ord, ob.end)
                     or opentime.lt(output_ord, ob.start)
                 )
@@ -142,33 +140,34 @@ pub fn LinearOf(
                     return null;
                 }
 
-                var befre_pts = self.knots[0..self.knots.len-1];
+                var befre_pts = self.knots[0..self.knots.len - 1];
                 var after_pts = self.knots[1..];
 
                 const slope = self.slope_kind();
 
-                if (slope == .falling) {
+                if (slope == .falling)
+                {
                     after_pts = befre_pts;
                     befre_pts = self.knots[1..];
                 }
 
                 // last knot is out of domain
-                for (befre_pts, after_pts, 0..) 
-                    |before, after, index| 
+                for (befre_pts, after_pts, 0..)
+                    |before, after, index|
                 {
                     if (
-                        opentime.lteq(before.out, output_ord) 
-                        and opentime.lteq(output_ord, after.out) 
+                        opentime.lteq(before.out, output_ord)
+                        and opentime.lteq(output_ord, after.out)
                     )
                     {
-                        if (slope == .rising) 
+                        if (slope == .rising)
                         {
                             return .{
                                 .lt_output = index,
                                 .gt_output = index + 1,
                             };
-                        } 
-                        else 
+                        }
+                        else
                         {
                             return .{
                                 .lt_output = index + 1,
@@ -183,14 +182,14 @@ pub fn LinearOf(
 
             pub fn nearest_smaller_knot_index_input(
                 self: @This(),
-                input_ord: ControlPointType.OrdinateType, 
-            ) ?usize 
+                input_ord: ControlPointType.OrdinateType,
+            ) ?usize
             {
-                const last_index = self.knots.len-1;
+                const last_index = self.knots.len - 1;
 
                 // out of bounds
                 if (
-                    self.knots.len == 0 
+                    self.knots.len == 0
                     or (opentime.lt(input_ord, self.knots[0].in))
                     or opentime.gteq(input_ord, self.knots[last_index].in)
                 )
@@ -199,11 +198,11 @@ pub fn LinearOf(
                 }
 
                 // last knot is out of domain
-                for (self.knots[0..last_index], self.knots[1..], 0..) 
-                    |knot, next_knot, index| 
+                for (self.knots[0..last_index], self.knots[1..], 0..)
+                    |knot, next_knot, index|
                 {
                     if (
-                        opentime.lteq(knot.in, input_ord) 
+                        opentime.lteq(knot.in, input_ord)
                         and opentime.lt(input_ord, next_knot.in)
                     )
                     {
@@ -220,7 +219,7 @@ pub fn LinearOf(
             {
                 return SlopeKind.compute(
                     self.knots[0],
-                    self.knots[self.knots.len-1],
+                    self.knots[self.knots.len - 1],
                 );
             }
 
@@ -232,19 +231,19 @@ pub fn LinearOf(
             {
                 const slope = self.slope_kind();
                 if (
-                    slope == .flat 
-                    and (
-                        self.extents_input() 
-                        orelse return .out_of_bounds
-                    ).overlaps(input_ord)
-                ) 
+                    slope == .flat
+                    and (self.extents_input() orelse return .out_of_bounds).overlaps(
+                        input_ord,
+                    )
+                )
                 {
                     const self_ob = (
-                        self.extents_output() 
+                        self.extents_output()
                         orelse return .out_of_bounds
                     );
-                    
-                    if (self_ob.is_instant()) {
+
+                    if (self_ob.is_instant())
+                    {
                         return .{
                             .success_ordinate = self_ob.start,
                         };
@@ -255,21 +254,21 @@ pub fn LinearOf(
                     };
                 }
 
-                if (self.nearest_smaller_knot_index_input(input_ord)) 
-                    |index| 
+                if (self.nearest_smaller_knot_index_input(input_ord))
+                    |index|
                 {
                     return .{
                         .success_ordinate = bezier_math.output_at_input_between(
                             input_ord,
                             self.knots[index],
-                            self.knots[index+1],
+                            self.knots[index + 1],
                         ),
                     };
                 }
 
                 // specially handle the endpoint
                 const last_knot = self.knots[self.knots.len - 1];
-                if (opentime.eql(input_ord, last_knot.in)) 
+                if (opentime.eql(input_ord, last_knot.in))
                 {
                     return .{
                         .success_ordinate = last_knot.out,
@@ -292,30 +291,33 @@ pub fn LinearOf(
                 output_ord: opentime.Ordinate,
             ) opentime.ProjectionResult
             {
-                if (self.knots.len == 0) {
+                if (self.knots.len == 0)
+                {
                     return .out_of_bounds;
                 }
 
-                if (self.nearest_knot_indices_output(output_ord)) 
-                    |indices| 
+                if (self.nearest_knot_indices_output(output_ord))
+                    |indices|
                 {
                     return .{
                         .success_ordinate = bezier_math.input_at_output_between(
                             output_ord,
                             self.knots[indices.lt_output],
                             self.knots[indices.gt_output],
-                        )
+                        ),
                     };
                 }
-                
+
                 // specially handle the endpoint
                 const last_knot = self.knots[self.knots.len - 1];
-                if (opentime.eql(output_ord, last_knot.out)) {
+                if (opentime.eql(output_ord, last_knot.out))
+                {
                     return .{ .success_ordinate = last_knot.in };
                 }
 
                 const first_knot = self.knots[0];
-                if (opentime.eql(output_ord, first_knot.out)) {
+                if (opentime.eql(output_ord, first_knot.out))
+                {
                     return .{ .success_ordinate = first_knot.in };
                 }
 
@@ -337,7 +339,8 @@ pub fn LinearOf(
                 if (
                     opentime.gteq(current_bounds.start, input_bounds.start)
                     and opentime.lteq(current_bounds.end, input_bounds.end)
-                ) {
+                )
+                {
                     return try self.clone(allocator);
                 }
 
@@ -349,39 +352,39 @@ pub fn LinearOf(
                 // exists)
                 const ext = self.extents_input().?;
 
-                const first_point = if (
-                    opentime.gteq(input_bounds.start, ext.start)
-                ) ControlPointType{
-                    .in = input_bounds.start,
-                    .out = try self.output_at_input(input_bounds.start).ordinate(),
-                } else self.knots[0];
-                try result.append(allocator,first_point);
+                const first_point = (
+                    if (opentime.gteq(input_bounds.start, ext.start)) ControlPointType{
+                        .in = input_bounds.start,
+                        .out = try self.output_at_input(input_bounds.start).ordinate(),
+                    }
+                    else self.knots[0]
+                );
+                try result.append(allocator, first_point);
 
-                const last_point = if (
-                    opentime.lt(input_bounds.end, ext.end)
-                ) ControlPointType{ 
-                    .in = input_bounds.end,
-                    .out = try self.output_at_input(
-                        input_bounds.end
-                    ).ordinate(),
-                } else self.extents().?[1];
+                const last_point = (
+                    if (opentime.lt(input_bounds.end, ext.end)) ControlPointType{
+                        .in = input_bounds.end,
+                        .out = try self.output_at_input(input_bounds.end).ordinate(),
+                    }
+                    else self.extents().?[1]
+                );
 
-                for (self.knots) 
+                for (self.knots)
                     |knot|
                 {
                     if (
                         opentime.gt(knot.in, first_point.in)
                         and opentime.lt(knot.in, last_point.in)
-                    ) {
-                        try result.append(allocator,knot);
+                    )
+                    {
+                        try result.append(allocator, knot);
                     }
                 }
 
-                try result.append(allocator,last_point);
+                try result.append(allocator, last_point);
 
-                const out = Monotonic{ 
-                    .knots = 
-                        try result.toOwnedSlice(allocator),
+                const out = Monotonic{
+                    .knots = try result.toOwnedSlice(allocator),
                 };
 
                 return out;
@@ -393,31 +396,30 @@ pub fn LinearOf(
                 allocator: std.mem.Allocator,
                 output_bounds: opentime.ContinuousInterval,
             ) !Monotonic
-            {            
-                if (self.knots.len < 2) {
+            {
+                if (self.knots.len < 2)
+                {
                     return try self.clone(allocator);
                 }
 
-                const ext = (
-                    self.extents_output()
-                    orelse return .empty
-                );
+                const ext = (self.extents_output() orelse return .empty);
                 if (
-                    opentime.lt(ext.end,output_bounds.end)
+                    opentime.lt(ext.end, output_bounds.end)
                     and opentime.gt(ext.start, output_bounds.start)
-                ) {
+                )
+                {
                     return try self.clone(allocator);
                 }
 
                 const segment_slope = SlopeKind.compute(
                     self.knots[0],
-                    self.knots[self.knots.len-1],
+                    self.knots[self.knots.len - 1],
                 );
 
                 if (
                     segment_slope == .flat
                     and (output_bounds.overlaps(self.knots[0].out))
-                ) 
+                )
                 {
                     return try self.clone(allocator);
                 }
@@ -428,48 +430,52 @@ pub fn LinearOf(
                 try knots.appendSlice(allocator, self.knots);
 
                 // always process as if it was rising
-                if (segment_slope == .falling) {
+                if (segment_slope == .falling)
+                {
                     std.mem.reverse(ControlPointType, knots.items);
                 }
 
                 var result: std.ArrayList(ControlPointType) = .empty;
                 defer result.deinit(allocator);
 
-                const first_point = if (
-                    opentime.gteq(output_bounds.start, ext.start)
-                ) ControlPointType{
-                    .in = try self.input_at_output(output_bounds.start).ordinate(),
-                    .out = output_bounds.start,
-                } else knots.items[0];
+                const first_point = (
+                    if (opentime.gteq(output_bounds.start, ext.start)) ControlPointType{
+                        .in = try self.input_at_output(output_bounds.start).ordinate(),
+                        .out = output_bounds.start,
+                    }
+                    else knots.items[0]
+                );
                 try result.append(allocator, first_point);
 
-                const last_point = if (
-                    opentime.lt(output_bounds.end, ext.end)
-                ) ControlPointType{ 
-                    .in = try self.input_at_output(output_bounds.end).ordinate(),
-                    .out = output_bounds.end,
-                } else knots.items[knots.items.len-1];
+                const last_point = (
+                    if (opentime.lt(output_bounds.end, ext.end)) ControlPointType{
+                        .in = try self.input_at_output(output_bounds.end).ordinate(),
+                        .out = output_bounds.end,
+                    }
+                    else knots.items[knots.items.len - 1]
+                );
 
-                for (knots.items) 
+                for (knots.items)
                     |knot|
                 {
                     if (
                         opentime.gt(knot.out, first_point.out)
                         and opentime.lt(knot.out, last_point.out)
-                    ) {
-                        try result.append(allocator,knot);
+                    )
+                    {
+                        try result.append(allocator, knot);
                     }
                 }
 
-                try result.append(allocator,last_point);
+                try result.append(allocator, last_point);
 
-                if (segment_slope == .falling) {
+                if (segment_slope == .falling)
+                {
                     std.mem.reverse(ControlPointType, result.items);
                 }
 
-                const out = Monotonic{ 
-                    .knots = 
-                        try result.toOwnedSlice(allocator) 
+                const out = Monotonic{
+                    .knots = try result.toOwnedSlice(allocator),
                 };
 
                 return out;
@@ -478,7 +484,7 @@ pub fn LinearOf(
             pub fn format(
                 self: @This(),
                 writer: *std.Io.Writer,
-            ) !void 
+            ) !void
             {
                 try writer.print("Linear.Monotonic{{\n  .knots: [\n", .{});
 
@@ -489,7 +495,7 @@ pub fn LinearOf(
                     {
                         try writer.print(",\n", .{});
                     }
-                    try writer.print("    {f}", .{ k});
+                    try writer.print("    {f}", .{k});
                 }
 
                 try writer.print("\n  ]\n}}", .{});
@@ -509,39 +515,44 @@ pub fn LinearOf(
                 input_points: []const opentime.Ordinate,
             ) ![]const Monotonic
             {
-                const ib = (
-                    self.extents_input()
-                    orelse return &.{}
-                );
+                const ib = (self.extents_input() orelse return &.{});
 
                 if (
+                    
                     // empty
                     input_points.len == 0
                     // out of range
                     or opentime.gt(input_points[0], ib.end)
-                    or opentime.lt(input_points[input_points.len - 1], ib.start)
+                    or opentime.lt(
+                        input_points[input_points.len - 1],
+                        ib.start,
+                    )
                 )
                 {
                     // a clone of self (no splits)
-                    return &.{ try self.clone(allocator) };
+                    return &.{try self.clone(allocator)};
                 }
 
                 // slices of knots that will become curves
-                var new_knot_slices: std.ArrayList([]ControlPointType) = .empty;
+                var new_knot_slices: std.ArrayList([]ControlPointType) = (
+                    .empty
+                );
                 defer new_knot_slices.deinit(allocator);
 
                 // the current curve being appended to
                 var current_curve: std.ArrayList(ControlPointType) = .empty;
-                defer current_curve.deinit(allocator,);
+                defer current_curve.deinit(
+                    allocator,
+                );
 
                 // search for first point that is in range
-                var last_appended_index:usize = 0;
+                var last_appended_index: usize = 0;
                 var last_appended_knot = self.knots[last_appended_index];
 
                 // left knot is always in the list
-                try current_curve.append(allocator,last_appended_knot);
+                try current_curve.append(allocator, last_appended_knot);
 
-                var next_knot_index:usize = 1;
+                var next_knot_index: usize = 1;
                 var next_knot = self.knots[next_knot_index];
 
                 for (input_points)
@@ -558,16 +569,21 @@ pub fn LinearOf(
 
                     // points are sorted, so once a point is out of range,
                     // split is done
-                    if (opentime.gt(in_pt, ib.end)) {
+                    if (opentime.gt(in_pt, ib.end))
+                    {
                         break;
                     }
 
-                    // move current pt until it is the point on the curve AFTER
+                    // move current pt until it is the point on the curve
+                    // AFTER
                     // the input pt
                     while (
                         opentime.lt(next_knot.in, in_pt)
                         and opentime.lt(next_knot_index, self.knots.len)
-                    ) : ({ next_knot_index += 1; last_appended_index += 1; })
+                    ) : ({
+                        next_knot_index += 1;
+                        last_appended_index += 1;
+                    })
                     {
                         last_appended_knot = self.knots[last_appended_index];
                         next_knot = self.knots[next_knot_index];
@@ -583,7 +599,7 @@ pub fn LinearOf(
                         .out = try self.output_at_input(in_pt).ordinate(),
                     };
 
-                    try current_curve.append(allocator,new_knot);
+                    try current_curve.append(allocator, new_knot);
 
                     try new_knot_slices.append(
                         allocator,
@@ -591,27 +607,30 @@ pub fn LinearOf(
                     );
 
                     current_curve.clearRetainingCapacity();
-                    try current_curve.append(allocator,new_knot);
+                    try current_curve.append(allocator, new_knot);
 
                     // if the next knot is past or at the end of the knots,
                     // append it and break.  The rest of the input knots are
                     // outside of the range.
-                    if (next_knot_index >= self.knots.len) {
-                        try current_curve.append(allocator,next_knot);
+                    if (next_knot_index >= self.knots.len)
+                    {
+                        try current_curve.append(allocator, next_knot);
                         break;
                     }
                 }
 
-                next_knot_index+=1;
+                next_knot_index += 1;
 
-                if (next_knot_index <= self.knots.len-1) {
+                if (next_knot_index <= self.knots.len - 1)
+                {
                     try current_curve.appendSlice(
                         allocator,
                         self.knots[next_knot_index..],
                     );
                 }
 
-                if (current_curve.items.len > 1) {
+                if (current_curve.items.len > 1)
+                {
                     try new_knot_slices.append(
                         allocator,
                         try current_curve.toOwnedSlice(allocator),
@@ -639,35 +658,35 @@ pub fn LinearOf(
         pub fn init(
             allocator: std.mem.Allocator,
             knots: []const ControlPointType,
-        ) !LinearType 
+        ) !LinearType
         {
             return LinearType{
                 .knots = try allocator.dupe(
                     ControlPointType,
                     knots,
-                ) 
+                ),
             };
         }
 
-        /// Initialize an identity LinearType with knots at the specified input
+        /// Initialize an identity LinearType with knots at the specified
+        /// input
         /// ordinates.
         pub fn init_identity(
             allocator: std.mem.Allocator,
-            knot_input_ords:[]const opentime.Ordinate.InnerType,
-        ) !LinearType.Monotonic 
+            knot_input_ords: []const opentime.Ordinate.InnerType,
+        ) !LinearType.Monotonic
         {
             const out_knots = try allocator.alloc(
                 ControlPointType,
                 knot_input_ords.len,
             );
 
-            for (knot_input_ords, out_knots) 
-                |src_ord, *dst_knot| 
+            for (knot_input_ords, out_knots)
+                |src_ord, *dst_knot|
             {
-
                 dst_knot.* = .{
                     .in = .init(src_ord),
-                    .out = .init(src_ord), 
+                    .out = .init(src_ord),
                 };
             }
 
@@ -679,21 +698,18 @@ pub fn LinearOf(
         pub fn deinit(
             self: @This(),
             allocator: std.mem.Allocator,
-        ) void 
+        ) void
         {
             allocator.free(self.knots);
         }
 
         pub fn clone(
             self: @This(),
-            allocator: std.mem.Allocator
+            allocator: std.mem.Allocator,
         ) !LinearType
         {
-            return .{ 
-                .knots = try allocator.dupe(
-                    ControlPointType,
-                    self.knots
-                ),
+            return .{
+                .knots = try allocator.dupe(ControlPointType, self.knots),
             };
         }
 
@@ -727,15 +743,16 @@ pub fn LinearOf(
             var result: std.ArrayList(Monotonic) = .empty;
 
             // single segment line is monotonic by definition
-            if (self.knots.len < 3) {
+            if (self.knots.len < 3)
+            {
                 try result.append(
                     allocator,
                     .{
                         .knots = try allocator.dupe(
                             ControlPointType,
-                            self.knots
-                        ), 
-                    }
+                            self.knots,
+                        ),
+                    },
                 );
                 return try result.toOwnedSlice(allocator);
             }
@@ -744,32 +761,28 @@ pub fn LinearOf(
             defer splits.deinit(allocator);
 
             var segment_start_index: usize = 0;
-            var slope = SlopeKind.compute(
-                self.knots[0],
-                self.knots[1]
-            );
+            var slope = SlopeKind.compute(self.knots[0], self.knots[1]);
 
-            for (self.knots[1..self.knots.len-1], 2.., self.knots[2..])
+            for (self.knots[1..self.knots.len - 1], 2.., self.knots[2..])
                 |left, right_ind, right|
             {
-                const new_slope = SlopeKind.compute(
-                    left,
-                    right
-                );
+                const new_slope = SlopeKind.compute(left, right);
 
                 if (new_slope != slope)
                 {
                     try splits.append(
                         allocator,
-                        self.knots[segment_start_index..right_ind]
+                        self.knots[segment_start_index..right_ind],
                     );
 
-                    // because the slope changes between the left and the right
+                    // because the slope changes between the left and the
+                    // right
                     // index, the left index is the last knot in the left
                     // segment and the first knot in the right.  Slice indices
                     // are left inclusive and right exclusive, so the slice
-                    // ENDS on the right index but starts on the previous index
-                    segment_start_index = right_ind-1;
+                    // ENDS on the right index but starts on the previous
+                    // index
+                    segment_start_index = right_ind - 1;
                 }
                 slope = new_slope;
             }
@@ -788,8 +801,9 @@ pub fn LinearOf(
                         .knots = try allocator.dupe(
                             ControlPointType,
                             new_knots,
-                        ) 
-                    }
+                        ),
+
+                    },
                 );
             }
 
@@ -801,20 +815,17 @@ pub fn LinearOf(
 pub const Linear = LinearOf(control_point.ControlPoint);
 pub const LinearF = LinearOf(control_point.ControlPoint_InnerType);
 
-test "Linear: extents" 
+test "Linear: extents"
 {
     const crv = try Linear.init_identity(
         std.testing.allocator,
-        &.{100, 200},
+        &.{ 100, 200 },
     );
     defer crv.deinit(std.testing.allocator);
 
     const bounds = crv.extents().?;
 
-    try opentime.expectOrdinateEqual(
-        100,
-        bounds[0].in
-    );
+    try opentime.expectOrdinateEqual(100, bounds[0].in);
     try opentime.expectOrdinateEqual(
         200,
         bounds[1].in,
@@ -837,8 +848,18 @@ test "Linear: debug_json_str"
 
     const crv = Linear{
         .knots = &.{
-            .init(.{ .in = 0, .out = 0, }),
-            .init(.{ .in = 100, .out = 100, }),
+            .init(
+                .{
+                    .in = 0,
+                    .out = 0,
+                },
+            ),
+            .init(
+                .{
+                    .in = 100,
+                    .out = 100,
+                },
+            ),
         },
     };
 
@@ -853,17 +874,27 @@ test "Linear: proj_ident"
     const allocator = std.testing.allocator;
 
     const ident = Linear.Monotonic{
-        .knots = &.{ 
-            .init(.{ .in = 0, .out = 0, }),
-            .init(.{ .in = 100, .out = 100, }),
+        .knots = &.{
+            .init(
+                .{
+                    .in = 0,
+                    .out = 0,
+                },
+            ),
+            .init(
+                .{
+                    .in = 100,
+                    .out = 100,
+                },
+            ),
         },
     };
 
     {
         const right_overhang_lin = Linear.Monotonic{
             .knots = &.{
-                .init(.{ .in = -10, .out = -10}),
-                .init(.{ .in = 30, .out = 10}),
+                .init(.{ .in = -10, .out = -10 }),
+                .init(.{ .in = 30, .out = 10 }),
             },
         };
 
@@ -878,81 +909,89 @@ test "Linear: proj_ident"
 
         try std.testing.expectEqual(@as(usize, 2), result.knots.len);
 
-        try opentime.expectOrdinateEqual(
-            10,
-            result.knots[0].in
-        );
-        try opentime.expectOrdinateEqual(
-            0,
-            result.knots[0].out
-        );
+        try opentime.expectOrdinateEqual(10, result.knots[0].in);
+        try opentime.expectOrdinateEqual(0, result.knots[0].out);
 
-        try opentime.expectOrdinateEqual(
-            30,
-            result.knots[1].in
-        );
-        try opentime.expectOrdinateEqual(
-            10,
-            result.knots[1].out
-        );
+        try opentime.expectOrdinateEqual(30, result.knots[1].in);
+        try opentime.expectOrdinateEqual(10, result.knots[1].out);
     }
 
     {
         const left_overhang_lin = Linear.Monotonic{
-            .knots = &.{ 
-                .init(.{ .in = 90, .out = 90}),
-                .init(.{ .in = 110, .out = 130}),
+            .knots = &.{
+                .init(.{ .in = 90, .out = 90 }),
+                .init(.{ .in = 110, .out = 130 }),
             },
         };
 
         const result = try join(
             allocator,
-            .{ 
+            .{
                 .a2b = left_overhang_lin,
                 .b2c = ident,
             },
         );
-        defer result.deinit(allocator); 
+        defer result.deinit(allocator);
 
         try std.testing.expectEqual(@as(usize, 2), result.knots.len);
 
         try opentime.expectOrdinateEqual(
             opentime.Ordinate.init(90),
-            result.knots[0].in
+            result.knots[0].in,
         );
         try opentime.expectOrdinateEqual(
             opentime.Ordinate.init(90),
-            result.knots[0].out
+            result.knots[0].out,
         );
 
         try opentime.expectOrdinateEqual(
             opentime.Ordinate.init(95),
-            result.knots[1].in
+            result.knots[1].in,
         );
         try opentime.expectOrdinateEqual(
             opentime.Ordinate.init(100),
-            result.knots[1].out
+            result.knots[1].out,
         );
     }
 
     // @TODO: add third test case, with right AND left overhang
 }
 
-test "Linear: projection_test - compose to identity" 
+test "Linear: projection_test - compose to identity"
 {
     const allocator = std.testing.allocator;
 
-    const fst= Linear.Monotonic{
+    const fst = Linear.Monotonic{
         .knots = &.{
-            .init(.{ .in = 0, .out = 0, }),
-            .init(.{ .in = 4, .out = 8, }),
-        }
+            .init(
+                .{
+                    .in = 0,
+                    .out = 0,
+                },
+            ),
+            .init(
+                .{
+                    .in = 4,
+                    .out = 8,
+                },
+            ),
+        },
     };
 
-    const snd= Linear.Monotonic{
+    const snd = Linear.Monotonic{
         .knots = &.{
-            .init(.{ .in = 0, .out = 0, }),
-            .init(.{ .in = 8, .out = 4, }),
+            .init(
+                .{
+                    .in = 0,
+                    .out = 0,
+                },
+            ),
+            .init(
+                .{
+                    .in = 8,
+                    .out = 4,
+                },
+            ),
         },
     };
 
@@ -963,26 +1002,24 @@ test "Linear: projection_test - compose to identity"
             .b2c = fst,
         },
     );
-    defer result.deinit(allocator); 
+    defer result.deinit(allocator);
 
     try opentime.expectOrdinateEqual(
         opentime.Ordinate.init(8),
-        result.knots[1].in
+        result.knots[1].in,
     );
     try opentime.expectOrdinateEqual(
         opentime.Ordinate.init(8),
-        result.knots[1].out
+        result.knots[1].out,
     );
 
-    var x:opentime.Ordinate.InnerType = 0;
-    while (x < 1) 
+    var x: opentime.Ordinate.InnerType = 0;
+    while (x < 1)
         : (x += 0.1)
     {
         try opentime.expectOrdinateEqual(
             opentime.Ordinate.init(x),
-            try result.output_at_input(
-                opentime.Ordinate.init(x)
-            ).ordinate(),
+            try result.output_at_input(opentime.Ordinate.init(x)).ordinate(),
         );
     }
 }
@@ -991,16 +1028,14 @@ test "Linear: to Monotonic leak test"
 {
     const allocator = std.testing.allocator;
 
-    const src =  try Linear.init(
+    const src = try Linear.init(
         allocator,
         &.{
             .init(.{ .in = 0, .out = 5 }),
             .init(.{ .in = 10, .out = 5 }),
         },
     );
-    const monotonics = (
-        try src.split_at_critical_points(allocator)
-    );
+    const monotonics = (try src.split_at_critical_points(allocator));
 
     for (monotonics)
         |m|
@@ -1022,7 +1057,7 @@ test "Linear: to Monotonic Test"
     };
     const tests: []const TestCase = &.{
         .{
-            .name = "flat",  
+            .name = "flat",
             .curve = try Linear.init(
                 allocator,
                 &.{
@@ -1033,7 +1068,7 @@ test "Linear: to Monotonic Test"
             .monotonic_splits = 1,
         },
         .{
-            .name = "rising",  
+            .name = "rising",
             .curve = try Linear.init(
                 allocator,
                 &.{
@@ -1044,7 +1079,7 @@ test "Linear: to Monotonic Test"
             .monotonic_splits = 1,
         },
         .{
-            .name = "rising_falling",  
+            .name = "rising_falling",
             .curve = try Linear.init(
                 allocator,
                 &.{
@@ -1056,7 +1091,7 @@ test "Linear: to Monotonic Test"
             .monotonic_splits = 2,
         },
         .{
-            .name = "rising_flat_falling",  
+            .name = "rising_flat_falling",
             .curve = try Linear.init(
                 allocator,
                 &.{
@@ -1069,7 +1104,7 @@ test "Linear: to Monotonic Test"
             .monotonic_splits = 3,
         },
         .{
-            .name = "flat_falling",  
+            .name = "flat_falling",
             .curve = try Linear.init(
                 allocator,
                 &.{
@@ -1084,10 +1119,7 @@ test "Linear: to Monotonic Test"
     for (tests)
         |t|
     {
-        errdefer opentime.dbg_print(@src(), 
-            "error with test: {s}",
-            .{ t.name }
-        );
+        errdefer opentime.dbg_print(@src(), "error with test: {s}", .{t.name});
         const monotonic_curves = (
             try t.curve.split_at_critical_points(allocator)
         );
@@ -1103,10 +1135,7 @@ test "Linear: to Monotonic Test"
 
         const measured = monotonic_curves.len;
 
-        try std.testing.expectEqual(
-            t.monotonic_splits,
-            measured
-        );
+        try std.testing.expectEqual(t.monotonic_splits, measured);
     }
 }
 
@@ -1115,21 +1144,15 @@ test "Linear: to Monotonic Test"
 /// "a" to space "c".
 pub fn join(
     allocator: std.mem.Allocator,
-    curves: struct{
+    curves: struct {
         a2b: Linear.Monotonic,
         b2c: Linear.Monotonic,
     },
 ) !Linear.Monotonic
 {
     // compute domain of projection
-    const a2b_b_extents = (
-        curves.a2b.extents_output()
-        orelse return .empty
-    );
-    const b2c_b_extents = (
-        curves.b2c.extents_input()
-        orelse return .empty
-    );
+    const a2b_b_extents = (curves.a2b.extents_output() orelse return .empty);
+    const b2c_b_extents = (curves.b2c.extents_input() orelse return .empty);
 
     const b_bounds = opentime.interval.intersect(
         a2b_b_extents,
@@ -1154,8 +1177,8 @@ pub fn join(
     defer b2c_trimmed.deinit(allocator);
 
     // splits
-    var cursor_a2b:usize = 0;
-    var cursor_b2c:usize = 0;
+    var cursor_a2b: usize = 0;
+    var cursor_b2c: usize = 0;
 
     const total_possible_knots = (
         a2b_trimmed.knots.len
@@ -1190,7 +1213,7 @@ pub fn join(
                 .{
                     .in = a2b_k.in,
                     .out = b2c_k.out,
-                }
+                },
             );
         }
         else if (opentime.lt(a2b_b, b2c_b))
@@ -1201,10 +1224,10 @@ pub fn join(
                 .{
                     .in = a2b_k.in,
                     .out = try b2c_trimmed.output_at_input(a2b_b).ordinate(),
-                }
+                },
             );
         }
-        else 
+        else
         {
             // b2c_b < a2b_b
             cursor_b2c += 1;
@@ -1213,15 +1236,13 @@ pub fn join(
                 .{
                     .in = try a2b_trimmed.input_at_output(b2c_b).ordinate(),
                     .out = b2c_k.out,
-                }
+                },
             );
         }
     }
 
     return .{
-        .knots = (
-            try result_knots.toOwnedSlice(allocator)
-        ),
+        .knots = (try result_knots.toOwnedSlice(allocator)),
     };
 }
 
@@ -1247,12 +1268,8 @@ test "Linear: Join ident -> held"
     );
     defer held.deinit(allocator);
 
-    const ident_monos = (
-        try ident.split_at_critical_points(allocator)
-    );
-    const held_monos = (
-        try held.split_at_critical_points(allocator)
-    );
+    const ident_monos = (try ident.split_at_critical_points(allocator));
+    const held_monos = (try held.split_at_critical_points(allocator));
     defer {
         ident_monos[0].deinit(allocator);
         allocator.free(ident_monos);
@@ -1334,12 +1351,8 @@ test "Linear: Join held -> non-ident"
     );
     defer held.deinit(allocator);
 
-    const doubler_monos = (
-        try doubler.split_at_critical_points(allocator)
-    );
-    const held_monos = (
-        try held.split_at_critical_points(allocator)
-    );
+    const doubler_monos = (try doubler.split_at_critical_points(allocator));
+    const held_monos = (try held.split_at_critical_points(allocator));
     defer {
         doubler_monos[0].deinit(allocator);
         allocator.free(doubler_monos);
@@ -1411,9 +1424,7 @@ test "Linear: Monotonic Trimmed Input"
     );
     defer ident.deinit(allocator);
 
-    const ident_monos = (
-        try ident.split_at_critical_points(allocator)
-    );
+    const ident_monos = (try ident.split_at_critical_points(allocator));
     defer {
         for (ident_monos)
             |m|
@@ -1425,7 +1436,7 @@ test "Linear: Monotonic Trimmed Input"
 
     const ident_mono = ident_monos[0];
 
-    const TestCase = struct{
+    const TestCase = struct {
         name: []const u8,
         target_range: opentime.interval.ContinuousInterval,
         expected_range: opentime.interval.ContinuousInterval,
@@ -1433,33 +1444,32 @@ test "Linear: Monotonic Trimmed Input"
     const tests = [_]TestCase{
         .{
             .name = "no trim",
-            .target_range = 
-                .init(
-                    .{
-                        .start = -1,
-                        .end = 11,
-                    }
-                ),
+            .target_range = .init(
+                .{
+                    .start = -1,
+                    .end = 11,
+                },
+            ),
             .expected_range = .init(
                 .{
                     .start = 0,
                     .end = 10,
-                }
+                },
             ),
         },
         .{
             .name = "left trim",
             .target_range = .init(
                 .{
-                .start = 3,
-                .end = 11,
-            }
+                    .start = 3,
+                    .end = 11,
+                },
             ),
             .expected_range = .init(
                 .{
                     .start = 3,
                     .end = 10,
-                }
+                },
             ),
         },
         .{
@@ -1468,13 +1478,13 @@ test "Linear: Monotonic Trimmed Input"
                 .{
                     .start = -1,
                     .end = 8,
-                }
+                },
             ),
             .expected_range = .init(
                 .{
                     .start = 0,
                     .end = 8,
-                }
+                },
             ),
         },
     };
@@ -1482,21 +1492,20 @@ test "Linear: Monotonic Trimmed Input"
     for (tests)
         |t|
     {
-        const result = try ident_mono.trimmed_input(
-            allocator,
-            t.target_range
+        const result = (
+            try ident_mono.trimmed_input(allocator, t.target_range)
         );
         defer result.deinit(allocator);
 
         errdefer opentime.dbg_print(
-            @src(), 
+            @src(),
             "test: {s}\n result: {f}",
             .{
                 t.name,
                 result.extents_input(),
             },
         );
-        
+
         try std.testing.expectEqual(
             t.expected_range.start,
             result.extents_input().?.start,
@@ -1521,9 +1530,7 @@ test "Linear: Monotonic Trimmed Output"
     );
     defer ident.deinit(allocator);
 
-    const ident_monos = (
-        try ident.split_at_critical_points(allocator)
-    );
+    const ident_monos = (try ident.split_at_critical_points(allocator));
     defer {
         for (ident_monos)
             |m|
@@ -1535,7 +1542,7 @@ test "Linear: Monotonic Trimmed Output"
 
     const ident_mono = ident_monos[0];
 
-    const TestCase = struct{
+    const TestCase = struct {
         name: []const u8,
         target_range: opentime.interval.ContinuousInterval,
         expected_range: opentime.interval.ContinuousInterval,
@@ -1547,13 +1554,13 @@ test "Linear: Monotonic Trimmed Output"
                 .{
                     .start = -1,
                     .end = 11,
-                }
+                },
             ),
             .expected_range = opentime.ContinuousInterval.init(
                 .{
                     .start = 0,
                     .end = 10,
-                }
+                },
             ),
         },
         .{
@@ -1562,13 +1569,13 @@ test "Linear: Monotonic Trimmed Output"
                 .{
                     .start = 3,
                     .end = 11,
-                }
+                },
             ),
             .expected_range = opentime.ContinuousInterval.init(
                 .{
                     .start = 3,
                     .end = 10,
-                }
+                },
             ),
         },
         .{
@@ -1577,13 +1584,13 @@ test "Linear: Monotonic Trimmed Output"
                 .{
                     .start = -1,
                     .end = 8,
-                }
+                },
             ),
             .expected_range = opentime.ContinuousInterval.init(
                 .{
                     .start = 0,
                     .end = 8,
-                }
+                },
             ),
         },
     };
@@ -1593,18 +1600,19 @@ test "Linear: Monotonic Trimmed Output"
     {
         const result = try ident_mono.trimmed_output(
             allocator,
-            t.target_range
+            t.target_range,
         );
         defer result.deinit(allocator);
 
-        errdefer opentime.dbg_print(@src(), 
+        errdefer opentime.dbg_print(
+            @src(),
             "test: {s}\n result: {f}",
             .{
                 t.name,
                 result.extents_output(),
             },
         );
-        
+
         try std.testing.expectEqual(
             t.expected_range.start,
             result.extents_output().?.start,
@@ -1620,23 +1628,21 @@ test "Linear.Monotonic.SplitAtCriticalPoints"
 {
     const allocator = std.testing.allocator;
 
-    const crv = bezier_curve.Bezier {
+    const crv = bezier_curve.Bezier{
         .segments = &.{
             .{
                 .p0 = .init(.{ .in = 1, .out = 0 }),
                 .p1 = .init(.{ .in = 1, .out = 5 }),
                 .p2 = .init(.{ .in = 5, .out = 5 }),
                 .p3 = .init(.{ .in = 5, .out = 1 }),
-            }
+            },
         },
     };
-    
+
     const lin = try crv.linearized(allocator);
     defer lin.deinit(allocator);
 
-    const lin_split = try lin.split_at_critical_points(
-        allocator
-    );
+    const lin_split = try lin.split_at_critical_points(allocator);
     defer allocator.free(lin_split);
 
     var last = lin_split[0].knots[0].in;
@@ -1657,8 +1663,18 @@ test "Linear.Monotonic.split_at_each_input_ord"
 
     const crv = Linear.Monotonic{
         .knots = &.{
-            .init(.{ .in = 0, .out = 0, }),
-            .init(.{ .in = 2, .out = 4, }),
+            .init(
+                .{
+                    .in = 0,
+                    .out = 0,
+                },
+            ),
+            .init(
+                .{
+                    .in = 2,
+                    .out = 4,
+                },
+            ),
         },
     };
 
@@ -1695,9 +1711,24 @@ test "Linear.Monotonic: nearest_knot_indices_output"
 {
     const crv = Linear.Monotonic{
         .knots = &.{
-            .init(.{ .in = 0, .out = 0, }),
-            .init(.{ .in = 4, .out = 4, }),
-            .init(.{ .in = 6, .out = 8, }),
+            .init(
+                .{
+                    .in = 0,
+                    .out = 0,
+                },
+            ),
+            .init(
+                .{
+                    .in = 4,
+                    .out = 4,
+                },
+            ),
+            .init(
+                .{
+                    .in = 6,
+                    .out = 8,
+                },
+            ),
         },
     };
 
@@ -1711,18 +1742,12 @@ test "Linear.Monotonic: nearest_knot_indices_output"
         .{
             .name = "between first two points",
             .pt = 3,
-            .expected = .{
-                .lt_output = 0,
-                .gt_output = 1 
-            },
+            .expected = .{ .lt_output = 0, .gt_output = 1 },
         },
         .{
             .name = "between second two points",
             .pt = 4.5,
-            .expected = .{
-                .lt_output = 1,
-                .gt_output = 2 
-            },
+            .expected = .{ .lt_output = 1, .gt_output = 2 },
         },
         .{
             .name = "no overlap before",
@@ -1755,8 +1780,18 @@ test "Linear.Monotonic: slope_kind"
     {
         const crv_rising = Linear.Monotonic{
             .knots = &.{
-                .init(.{ .in = 0, .out = 0, }),
-                .init(.{ .in = 2, .out = 4, }),
+                .init(
+                    .{
+                        .in = 0,
+                        .out = 0,
+                    },
+                ),
+                .init(
+                    .{
+                        .in = 2,
+                        .out = 4,
+                    },
+                ),
             },
         };
 
@@ -1769,8 +1804,18 @@ test "Linear.Monotonic: slope_kind"
     {
         const crv_flat = Linear.Monotonic{
             .knots = &.{
-                .init(.{ .in = 0, .out = 2, }),
-                .init(.{ .in = 2, .out = 2, }),
+                .init(
+                    .{
+                        .in = 0,
+                        .out = 2,
+                    },
+                ),
+                .init(
+                    .{
+                        .in = 2,
+                        .out = 2,
+                    },
+                ),
             },
         };
 
@@ -1783,8 +1828,18 @@ test "Linear.Monotonic: slope_kind"
     {
         const crv_falling = Linear.Monotonic{
             .knots = &.{
-                .init(.{ .in = 0, .out = 4, }),
-                .init(.{ .in = 2, .out = 0, }),
+                .init(
+                    .{
+                        .in = 0,
+                        .out = 4,
+                    },
+                ),
+                .init(
+                    .{
+                        .in = 2,
+                        .out = 0,
+                    },
+                ),
             },
         };
 
@@ -1803,10 +1858,11 @@ pub fn inverted_linear(
     allocator: std.mem.Allocator,
     /// Curve to invert.
     crv: Linear.Monotonic,
-) !Linear.Monotonic 
+) !Linear.Monotonic
 {
     // require two points to define a line
-    if (crv.knots.len < 2) {
+    if (crv.knots.len < 2)
+    {
         // @TODO: clone the result so that memory is owned by the caller.
         return crv;
     }
@@ -1814,30 +1870,25 @@ pub fn inverted_linear(
     var result: std.ArrayList(control_point.ControlPoint) = .empty;
     try result.appendSlice(allocator, crv.knots);
 
-    for (crv.knots, result.items) 
-        |src_knot, *dst_knot| 
+    for (crv.knots, result.items)
+        |src_knot, *dst_knot|
     {
         dst_knot.* = .{
             .in = src_knot.out,
-            .out = src_knot.in, 
+            .out = src_knot.in,
         };
     }
 
-    const slope_kind = SlopeKind.compute(
-        crv.knots[0],
-        crv.knots[1]
-    );
-    if (slope_kind == .falling) {
-        std.mem.reverse(
-            control_point.ControlPoint,
-            result.items
-        );
+    const slope_kind = SlopeKind.compute(crv.knots[0], crv.knots[1]);
+    if (slope_kind == .falling)
+    {
+        std.mem.reverse(control_point.ControlPoint, result.items);
     }
 
     return .{
         .knots = try result.toOwnedSlice(
             allocator,
-        ) 
+        ),
     };
 }
 
@@ -1854,7 +1905,7 @@ pub const SlopeKind = enum {
     ) SlopeKind
     {
         if (
-            opentime.eql(start.in, end.in) 
+            opentime.eql(start.in, end.in)
             or opentime.eql(start.out, end.out)
         )
         {
@@ -1867,7 +1918,7 @@ pub const SlopeKind = enum {
         {
             return .rising;
         }
-        else 
+        else
         {
             return .falling;
         }
@@ -1883,7 +1934,7 @@ test "bezier_math: SlopeKind"
     };
     const tests: []const TestCase = &.{
         .{
-            .name = "flat",  
+            .name = "flat",
             .points = .{
                 control_point.ControlPoint.init(.{ .in = 0, .out = 5 }),
                 control_point.ControlPoint.init(.{ .in = 10, .out = 5 }),
@@ -1891,7 +1942,7 @@ test "bezier_math: SlopeKind"
             .expected = .flat,
         },
         .{
-            .name = "rising",  
+            .name = "rising",
             .points = .{
                 control_point.ControlPoint.init(.{ .in = 0, .out = 0 }),
                 control_point.ControlPoint.init(.{ .in = 10, .out = 15 }),
@@ -1899,7 +1950,7 @@ test "bezier_math: SlopeKind"
             .expected = .rising,
         },
         .{
-            .name = "falling",  
+            .name = "falling",
             .points = .{
                 control_point.ControlPoint.init(.{ .in = 0, .out = 10 }),
                 control_point.ControlPoint.init(.{ .in = 10, .out = 0 }),
@@ -1907,7 +1958,7 @@ test "bezier_math: SlopeKind"
             .expected = .falling,
         },
         .{
-            .name = "column",  
+            .name = "column",
             .points = .{
                 control_point.ControlPoint.init(.{ .in = 0, .out = 10 }),
                 control_point.ControlPoint.init(.{ .in = 0, .out = 0 }),
@@ -1919,10 +1970,7 @@ test "bezier_math: SlopeKind"
     for (tests)
         |t|
     {
-        const measured = SlopeKind.compute(
-            t.points[0],
-            t.points[1]
-        );
+        const measured = SlopeKind.compute(t.points[0], t.points[1]);
         try std.testing.expectEqual(
             t.expected,
             measured,
@@ -1934,7 +1982,7 @@ test "bezier_math: SlopeKind"
 pub fn slope_between(
     start: control_point.ControlPoint,
     end: control_point.ControlPoint,
-) opentime.Ordinate 
+) opentime.Ordinate
 {
     return opentime.eval(
         "((end_out - start_out) / (end_in - start_in))",
@@ -1950,25 +1998,28 @@ pub fn slope_between(
 test "bezier_math: slope"
 {
     const start = control_point.ControlPoint.init(
-        .{ .in = 0, .out = 0, }
+        .{
+            .in = 0,
+            .out = 0,
+        },
     );
     const end = control_point.ControlPoint.init(
-        .{ .in = 2, .out = 4, }
+        .{
+            .in = 2,
+            .out = 4,
+        },
     );
 
-    try opentime.expectOrdinateEqual(
-        2,
-        slope_between(start, end)
-    );
+    try opentime.expectOrdinateEqual(2, slope_between(start, end));
 }
 
 test "split: bug"
 {
     const allocator = std.testing.allocator;
 
-    const test_crv = Linear.Monotonic {
+    const test_crv = Linear.Monotonic{
         .knots = &.{
-            .init(.{ .in = 0,  .out = 0  }),
+            .init(.{ .in = 0, .out = 0 }),
             .init(.{ .in = 10, .out = 10 }),
             .init(.{ .in = 20, .out = 30 }),
         },
@@ -1982,7 +2033,11 @@ test "split: bug"
         },
     );
     defer {
-        for (split_curves) |crv| crv.deinit(allocator);
+        for (split_curves)
+            |crv|
+        {
+            crv.deinit(allocator);
+        }
         allocator.free(split_curves);
     }
 

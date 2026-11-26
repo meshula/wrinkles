@@ -23,7 +23,6 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
 
-
 /// Scans haystack of enum tags for needle tag.  This is used by this library
 /// to determine if a tag is in a given enum.
 fn is_in_tag_list(
@@ -32,19 +31,22 @@ fn is_in_tag_list(
     needle: std.meta.Tag(enum_type),
 ) bool
 {
-    for (haystack) 
-        |v| 
+    for (haystack)
+        |v|
     {
-        if (v == needle) 
+        if (v == needle)
         {
             return true;
         }
-    } else return false;
+    }
+    else
+    {
+        return false;
+    }
 }
 
-
 /// A Temporal Space on a `CompositionItemHandle`.
-pub const TemporalSpace = union (enum) {
+pub const TemporalSpace = union(enum) {
     /// The presentation space is the "output" (from a rendering perspective)
     /// space, but the "input (from a projection/functional
     /// composition/mathematical perspective) space of a given object in an
@@ -70,15 +72,11 @@ pub const TemporalSpace = union (enum) {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
         try switch (self) {
-            .child => |ind| (
-                writer.print("child.{d}",.{ind})
-            ),
-            else => |s| (
-                writer.print("{s}",.{ @tagName(s)})
-            ),
+            .child => |ind| (writer.print("child.{d}", .{ind})),
+            else => |s| (writer.print("{s}", .{@tagName(s)})),
         };
     }
 };
@@ -96,21 +94,21 @@ pub const TemporalSpaceNode = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
         try writer.print(
             "{f}.{s}",
             .{
                 self.item,
                 @tagName(self.space),
-            }
+            },
         );
 
         if (self.space == .child)
         {
             try writer.print(
                 ".{d}",
-                .{ self.space.child },
+                .{self.space.child},
             );
         }
     }
@@ -140,7 +138,8 @@ pub const CompositionItemHandle = union(enum) {
     transition: *schema.Transition,
     collection: *schema.Collection,
 
-    /// Construct a CompositionItemHandle from a pointer to a composition item.
+    /// Construct a CompositionItemHandle from a pointer to a composition
+    /// item.
     ///
     /// Triggers a `@compileError` if the argument is not a pointer or an
     /// invalid type.
@@ -149,31 +148,31 @@ pub const CompositionItemHandle = union(enum) {
     ) CompositionItemHandle
     {
         comptime {
-            const ti= @typeInfo(@TypeOf(pointer_to_item));
-            if (std.meta.activeTag(ti) != .pointer) 
+            const ti = @typeInfo(@TypeOf(pointer_to_item));
+            if (std.meta.activeTag(ti) != .pointer)
             {
                 @compileError(
                     "CompositionItemHandle can only be constructed from "
                     ++ "pointers to previously allocated OTIO objects, not "
-                    ++ @typeName(@TypeOf(pointer_to_item))
+                    ++ @typeName(@TypeOf(pointer_to_item)),
                 );
             }
         }
 
-        return switch (@TypeOf(pointer_to_item.*))
-        {
+        return switch (@TypeOf(pointer_to_item.*)) {
             schema.Clip => .{ .clip = pointer_to_item },
-            schema.Gap   => .{ .gap = pointer_to_item },
+            schema.Gap => .{ .gap = pointer_to_item },
             schema.Track => .{ .track = pointer_to_item },
             schema.Stack => .{ .stack = pointer_to_item },
             schema.Warp => .{ .warp = pointer_to_item },
             schema.Timeline => .{ .timeline = pointer_to_item },
             schema.Transition => .{ .transition = pointer_to_item },
             schema.Collection => .{ .collection = pointer_to_item },
-            inline else => @compileError(
-                "CompositionItemHandle cannot reference to type: "
-                ++ @typeName(@TypeOf(pointer_to_item))
-            ),
+            inline else =>
+                @compileError(
+                    "CompositionItemHandle cannot reference to type: "
+                    ++ @typeName(@TypeOf(pointer_to_item)),
+                ),
         };
     }
 
@@ -183,8 +182,7 @@ pub const CompositionItemHandle = union(enum) {
         allocator: std.mem.Allocator,
     ) void
     {
-        switch (self.*) 
-        {
+        switch (self.*) {
             inline else => |ob| {
                 ob.deinit(allocator);
                 allocator.destroy(ob);
@@ -193,6 +191,7 @@ pub const CompositionItemHandle = union(enum) {
     }
 
     // @TODO: this shouldn't return an optional
+    
     /// The (optional) name of the referred item.
     pub fn name(
         self: @This(),
@@ -226,9 +225,11 @@ pub const CompositionItemHandle = union(enum) {
     {
         return switch (self) {
             .clip => |cl| try cl.topology_pres_to_media(allocator),
+
             // Collections have no temporal topology
             .collection => .empty,
-            inline else => |thing| try thing.topology_pres_to_intrinsic(allocator),
+            inline else => |thing|
+                try thing.topology_pres_to_intrinsic(allocator),
         };
     }
 
@@ -237,7 +238,7 @@ pub const CompositionItemHandle = union(enum) {
         self: @This(),
         allocator: std.mem.Allocator,
         target_space: TemporalSpace,
-    ) !opentime.ContinuousInterval 
+    ) !opentime.ContinuousInterval
     {
         std.debug.assert(self.has_available_local_space(target_space));
 
@@ -247,25 +248,30 @@ pub const CompositionItemHandle = union(enum) {
         defer presentation_to_intrinsic_topo.deinit(allocator);
 
         return switch (target_space) {
-            .media, .intrinsic => (
-                presentation_to_intrinsic_topo.output_bounds()
-                orelse return error.InvalidTransformationNoBounds
-            ),
-            .presentation => (
-                presentation_to_intrinsic_topo.input_bounds()
-                orelse return error.InvalidTransformationNoBounds
-            ),
+            .media,
+            .intrinsic,
+            => 
+                (
+                    presentation_to_intrinsic_topo.output_bounds()
+                    orelse return error.InvalidTransformationNoBounds
+                ),
+            .presentation =>
+                (
+                    presentation_to_intrinsic_topo.input_bounds()
+                    orelse return error.InvalidTransformationNoBounds
+                ),
             else => error.UnsupportedSpaceError,
         };
     }
 
-    /// Fetches the `available_local_spaces` field of the referenced item.  See
+    /// Fetches the `available_local_spaces` field of the referenced item.
+    /// See
     /// `schema.Clip.available_local_spaces` for example.  
     ///
     /// Note that this memory is static and does not need to be freed.
     pub fn available_local_spaces(
         self: @This(),
-    ) []const TemporalSpace 
+    ) []const TemporalSpace
     {
         return switch (self) {
             inline else => |thing| @TypeOf(thing.*).available_local_spaces,
@@ -286,13 +292,14 @@ pub const CompositionItemHandle = union(enum) {
         );
     }
 
-    /// Build a TemporalSpaceNode which refers to a specific local space on the
+    /// Build a TemporalSpaceNode which refers to a specific local space on
+    /// the
     /// referred composition item.
     pub fn space_node(
         self: @This(),
         /// Target space
-        target_space: TemporalSpace
-    ) TemporalSpaceNode 
+        target_space: TemporalSpace,
+    ) TemporalSpaceNode
     {
         std.debug.assert(self.has_available_local_space(target_space));
 
@@ -311,21 +318,20 @@ pub const CompositionItemHandle = union(enum) {
         allocator: std.mem.Allocator,
         /// Starting space on self.
         from_space: TemporalSpace,
-        // Destination space node (either in self or in a child of self).
         to_space_node: TemporalSpaceNode,
         /// Step taken from previous node.
         step: treecode.l_or_r,
-    ) !topology_m.Topology 
+    ) !topology_m.Topology
     {
-        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES)
         {
             std.debug.print(
                 "[{s}:{s}:{d}]    transform from space: {s}.{s}"
                 ++ " to space: {s}.{s}",
                 .{
-                    @src().file, 
-                    @src().fn_name, 
-                    @src().line, 
+                    @src().file,
+                    @src().fn_name,
+                    @src().line,
                     @tagName(self),
                     @tagName(from_space),
                     @tagName(to_space_node.item),
@@ -335,42 +341,39 @@ pub const CompositionItemHandle = union(enum) {
 
             if (to_space_node.space == .child)
             {
-                std.debug.print(
-                    ".child.{d}",
-                    .{to_space_node.space.child}
-                );
+                std.debug.print(".child.{d}", .{to_space_node.space.child});
             }
             std.debug.print("\n", .{});
         }
 
-        return switch (self) 
-        {
+        return switch (self) {
             .track => |*tr| {
-                switch (from_space) 
-                {
+                switch (from_space) {
                     // presentation -> intrinsic
                     .presentation => return .identity_infinite,
+
                     // intrinsic -> first child space
                     .intrinsic => return .identity_infinite,
+
                     // child space to either the presentation space of that
                     // child (left step)  or to the next child
                     .child => |child_index| {
-                        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+                        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES)
                         {
                             opentime.dbg_print(
                                 @src(),
                                 "     CHILD STEP: {b} to index: {d}\n",
-                                .{ step, child_index }
+                                .{ step, child_index },
                             );
                         }
 
                         // from this child space down into the presentation
                         // space of the child (identity)
-                        if (step == .left) 
+                        if (step == .left)
                         {
                             return .identity_infinite;
-                        } 
-                        else 
+                        }
+                        else
                         {
                             // from this child space to the next child space
                             // - account for the offset from previous child
@@ -381,8 +384,8 @@ pub const CompositionItemHandle = union(enum) {
                                 child_index,
                             );
                         }
-
                     },
+
                     // track supports no other spaces
                     else => return error.UnsupportedSpaceError,
                 }
@@ -390,7 +393,7 @@ pub const CompositionItemHandle = union(enum) {
             .clip => |*cl| {
                 // schema.Clip spaces and transformations
                 //
-                // key: 
+                // key:
                 //   + space
                 //   * transformation
                 //
@@ -408,13 +411,12 @@ pub const CompositionItemHandle = union(enum) {
                         // goes to media
 
                         // implied, but inf identity
-                        // const pres_to_intrinsic_topo:topology_m.Topology = (
+                        // const pres_to_intrinsic_topo:topology_m.Topology =
+                        // (
                         //     .INFINITE_IDENTITY
                         // );
 
-                        const media_bounds = (
-                            try cl.*.bounds_of(.media)
-                        );
+                        const media_bounds = (try cl.*.bounds_of(.media));
                         const intrinsic_to_media_xform = (
                             opentime.AffineTransform1D{
                                 .offset = media_bounds.start,
@@ -429,7 +431,7 @@ pub const CompositionItemHandle = union(enum) {
                         );
 
                         const intrinsic_to_media_mapping = (
-                            topology_m.MappingAffine {
+                            topology_m.MappingAffine{
                                 .input_to_output_xform = intrinsic_to_media_xform,
                                 .input_bounds_val = intrinsic_bounds,
                             }
@@ -447,7 +449,7 @@ pub const CompositionItemHandle = union(enum) {
                         // implied
                         // const pres_to_media = try topology_m.join(
                         //     allocator,
-                        //     .{ 
+                        //     .{
                         //         .a2b = pres_to_intrinsic_topo,
                         //         .b2c = intrinsic_to_media,
                         //     },
@@ -459,107 +461,113 @@ pub const CompositionItemHandle = union(enum) {
                         return pres_to_media;
                     },
                     else => {
-                        // the only further transfomartion from media space is 
-                        // to bound (should have already been bounded in the 
+                        // the only further transfomartion from media space is
+                        // to bound (should have already been bounded in the
                         // presentation->media transformation)
                         const result = (
                             try topology_m.Topology.init_identity(
                                 allocator,
-                                try cl.*.bounds_of(.media,)
+                                try cl.*.bounds_of(
+                                    .media,
+                                ),
                             )
                         );
 
                         return result;
-                    }
+                    },
                 };
             },
-            .warp => |wp_ptr| switch(from_space) 
-            {
-                .presentation => {
-                    const intrinsic_to_warp_unbounded = wp_ptr.transform;
+            .warp => |wp_ptr|
+                switch (from_space) {
+                    .presentation => {
+                        const intrinsic_to_warp_unbounded = wp_ptr.transform;
 
-                    std.debug.assert(
-                        (
-                         wp_ptr.transform.input_bounds() 
-                         orelse return error.InvalidBounds
-                        ).is_instant() == false
-                    );
+                        std.debug.assert(
+                            (
+                                wp_ptr.transform.input_bounds()
+                                orelse return error.InvalidBounds
+                            ).is_instant() == false,
+                        );
 
-                    const child_bounds = (
-                        try wp_ptr.child.bounds_of(
-                            allocator,
-                            .presentation,
-                        )
-                    );
+                        const child_bounds = (
+                            try wp_ptr.child.bounds_of(
+                                allocator,
+                                .presentation,
+                            )
+                        );
 
-                    // needs the boundaries from the child
-                    const warp_unbounded_to_child = (
-                        try topology_m.Topology.init_identity(
-                            allocator, 
-                            child_bounds,
-                        )
-                    );
+                        // needs the boundaries from the child
+                        const warp_unbounded_to_child = (
+                            try topology_m.Topology.init_identity(
+                                allocator,
+                                child_bounds,
+                            )
+                        );
 
-                    const intrinsic_to_child = try topology_m.join(
-                        allocator,
-                        .{
-                            .a2b = intrinsic_to_warp_unbounded,
-                            .b2c = warp_unbounded_to_child,
-                        }
-                    );
-
-                    std.debug.assert(
-                        (
-                         intrinsic_to_child.input_bounds()
-                         orelse return error.InvalidBounds
-                        ).is_instant() == false
-                    );
-
-                    const intrinsic_bounds = (
-                        intrinsic_to_child.input_bounds()
-                        orelse return error.InvalidBounds
-                    );
-
-                    const presentation_to_intrinsic = (
-                        try topology_m.Topology.init_affine(
+                        const intrinsic_to_child = try topology_m.join(
                             allocator,
                             .{
-                                .input_to_output_xform = .{
-                                    .offset = intrinsic_bounds.start,
-                                    .scale = .one,
-                                },
-                                .input_bounds_val = .inf_neg_to_pos,
+                                .a2b = intrinsic_to_warp_unbounded,
+                                .b2c = warp_unbounded_to_child,
                             },
-                        )
-                    );
+                        );
 
-                    const result = try topology_m.join(
-                        allocator,
-                        .{
-                            .a2b = presentation_to_intrinsic,
-                            .b2c = intrinsic_to_child,
-                        }
-                    );
+                        std.debug.assert(
+                            (
+                                intrinsic_to_child.input_bounds()
+                                orelse return error.InvalidBounds
+                            ).is_instant() == false,
+                        );
 
-                    std.debug.assert(
-                        (
-                         result.input_bounds()
-                         orelse return error.InvalidBounds
-                        ).is_instant() == false
-                    );
+                        const intrinsic_bounds = (
+                            intrinsic_to_child.input_bounds()
+                            orelse return error.InvalidBounds
+                        );
 
-                    return result;
+                        const presentation_to_intrinsic = (
+                            try topology_m.Topology.init_affine(
+                                allocator,
+                                .{
+                                    .input_to_output_xform = .{
+                                        .offset = intrinsic_bounds.start,
+                                        .scale = .one,
+                                    },
+                                    .input_bounds_val = .inf_neg_to_pos,
+                                },
+                            )
+                        );
+
+                        const result = try topology_m.join(
+                            allocator,
+                            .{
+                                .a2b = presentation_to_intrinsic,
+                                .b2c = intrinsic_to_child,
+                            },
+                        );
+
+                        std.debug.assert(
+                            (
+                                result.input_bounds()
+                                orelse return error.InvalidBounds
+                            ).is_instant() == false,
+                        );
+
+                        return result;
+                    },
+                    else => .identity_infinite,
                 },
-                else => .identity_infinite,
-            },
-            .gap => |gap_ptr| switch (from_space) 
-            {
-                .presentation => gap_ptr.topology_pres_to_intrinsic(allocator),
-                else => .identity_infinite,
-            },
+            .gap => |gap_ptr|
+                switch (from_space) {
+                    .presentation =>
+                        gap_ptr.topology_pres_to_intrinsic(allocator),
+                    else => .identity_infinite,
+                },
+
             // wrapped as identity
             .timeline, .stack, .transition => .identity_infinite,
-            // Collections have no temporal topology - this shouldn't be called
+
+            // Collections have no temporal topology - this shouldn't be
+            // called
             .collection => .identity_infinite,
         };
     }
@@ -580,7 +588,7 @@ pub const CompositionItemHandle = union(enum) {
             )
         );
 
-        if (maybe_discrete_partition) 
+        if (maybe_discrete_partition)
             |discrete_partition|
         {
             return sampling.project_index_dc(
@@ -605,24 +613,25 @@ pub const CompositionItemHandle = union(enum) {
             self.discrete_partition_for_space(in_space, domain)
         );
 
-        if (maybe_discrete_partition) 
+        if (maybe_discrete_partition)
             |discrete_partition|
         {
             return sampling.project_instantaneous_cd(
                 discrete_partition,
-                ord_continuous
+                ord_continuous,
             );
         }
 
         // @TODO: should this be an error?  or a null (no projection).
         return error.NoDiscreteInfoForSpace;
     }
-   
+
     /// Continuous to discrete transformation for the given space on the
     /// referred item.
     ///
     /// EG: given in_space .presentation, builds the continuous-to-discrete
-    /// topology for transforming from the continuous presentation space to the
+    /// topology for transforming from the continuous presentation space to
+    /// the
     /// discrete presentation space.  This would, for example,give the sample
     /// indices for ordinates and intervals in this space.
     pub fn continuous_to_discrete_topology(
@@ -650,9 +659,10 @@ pub const CompositionItemHandle = union(enum) {
             // start
             @floatFromInt(discrete_info.start_index),
             // held durations
-            1.0 / @as(
+            1.0
+            / @as(
                 opentime.Ordinate,
-                @floatFromInt(discrete_info.sample_rate_hz)
+                @floatFromInt(discrete_info.sample_rate_hz),
             ),
             // increment -- @TODO: support other increments ("on twos", etc)
             1.0,
@@ -669,21 +679,28 @@ pub const CompositionItemHandle = union(enum) {
     ) ?sampling.SampleIndexGenerator
     {
         return switch (self) {
-            .timeline => |tl| switch (space) {
-                .presentation => switch (domain) {
-                    .picture => tl.discrete_space_partitions.presentation.picture,
-                    .audio => tl.discrete_space_partitions.presentation.audio,
+            .timeline => |tl|
+                switch (space) {
+                    .presentation =>
+                        switch (domain) {
+                            .picture =>
+                                tl.discrete_space_partitions.presentation.picture,
+                            .audio =>
+                                tl.discrete_space_partitions.presentation.audio,
+                            inline else => null,
+                        },
                     inline else => null,
                 },
-                inline else => null,
-            },
-            .clip => |cl| switch (space) {
-                .media => if (
-                    std.meta.activeTag(domain) 
-                    == std.meta.activeTag(cl.media.domain)
-                ) cl.media.maybe_discrete_partition else null,
-                inline else => null,
-            },
+            .clip => |cl|
+                switch (space) {
+                    .media =>
+                        if (std.meta.activeTag(domain)
+                        == std.meta.activeTag(cl.media.domain)) (
+                            cl.media.maybe_discrete_partition
+                        )
+                        else null,
+                    inline else => null,
+                },
             inline else => null,
         };
     }
@@ -692,14 +709,14 @@ pub const CompositionItemHandle = union(enum) {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
         try writer.print(
             "{s}.{s}",
             .{
                 self.name() orelse "null",
                 @tagName(self),
-            }
+            },
         );
     }
 
@@ -713,29 +730,35 @@ pub const CompositionItemHandle = union(enum) {
         defer children_ptrs.deinit(allocator);
 
         switch (self) {
-            inline .track, .stack => |st_or_tr| (
-                try children_ptrs.appendSlice(
+            inline .track,
+            .stack,
+            => |st_or_tr| 
+                (
+                    try children_ptrs.appendSlice(
+                        allocator,
+                        st_or_tr.children,
+                    )
+                ),
+            .timeline => |tl|
+                try children_ptrs.append(
                     allocator,
-                    st_or_tr.children,
-                )
-            ),
-            .timeline => |tl| try children_ptrs.append(
-                allocator,
-                CompositionItemHandle.init(&tl.tracks)
-            ),
-            .transition => |tl| try children_ptrs.append(
-                allocator,
-                CompositionItemHandle.init(&tl.container)
-            ),
+                    CompositionItemHandle.init(&tl.tracks),
+                ),
+            .transition => |tl|
+                try children_ptrs.append(
+                    allocator,
+                    CompositionItemHandle.init(&tl.container),
+                ),
             .warp => |wp| {
-                try children_ptrs.append(allocator,wp.child);
+                try children_ptrs.append(allocator, wp.child);
             },
-            .collection => |coll| (
-                try children_ptrs.appendSlice(
-                    allocator,
-                    coll.children,
-                )
-            ),
+            .collection => |coll|
+                (
+                    try children_ptrs.appendSlice(
+                        allocator,
+                        coll.children,
+                    )
+                ),
             inline else => {},
         }
 
@@ -765,21 +788,21 @@ test "is_in_tag_list"
     };
 
     try std.testing.expectEqual(
-        true, 
+        true,
         is_in_tag_list(
             TemporalSpace,
             haystack,
             .presentation,
-        )
+        ),
     );
 
     try std.testing.expectEqual(
-        false, 
+        false,
         is_in_tag_list(
             TemporalSpace,
             haystack,
             .media,
-        )
+        ),
     );
 }
 
@@ -789,12 +812,12 @@ test "CompositionItemHandle: has_space"
     const cl_h = cl.handle();
 
     try std.testing.expectEqual(
-        true, 
+        true,
         cl_h.has_available_local_space(.media),
     );
 
     try std.testing.expectEqual(
-        false, 
+        false,
         cl_h.has_available_local_space(.intrinsic),
     );
 }

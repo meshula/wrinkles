@@ -44,7 +44,11 @@ pub const ArtifactDir = struct {
         {
             try std.Io.Dir.cwd().createDirPath(io, configured_dir);
             result.path_len = (
-                try std.fmt.bufPrint(&result.path_buf, "{s}", .{configured_dir})
+                try std.fmt.bufPrint(
+                    &result.path_buf,
+                    "{s}",
+                    .{configured_dir},
+                )
             ).len;
         }
         else
@@ -105,7 +109,7 @@ pub fn tmp_dir_path(
     return std.fmt.bufPrint(
         buf,
         ".zig-cache" ++ sep ++ "tmp" ++ sep ++ "{s}",
-        .{ &tmp.sub_path },
+        .{&tmp.sub_path},
     );
 }
 

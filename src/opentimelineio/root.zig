@@ -38,11 +38,9 @@ pub const read_from_file = serialization.read_from_file;
 /// File format types for serialization operations
 pub const FileFormat = serialization.FileFormat;
 
-
-test {
-    const otio_highlevel_tests = @import(
-        "opentimelineio_highlevel_test.zig"
-    );
+test 
+{
+    const otio_highlevel_tests = @import("opentimelineio_highlevel_test.zig");
 
     _ = otio_highlevel_tests;
     _ = temporal_tree;

@@ -10,7 +10,7 @@ const builtin = @import("builtin");
 fn _parse_args(
     allocator: std.mem.Allocator,
     args: std.process.Args,
-) !struct{
+) !struct {
     files_to_measure: []const []const u8,
     output_fps: ?u8,
 }
@@ -28,8 +28,8 @@ fn _parse_args(
     var discrete_fps: ?u8 = null;
 
     // read all the filepaths from the commandline
-    while (arg_iter.next()) 
-        |nextarg| 
+    while (arg_iter.next())
+        |nextarg|
     {
         arg_count += 1;
         const fpath: [:0]const u8 = nextarg;
@@ -37,13 +37,13 @@ fn _parse_args(
         if (
             string.eql_latin_s8(fpath, "--discrete-fps")
             or (string.eql_latin_s8(fpath, "-d"))
-        ) 
+        )
         {
             if (arg_iter.next())
                 |fps|
             {
                 discrete_fps = (
-                    std.fmt.parseInt(u8, fps, 10) 
+                    std.fmt.parseInt(u8, fps, 10)
                     catch c: {
                         usage("Error: --discrete-fps -d expected a u8.");
                         break :c null;
@@ -60,11 +60,11 @@ fn _parse_args(
         if (
             string.eql_latin_s8(fpath, "--help")
             or (string.eql_latin_s8(fpath, "-h"))
-        ) 
+        )
         {
             usage("");
         }
-        
+
         try files_to_measure.append(allocator, fpath);
     }
 
@@ -77,7 +77,7 @@ fn _parse_args(
 /// Usage message for argument parsing.
 pub fn usage(
     msg: []const u8,
-) void 
+) void
 {
     std.debug.print(
         \\
@@ -91,7 +91,8 @@ pub fn usage(
         \\  -h --help: print this message and exit
         \\
         \\{s}
-        , .{msg}
+        ,
+        .{msg},
     );
     std.process.exit(1);
 }
@@ -115,16 +116,12 @@ pub fn main(
         args.files_to_measure.len,
     );
 
-    var buffer:[1024]u8 = undefined;
+    var buffer: [1024]u8 = undefined;
 
     for (args.files_to_measure)
         |filepath|
     {
-        const name = try std.fmt.bufPrint(
-            &buffer,
-            "File: {s}",
-            .{ filepath }
-        );
+        const name = try std.fmt.bufPrint(&buffer, "File: {s}", .{filepath});
         const file_prog = parent_prog.start(
             name,
             4,
@@ -140,7 +137,8 @@ pub fn main(
             io,
             filepath,
             .{},
-        ) catch |e| switch (e) {
+        )
+        catch |e| switch (e) {
             error.FileNotFound => found = false,
             else => return e,
         };
@@ -148,7 +146,7 @@ pub fn main(
         {
             std.log.err(
                 "File: {s} does not exist or is not accessible.",
-                .{filepath}
+                .{filepath},
             );
         }
 
@@ -170,21 +168,16 @@ pub fn main(
 
         std.debug.print(
             "Timeline {?s} has {d} tracks\nTracks:\n",
-            .{
-                tl_ref.name(),
-                tl_ref.timeline.tracks.children.len 
-            },
+            .{ tl_ref.name(), tl_ref.timeline.tracks.children.len },
         );
 
         for (tl_ref.timeline.tracks.children, 0..)
             |child, track_ind|
         {
-            const children = (
-                try child.children_refs(allocator)
-            );
+            const children = try child.children_refs(allocator);
             std.debug.print(
                 "  Track: {d}:{?s} has {d} children\n",
-                .{ 
+                .{
                     track_ind,
                     child.name(),
                     children.len,
@@ -201,7 +194,7 @@ pub fn main(
                         ind,
                         @tagName(child_child),
                         child_child.name(),
-                    }
+                    },
                 );
             }
         }
@@ -218,7 +211,7 @@ pub fn main(
 
         std.debug.print(
             "Tracks: {d}\n",
-            .{tl_ref.timeline.tracks.children.len}
+            .{tl_ref.timeline.tracks.children.len},
         );
         var items: usize = 0;
         for (tl_ref.timeline.tracks.children, 0..)
@@ -226,7 +219,7 @@ pub fn main(
         {
             std.debug.print(
                 "  Track [{d}]: {d} items\n",
-                .{ind, child.track.children.len},
+                .{ ind, child.track.children.len },
             );
             items += child.track.children.len;
         }
@@ -236,8 +229,12 @@ pub fn main(
 
         std.debug.print("Discrete Infomration / Domain:\n", .{});
 
-        for (&[_]otio.Domain{.picture, .audio,})
-            |dmn|
+        const domains = [_]otio.Domain{
+            .picture,
+            .audio,
+        };
+        
+        for (&domains) |dmn|
         {
             if (
                 tl_ref.discrete_partition_for_space(
@@ -248,15 +245,12 @@ pub fn main(
             {
                 std.debug.print(
                     "  {s}: {f}\n",
-                    .{@tagName(dmn), index_generator}
+                    .{ @tagName(dmn), index_generator },
                 );
             }
-            else 
+            else
             {
-                std.debug.print(
-                    "  {s}: (none)\n",
-                    .{@tagName(dmn)}
-                );
+                std.debug.print("  {s}: (none)\n", .{@tagName(dmn)});
             }
         }
     }

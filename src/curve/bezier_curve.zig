@@ -132,35 +132,33 @@ test "Bezier.Segment: debug_str test"
         \\    "p3": { "in": 0.500000, "out": 0.500000 }
         \\}
         \\
-            ;
+    ;
 
-        const blob = try seg.debug_json_str(allocator);
-        defer allocator.free(blob);
+    const blob = try seg.debug_json_str(allocator);
+    defer allocator.free(blob);
 
-        try std.testing.expectEqualStrings( result,blob);
+    try std.testing.expectEqualStrings(result, blob);
 }
 
 fn _is_approximately_linear(
     segment: Bezier.Segment,
     tolerance: f32,
-) bool 
+) bool
 {
-    const u = (
-        (segment.p1.mul(3.0)).sub(segment.p0.mul(2.0)).sub(segment.p3)
-    );
+    const u = ((segment.p1.mul(3.0)).sub(segment.p0.mul(2.0)).sub(segment.p3));
     var ux = u.in.mul(u.in);
     var uy = u.out.mul(u.out);
 
-    const v = (
-        (segment.p2.mul(3.0)).sub(segment.p3.mul(2.0)).sub(segment.p0)
-    );
+    const v = ((segment.p2.mul(3.0)).sub(segment.p3.mul(2.0)).sub(segment.p0));
     const vx = v.in.mul(v.in);
     const vy = v.out.mul(v.out);
 
-    if (ux.lt(vx)) {
+    if (ux.lt(vx))
+    {
         ux = vx;
     }
-    if (uy.lt(vy)) {
+    if (uy.lt(vy))
+    {
         uy = vy;
     }
 
@@ -169,7 +167,8 @@ fn _is_approximately_linear(
 
 /// Based on this paper:
 /// https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.86.162&rep=rep1&type=pdf
-/// return a list of segments that approximate the segment with the given tolerance
+/// return a list of segments that approximate the segment with the given
+/// tolerance
 ///
 /// ASSUMES THAT ALL POINTS ARE FINITE
 pub fn linearize_segment(
@@ -177,24 +176,25 @@ pub fn linearize_segment(
     /// Bezier segment to linearize.
     segment: Bezier.Segment,
     /// How close the linearized segment should be to the original Bezier curve.
-    tolerance:f32,
+    tolerance: f32,
 ) ![]control_point.ControlPoint
 {
     // @TODO: this function should compute and preserve the derivatives on the
     //        bezier segments
     var result: std.ArrayList(control_point.ControlPoint) = .empty;
 
-    if (_is_approximately_linear(segment, tolerance)) 
+    if (_is_approximately_linear(segment, tolerance))
     {
         // terminal condition
         try result.append(allocator, segment.p0);
         try result.append(allocator, segment.p3);
-    } 
-    else 
+    }
+    else
     {
         // recursion
         const subsegments = (
-            segment.split_at(0.5) orelse return error.NoSplitForLinearization
+            segment.split_at(0.5)
+            orelse return error.NoSplitForLinearization
         );
 
         {
@@ -221,7 +221,7 @@ pub fn linearize_segment(
     return result.toOwnedSlice(allocator);
 }
 
-test "segment: linearize basic test" 
+test "segment: linearize basic test"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -229,7 +229,7 @@ test "segment: linearize basic test"
     const segment = try read_segment_json(
         allocator,
         io,
-        "segments/upside_down_u.json"
+        "segments/upside_down_u.json",
     );
 
     {
@@ -240,7 +240,7 @@ test "segment: linearize basic test"
         );
         defer allocator.free(linearized_knots);
         try std.testing.expectEqual(
-            8+1,
+            8 + 1,
             linearized_knots.len,
         );
     }
@@ -253,7 +253,7 @@ test "segment: linearize basic test"
         );
         defer allocator.free(linearized_knots);
         try std.testing.expectEqual(
-            68+1,
+            68 + 1,
             linearized_knots.len,
         );
     }
@@ -266,21 +266,21 @@ test "segment: linearize basic test"
         );
         defer allocator.free(linearized_knots);
         try std.testing.expectEqual(
-            256+1,
+            256 + 1,
             linearized_knots.len,
         );
     }
 }
 
-test "segment from point array" 
+test "segment from point array"
 {
     const allocator = std.testing.allocator;
 
     const original_knots_ident: [4]control_point.ControlPoint = .{
-        .init(.{ .in = -0.5,     .out = -0.5}),
-        .init(.{ .in = -0.16666, .out = -0.16666}),
-        .init(.{ .in = 0.166666, .out = 0.16666}),
-        .init(.{ .in = 0.5,      .out = 0.5})
+        .init(.{ .in = -0.5, .out = -0.5 }),
+        .init(.{ .in = -0.16666, .out = -0.16666 }),
+        .init(.{ .in = 0.166666, .out = 0.16666 }),
+        .init(.{ .in = 0.5, .out = 0.5 }),
     };
     const ident = Bezier.Segment.from_pt_array(original_knots_ident);
 
@@ -292,7 +292,7 @@ test "segment from point array"
     const linearized_ident_knots = try linearize_segment(
         allocator,
         ident,
-        0.01
+        0.01,
     );
     defer allocator.free(linearized_ident_knots);
     try std.testing.expectEqual(
@@ -319,7 +319,7 @@ test "segment from point array"
     );
 }
 
-test "segment: linearize already linearized curve" 
+test "segment: linearize already linearized curve"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -327,13 +327,9 @@ test "segment: linearize already linearized curve"
     const segment = try read_segment_json(
         allocator,
         io,
-        "segments/linear.json"
+        "segments/linear.json",
     );
-    const linearized_knots = try linearize_segment(
-        allocator,
-        segment,
-        0.01
-    );
+    const linearized_knots = try linearize_segment(allocator, segment, 0.01);
     defer allocator.free(linearized_knots);
 
     // already linear!
@@ -342,10 +338,10 @@ test "segment: linearize already linearized curve"
 
 /// Read a Bezier segment from a json file on disk.
 pub fn read_segment_json(
-    allocator:std.mem.Allocator,
+    allocator: std.mem.Allocator,
     io: std.Io,
     file_path: []const u8,
-) !Bezier.Segment 
+) !Bezier.Segment
 {
     const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
     defer file.close(io);
@@ -353,7 +349,7 @@ pub fn read_segment_json(
     var file_reader = file.reader(io, &.{});
     const source = try file_reader.interface.allocRemaining(
         allocator,
-        .limited(1024*1024),
+        .limited(1024 * 1024),
     );
     defer allocator.free(source);
 
@@ -361,7 +357,7 @@ pub fn read_segment_json(
         BezierF.Segment,
         allocator,
         source,
-        .{}
+        .{},
     );
     defer result.deinit();
 
@@ -373,38 +369,35 @@ pub fn read_segment_json(
     };
 }
 
-test "segment: output_at_input and findU test over linear curve" 
+test "segment: output_at_input and findU test over linear curve"
 {
     const seg = Bezier.Segment.init_from_start_end(
-        .init(.{.in = 2, .out = 2}),
-        .init(.{.in = 3, .out = 3}),
+        .init(.{ .in = 2, .out = 2 }),
+        .init(.{ .in = 3, .out = 3 }),
     );
 
-    for ([_]opentime.Ordinate.InnerType{2.1, 2.2, 2.3, 2.5, 2.7}) 
-               |coord| 
+    for ([_]opentime.Ordinate.InnerType{ 2.1, 2.2, 2.3, 2.5, 2.7 })
+        |coord|
     {
-        try opentime.expectOrdinateEqual(
-            coord,
-            seg.output_at_input(coord)
-        );
+        try opentime.expectOrdinateEqual(coord, seg.output_at_input(coord));
     }
 }
 
-test "segment: dual_eval_at over linear curve" 
+test "segment: dual_eval_at over linear curve"
 {
     // identity curve
     {
         const seg = Bezier.Segment.ident_zero_one;
 
-        for ([_]opentime.Ordinate.InnerType{0.2, 0.4, 0.5, 0.98}) 
-            |coord| 
+        for ([_]opentime.Ordinate.InnerType{ 0.2, 0.4, 0.5, 0.98 })
+            |coord|
         {
             const result = seg.eval_at_dual(
                 .init_ri(coord, 1),
             );
             errdefer std.log.err(
                 "coord: {any}, result: {any}\n",
-                .{ coord, result }
+                .{ coord, result },
             );
             try opentime.expectOrdinateEqual(
                 coord,
@@ -438,15 +431,13 @@ test "segment: dual_eval_at over linear curve"
                 .init(0.4),
                 .init(0.5),
                 .init(0.98),
-            }
-        ) |coord| 
+            },
+        ) |coord|
         {
-            const result = seg.eval_at_dual(
-                .init_ri(coord, 1)
-            );
+            const result = seg.eval_at_dual(.init_ri(coord, 1));
             errdefer std.log.err(
                 "coord: {any}, result: {any}\n",
-                .{ coord, result }
+                .{ coord, result },
             );
             try opentime.expectOrdinateEqual(
                 coord,
@@ -468,17 +459,17 @@ test "segment: dual_eval_at over linear curve"
     }
 }
 
-test "Bezier.Segment.init_identity check cubic spline" 
+test "Bezier.Segment.init_identity check cubic spline"
 {
     // ensure that points are along line even for linear case
     const seg = Bezier.Segment.ident_zero_one;
 
     try opentime.expectOrdinateEqual(0, seg.p0.in);
     try opentime.expectOrdinateEqual(0, seg.p0.out);
-    try opentime.expectOrdinateEqual(1.0/3.0, seg.p1.in);
-    try opentime.expectOrdinateEqual(1.0/3.0, seg.p1.out);
-    try opentime.expectOrdinateEqual(2.0/3.0, seg.p2.in);
-    try opentime.expectOrdinateEqual(2.0/3.0, seg.p2.out);
+    try opentime.expectOrdinateEqual(1.0 / 3.0, seg.p1.in);
+    try opentime.expectOrdinateEqual(1.0 / 3.0, seg.p1.out);
+    try opentime.expectOrdinateEqual(2.0 / 3.0, seg.p2.in);
+    try opentime.expectOrdinateEqual(2.0 / 3.0, seg.p2.out);
     try opentime.expectOrdinateEqual(1, seg.p3.in);
     try opentime.expectOrdinateEqual(1, seg.p3.out);
 }
@@ -507,7 +498,7 @@ pub const Bezier = struct {
         );
 
         pub fn init_f32(
-            in_seg : struct{
+            in_seg: struct {
                 p0: control_point.ControlPoint_InnerType,
                 p1: control_point.ControlPoint_InnerType,
                 p2: control_point.ControlPoint_InnerType,
@@ -536,28 +527,28 @@ pub const Bezier = struct {
                 .{
                     .in = input_end,
                     .out = input_end,
-                }
+                },
             );
         }
 
         pub fn init_from_start_end(
             start: control_point.ControlPoint,
-            end: control_point.ControlPoint
-        ) Segment 
+            end: control_point.ControlPoint,
+        ) Segment
         {
             if (end.in.gteq(start.in))
             {
                 return .{
                     .p0 = start,
-                    .p1 = opentime.lerp(1.0/3.0, start, end),
-                    .p2 = opentime.lerp(2.0/3.0, start, end),
+                    .p1 = opentime.lerp(1.0 / 3.0, start, end),
+                    .p2 = opentime.lerp(2.0 / 3.0, start, end),
                     .p3 = end,
                 };
             }
 
             std.debug.panic(
                 "Create linear segment failed, t0: {d} > t1: {d}\n",
-                .{start.in, end.in}
+                .{ start.in, end.in },
             );
         }
 
@@ -574,7 +565,7 @@ pub const Bezier = struct {
                 mid_point,
                 t_mid_point,
                 d_mid_point_dt,
-                end_knot
+                end_knot,
             );
 
             return result.result;
@@ -582,37 +573,37 @@ pub const Bezier = struct {
 
         /// construct a static array of the points
         pub fn points(
-            self: @This()
-        ) [4]control_point.ControlPoint 
+            self: @This(),
+        ) [4]control_point.ControlPoint
         {
             return .{ self.p0, self.p1, self.p2, self.p3 };
         }
 
         /// construct an array of pointers to the points in this segment
         pub fn point_ptrs(
-            self: *@This()
-        ) [4]*control_point.ControlPoint 
+            self: *@This(),
+        ) [4]*control_point.ControlPoint
         {
             return .{ &self.p0, &self.p1, &self.p2, &self.p3 };
         }
 
         /// copy pts over values in self
         pub fn from_pt_array(
-            pts: [4]control_point.ControlPoint
-        ) Segment 
+            pts: [4]control_point.ControlPoint,
+        ) Segment
         {
-            return .{ 
+            return .{
                 .p0 = pts[0],
                 .p1 = pts[1],
                 .p2 = pts[2],
-                .p3 = pts[3], 
+                .p3 = pts[3],
             };
         }
 
         pub fn set_points(
             self: *@This(),
-            pts: [4]control_point.ControlPoint
-        ) void 
+            pts: [4]control_point.ControlPoint,
+        ) void
         {
             self.p0 = pts[0];
             self.p1 = pts[1];
@@ -626,11 +617,11 @@ pub const Bezier = struct {
             unorm_dual: opentime.Dual_Ord,
         ) control_point.Dual_CP
         {
-            var self_dual : [4]control_point.Dual_CP = undefined;
+            var self_dual: [4]control_point.Dual_CP = undefined;
             const self_p = self.points();
 
-            inline for (self_p, &self_dual) 
-                |p, *dual_p| 
+            inline for (self_p, &self_dual)
+                |p, *dual_p|
             {
                 dual_p.* = control_point.Dual_CP.init(p);
             }
@@ -671,10 +662,13 @@ pub const Bezier = struct {
         /// note: u of < 0 or >= 1 will result in a null result, no split
         pub fn split_at(
             self: @This(),
-            unorm:U_TYPE,
-        ) ?[2]Segment 
+            unorm: U_TYPE,
+        ) ?[2]Segment
         {
-            if (unorm < epsilon or unorm >= 1)
+            if (
+                unorm < epsilon
+                or unorm >= 1
+            )
             {
                 return null;
             }
@@ -706,13 +700,13 @@ pub const Bezier = struct {
             const R2 = opentime.lerp(unorm, p[2], p[3]);
             const R1 = opentime.lerp(
                 unorm,
-                opentime.lerp(unorm, p[1], p[2]), 
+                opentime.lerp(unorm, p[1], p[2]),
                 R2,
             );
             const R3 = p[3];
 
             return .{
-                Segment{ 
+                Segment{
                     .p0 = Q0,
                     .p1 = Q1,
                     .p2 = Q2,
@@ -728,7 +722,7 @@ pub const Bezier = struct {
         }
 
         pub fn extents_input(
-            self: @This()
+            self: @This(),
         ) opentime.ContinuousInterval
         {
             return .{
@@ -740,13 +734,13 @@ pub const Bezier = struct {
         /// compute the extents of the segment
         pub fn extents(
             self: @This(),
-        ) [2]control_point.ControlPoint 
+        ) [2]control_point.ControlPoint
         {
             var min: control_point.ControlPoint = self.p0;
             var max: control_point.ControlPoint = self.p0;
 
-            inline for ([3][]const u8{"p1", "p2", "p3"}) 
-                |field| 
+            inline for ([3][]const u8{ "p1", "p2", "p3" })
+                |field|
             {
                 const pt = @field(self, field);
                 min = .{
@@ -766,22 +760,22 @@ pub const Bezier = struct {
         pub fn can_project(
             self: @This(),
             segment_to_project: Segment,
-        ) bool 
+        ) bool
         {
             const my_extents = self.extents();
             const other_extents = segment_to_project.extents();
 
             return (
                 other_extents[0].out.gteq(
-                    my_extents[0].in.sub(opentime.Ordinate.epsilon)
+                    my_extents[0].in.sub(opentime.Ordinate.epsilon),
                 )
                 and other_extents[1].out.lt(
-                    my_extents[1].in.add(opentime.Ordinate.epsilon)
+                    my_extents[1].in.add(opentime.Ordinate.epsilon),
                 )
             );
         }
 
-        /// Assuming that segment_to_project is contained by self, project the 
+        /// Assuming that segment_to_project is contained by self, project the
         /// points of segment_to_project through self.
         pub fn project_segment(
             self: @This(),
@@ -790,8 +784,8 @@ pub const Bezier = struct {
         {
             var result: Segment = undefined;
 
-            inline for ([4][]const u8{"p0", "p1", "p2", "p3"}) 
-                |field| 
+            inline for ([4][]const u8{ "p0", "p1", "p2", "p3" })
+                |field|
             {
                 const pt = @field(segment_to_project, field);
                 @field(result, field) = .{
@@ -803,12 +797,12 @@ pub const Bezier = struct {
             return result;
         }
 
-        /// @TODO: this function only works if the value is increasing over the 
-        ///        segment.  The monotonicity and increasing -ness of a segment is
-        ///        guaranteed for the input space, but not for the output space.
+        /// @TODO: this function only works if the value is increasing over
+        /// the segment.  The monotonicity and increasing -ness of a segment
+        /// is guaranteed for the input space, but not for the output space.
         pub fn findU_value(
-            self:@This(),
-            tgt_value: opentime.Ordinate
+            self: @This(),
+            tgt_value: opentime.Ordinate,
         ) U_TYPE
         {
             return math.findU(
@@ -821,9 +815,9 @@ pub const Bezier = struct {
         }
 
         pub fn findU_value_dual(
-            self:@This(),
-            tgt_value: opentime.Ordinate
-        ) opentime.Dual_Ord 
+            self: @This(),
+            tgt_value: opentime.Ordinate,
+        ) opentime.Dual_Ord
         {
             return math.findU_dual(
                 tgt_value,
@@ -835,8 +829,8 @@ pub const Bezier = struct {
         }
 
         pub fn findU_input(
-            self:@This(),
-            input_ordinate: opentime.Ordinate
+            self: @This(),
+            input_ordinate: opentime.Ordinate,
         ) U_TYPE
         {
             return math.findU(
@@ -849,9 +843,9 @@ pub const Bezier = struct {
         }
 
         pub fn findU_input_dual(
-            self:@This(),
+            self: @This(),
             input_ordinate: opentime.Ordinate,
-        ) opentime.Dual_Ord 
+        ) opentime.Dual_Ord
         {
             return math.findU_dual(
                 input_ordinate,
@@ -864,14 +858,14 @@ pub const Bezier = struct {
 
         pub inline fn output_at_input(
             self: @This(),
-            input:anytype,
-        ) opentime.Ordinate 
+            input: anytype,
+        ) opentime.Ordinate
         {
             return self.output_at_input_ord(
                 switch (@TypeOf(input)) {
                     opentime.Ordinate => input,
                     else => opentime.Ordinate.init(input),
-                }
+                },
             );
         }
 
@@ -879,14 +873,14 @@ pub const Bezier = struct {
         pub fn output_at_input_ord(
             self: @This(),
             input_ord: opentime.Ordinate,
-        ) opentime.Ordinate 
+        ) opentime.Ordinate
         {
-            const u:U_TYPE = math.findU(
+            const u: U_TYPE = math.findU(
                 input_ord,
                 self.p0.in,
                 self.p1.in,
                 self.p2.in,
-                self.p3.in
+                self.p3.in,
             );
             return self.eval_at(u).out;
         }
@@ -894,7 +888,7 @@ pub const Bezier = struct {
         pub fn output_at_input_dual(
             self: @This(),
             x: opentime.Ordinate,
-        ) control_point.Dual_CP 
+        ) control_point.Dual_CP
         {
             const u = math.findU_dual(
                 x,
@@ -909,53 +903,57 @@ pub const Bezier = struct {
         pub fn debug_json_str(
             self: @This(),
             allocator: std.mem.Allocator,
-        ) ![]const u8 
+        ) ![]const u8
         {
             return try std.fmt.allocPrint(
                 allocator,
-            \\
-            \\{{
-            \\    "p0": {{ "in": {d:.6}, "out": {d:.6} }},
-            \\    "p1": {{ "in": {d:.6}, "out": {d:.6} }},
-            \\    "p2": {{ "in": {d:.6}, "out": {d:.6} }},
-            \\    "p3": {{ "in": {d:.6}, "out": {d:.6} }}
-            \\}}
-            \\
-            ,
-            .{
-                self.p0.in.as(f32), self.p0.out.as(f32),
-                self.p1.in.as(f32), self.p1.out.as(f32),
-                self.p2.in.as(f32), self.p2.out.as(f32),
-                self.p3.in.as(f32), self.p3.out.as(f32),
-            }
+                \\
+                \\{{
+                \\    "p0": {{ "in": {d:.6}, "out": {d:.6} }},
+                \\    "p1": {{ "in": {d:.6}, "out": {d:.6} }},
+                \\    "p2": {{ "in": {d:.6}, "out": {d:.6} }},
+                \\    "p3": {{ "in": {d:.6}, "out": {d:.6} }}
+                \\}}
+                \\
+                ,
+                .{
+                    self.p0.in.as(f32),
+                    self.p0.out.as(f32),
+                    self.p1.in.as(f32),
+                    self.p1.out.as(f32),
+                    self.p2.in.as(f32),
+                    self.p2.out.as(f32),
+                    self.p3.in.as(f32),
+                    self.p3.out.as(f32),
+                },
             );
         }
 
         pub fn debug_print_json(
             self: @This(),
             allocator: std.mem.Allocator,
-        ) !void 
+        ) !void
         {
-            std.log.debug("\ndebug_print_json] p0: {}\n", .{ self.p0});
+            std.log.debug("\ndebug_print_json] p0: {}\n", .{self.p0});
 
             const blob = try self.debug_json_str(allocator);
             defer allocator.free(blob);
 
-            std.log.debug("{s}", .{ blob });
+            std.log.debug("{s}", .{blob});
         }
 
         /// convert into the c library hodographs struct
         pub fn to_cSeg(
-            self: @This()
-        ) hodographs.BezierSegment 
+            self: @This(),
+        ) hodographs.BezierSegment
         {
-            return .{ 
+            return .{
                 .order = 3,
                 .p = translate: {
-                    var tmp : [4] hodographs.Vector2 = undefined;
+                    var tmp: [4]hodographs.Vector2 = undefined;
 
-                    inline for (&.{ self.p0, self.p1, self.p2, self.p3 }, 0..) 
-                        |pt, pt_ind| 
+                    inline for (&.{ self.p0, self.p1, self.p2, self.p3 }, 0..)
+                        |pt, pt_ind|
                     {
                         tmp[pt_ind] = .{
                             .x = pt.in.as(f32),
@@ -971,7 +969,7 @@ pub const Bezier = struct {
         pub fn format(
             self: @This(),
             writer: *std.Io.Writer,
-        ) !void 
+        ) !void
         {
             try writer.print("Bezier.Segment{{\n", .{});
 
@@ -992,8 +990,8 @@ pub const Bezier = struct {
     /// dupe the segments argument into the returned object
     pub fn deinit(
         self: @This(),
-        allocator: std.mem.Allocator
-    ) void 
+        allocator: std.mem.Allocator,
+    ) void
     {
         allocator.free(self.segments);
     }
@@ -1003,11 +1001,8 @@ pub const Bezier = struct {
         allocator: std.mem.Allocator,
     ) !Bezier
     {
-        return .{ 
-            .segments = try allocator.dupe(
-                Segment,
-                self.segments
-            ),
+        return .{
+            .segments = try allocator.dupe(Segment, self.segments),
         };
     }
 
@@ -1015,29 +1010,29 @@ pub const Bezier = struct {
         allocator: std.mem.Allocator,
         p0: control_point.ControlPoint,
         p1: control_point.ControlPoint,
-    ) !Bezier 
+    ) !Bezier
     {
         return Bezier{
             .segments = try allocator.dupe(
                 Segment,
-                &.{ .init_from_start_end(p0, p1) }
+                &.{.init_from_start_end(p0, p1)},
             ),
         };
     }
 
     /// convert a linear curve into a bezier one
     pub fn init_from_linear_curve(
-        allocator:std.mem.Allocator,
+        allocator: std.mem.Allocator,
         crv: linear_curve.Linear,
-    ) !Bezier 
+    ) !Bezier
     {
         var result: std.ArrayList(Segment) = .empty;
         result.deinit(allocator);
 
         const knots = crv.knots.len;
 
-        for (crv.knots[0..knots-1], crv.knots[1..]) 
-            |knot, next_knot| 
+        for (crv.knots[0..knots - 1], crv.knots[1..])
+            |knot, next_knot|
         {
             try result.append(
                 allocator,
@@ -1053,13 +1048,13 @@ pub const Bezier = struct {
     pub inline fn output_at_input(
         self: @This(),
         input_space_ord: anytype,
-    ) error{OutOfBounds}!opentime.Ordinate 
+    ) error{OutOfBounds}!opentime.Ordinate
     {
         return self.output_at_input_ord(
             switch (@TypeOf(input_space_ord)) {
                 opentime.Ordinate => input_space_ord,
                 else => opentime.Ordinate.init(input_space_ord),
-            }
+            },
         );
     }
 
@@ -1067,10 +1062,10 @@ pub const Bezier = struct {
     pub fn output_at_input_ord(
         self: @This(),
         input_space_ord: opentime.Ordinate,
-    ) error{OutOfBounds}!opentime.Ordinate 
+    ) error{OutOfBounds}!opentime.Ordinate
     {
-        if (self.find_segment(input_space_ord)) 
-           |seg|
+        if (self.find_segment(input_space_ord))
+            |seg|
         {
             return seg.output_at_input(input_space_ord);
         }
@@ -1084,7 +1079,7 @@ pub const Bezier = struct {
     pub fn find_segment_index(
         self: @This(),
         ord_input: opentime.Ordinate,
-    ) ?usize 
+    ) ?usize
     {
         const input_start = (
             self.segments[0].p0.in.sub(opentime.Ordinate.epsilon)
@@ -1094,7 +1089,7 @@ pub const Bezier = struct {
 
         // @TODO: should this be inclusive of the endpoint?
         if (
-            self.segments.len == 0 
+            self.segments.len == 0
             or ord_input.lt(input_start)
             or ord_input.gt(input_end)
         )
@@ -1102,18 +1097,20 @@ pub const Bezier = struct {
             return null;
         }
 
-        // quick check if it is exactly the start ordinate of the first segment
-        if (ord_input.lt(input_start)) {
+        // quick check if it is exactly the start ordinate of the first
+        // segment
+        if (ord_input.lt(input_start))
+        {
             return 0;
         }
 
-        for (self.segments, 0..) 
-            |seg, index| 
+        for (self.segments, 0..)
+            |seg, index|
         {
             if (
                 seg.p0.in.lteq(ord_input.add(opentime.Ordinate.epsilon))
                 and ord_input.lteq(seg.p3.in.sub(opentime.Ordinate.epsilon))
-            ) 
+            )
             {
                 // exactly in a segment
                 return index;
@@ -1128,10 +1125,10 @@ pub const Bezier = struct {
     pub fn find_segment(
         self: @This(),
         ord_input: opentime.Ordinate,
-    ) ?*const Segment 
+    ) ?*const Segment
     {
-        if (self.find_segment_index(ord_input)) 
-           |ind|
+        if (self.find_segment_index(ord_input))
+            |ind|
         {
             return &self.segments[ind];
         }
@@ -1142,24 +1139,24 @@ pub const Bezier = struct {
     /// build a linearized version of this Bezier
     pub fn linearized(
         self: @This(),
-        allocator:std.mem.Allocator,
-    ) !linear_curve.Linear 
+        allocator: std.mem.Allocator,
+    ) !linear_curve.Linear
     {
-        var linearized_knots: std.ArrayList(control_point.ControlPoint) = .empty;
+        var linearized_knots: std.ArrayList(control_point.ControlPoint) = (
+            .empty
+        );
 
         const self_split_on_critical_points = (
-            try self.split_on_critical_points(
-                allocator
-            )
+            try self.split_on_critical_points(allocator)
         );
         defer self_split_on_critical_points.deinit(allocator);
 
-        var start_knot:usize = 0;
+        var start_knot: usize = 0;
 
-        for (self_split_on_critical_points.segments, 0..) 
-            |seg, seg_ind| 
+        for (self_split_on_critical_points.segments, 0..)
+            |seg, seg_ind|
         {
-            if (seg_ind > 0) 
+            if (seg_ind > 0)
             {
                 start_knot = 1;
             }
@@ -1174,16 +1171,14 @@ pub const Bezier = struct {
 
             try linearized_knots.appendSlice(
                 allocator,
-                // first knot of all interior segments should match the 
+                // first knot of all interior segments should match the
                 // last knot of the previous segment, so can be skipped
                 subseg[start_knot..],
             );
         }
 
         return .{
-            .knots = (
-                try linearized_knots.toOwnedSlice(allocator)
-            ),
+            .knots = (try linearized_knots.toOwnedSlice(allocator)),
         };
     }
 
@@ -1191,17 +1186,18 @@ pub const Bezier = struct {
     pub fn segment_endpoints(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) ![]control_point.ControlPoint 
+    ) ![]control_point.ControlPoint
     {
         var result: std.ArrayList(control_point.ControlPoint) = .empty;
 
-        if (self.segments.len == 0) {
+        if (self.segments.len == 0)
+        {
             return &[0]control_point.ControlPoint{};
         }
 
         try result.append(allocator, self.segments[0].p0);
-        for (self.segments) 
-            |seg| 
+        for (self.segments)
+            |seg|
         {
             try result.append(allocator, seg.p3);
         }
@@ -1214,12 +1210,9 @@ pub const Bezier = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         other: linear_curve.Linear,
-        // should return []Bezier
     ) ![]linear_curve.Linear
     {
-        const self_linearized = try self.linearized(
-            allocator
-        );
+        const self_linearized = try self.linearized(allocator);
         defer self_linearized.deinit(allocator);
 
         return try self_linearized.project_curve(
@@ -1233,18 +1226,18 @@ pub const Bezier = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         aff: opentime.transform.AffineTransform1D,
-    ) !Bezier 
+    ) !Bezier
     {
         const result_segments = try allocator.dupe(
             Segment,
             self.segments,
         );
 
-        for (result_segments) 
-            |*seg| 
+        for (result_segments)
+            |*seg|
         {
-            for (seg.point_ptrs()) 
-                |pt |
+            for (seg.point_ptrs())
+                |pt|
             {
                 pt.in = aff.applied_to_ordinate(pt.in);
             }
@@ -1255,7 +1248,7 @@ pub const Bezier = struct {
 
     /// build a string serialization of the curve
     pub fn debug_json_str(
-        self:@This(),
+        self: @This(),
         allocator: std.mem.Allocator,
     ) ![]const u8
     {
@@ -1271,8 +1264,8 @@ pub const Bezier = struct {
 
     /// return the extents of the curve's input spact /v
     pub fn extents_input(
-        self:@This()
-    ) opentime.ContinuousInterval 
+        self: @This(),
+    ) opentime.ContinuousInterval
     {
         return .{
             .start = self.segments[0].p0.in,
@@ -1282,8 +1275,8 @@ pub const Bezier = struct {
 
     /// return the extents of the curve's output space
     pub fn extents_output(
-        self:@This()
-    ) opentime.ContinuousInterval 
+        self: @This(),
+    ) opentime.ContinuousInterval
     {
         const result = self.extents();
         return .{
@@ -1294,14 +1287,14 @@ pub const Bezier = struct {
 
     /// return the extents of the curve as control points
     pub fn extents(
-        self:@This()
-    ) [2]control_point.ControlPoint 
+        self: @This(),
+    ) [2]control_point.ControlPoint
     {
         var min = self.segments[0].p0;
         var max = self.segments[0].p3;
 
-        for (self.segments) 
-            |seg| 
+        for (self.segments)
+            |seg|
         {
             const seg_extents = seg.extents();
             min = .{
@@ -1329,10 +1322,10 @@ pub const Bezier = struct {
     /// note: if the ordinate causes no split (IE is on an endpoint), the
     ///       return will a strict copy of self.
     pub fn split_at_input_ord(
-        self:@This(),
+        self: @This(),
         allocator: std.mem.Allocator,
-        ordinate:opentime.Ordinate,
-    ) !Bezier 
+        ordinate: opentime.Ordinate,
+    ) !Bezier
     {
         const seg_to_split_index = self.find_segment_index(ordinate) orelse {
             return error.OutOfBounds;
@@ -1344,40 +1337,46 @@ pub const Bezier = struct {
 
         if (
             unorm < opentime.EPSILON_F
-            or opentime.EPSILON_F > opentime.abs(1 - unorm) 
-        ) {
-            return .{ 
+            or opentime.EPSILON_F > opentime.abs(1 - unorm)
+        )
+        {
+            return .{
                 .segments = try allocator.dupe(
                     Segment,
                     self.segments,
-                ) 
+                ),
             };
         }
 
         const maybe_split_segments = seg_to_split.split_at(unorm);
 
-        if (maybe_split_segments == null) 
+        if (maybe_split_segments == null)
         {
             std.log.err(
                 "ordinate: {f} unorm: {} seg_to_split: {s}\n",
-                .{ ordinate, unorm, try seg_to_split.debug_json_str(allocator) }
+                .{
+                    ordinate,
+                    unorm,
+                    try seg_to_split.debug_json_str(allocator),
+                },
             );
             return error.OutOfBounds;
         }
         const split_segments = maybe_split_segments.?;
 
-
-        var new_segments = try allocator.alloc(Segment, self.segments.len + 1);
+        var new_segments = (
+            try allocator.alloc(Segment, self.segments.len + 1)
+        );
 
         const before_split_src = self.segments[0..seg_to_split_index];
-        const after_split_src = self.segments[seg_to_split_index+1..];
+        const after_split_src = self.segments[seg_to_split_index + 1..];
 
         const before_split_dest = new_segments[0..seg_to_split_index];
-        const after_split_dest = new_segments[seg_to_split_index+2..];
+        const after_split_dest = new_segments[seg_to_split_index + 2..];
 
         std.mem.copyForwards(Segment, before_split_dest, before_split_src);
         new_segments[seg_to_split_index] = split_segments[0];
-        new_segments[seg_to_split_index+1] = split_segments[1];
+        new_segments[seg_to_split_index + 1] = split_segments[1];
         std.mem.copyForwards(Segment, after_split_dest, after_split_src);
 
         return .{ .segments = new_segments };
@@ -1393,19 +1392,19 @@ pub const Bezier = struct {
     /// result:
     /// [0, 3)[0, 5)[5, 10)[0,2)[2, 4)
     pub fn split_at_each_output_ordinate(
-        self:@This(),
+        self: @This(),
         allocator: std.mem.Allocator,
-        ordinates:[]const opentime.Ordinate,
-    ) !Bezier 
+        ordinates: []const opentime.Ordinate,
+    ) !Bezier
     {
         var result_segments: std.ArrayList(Segment) = .empty;
         defer result_segments.deinit(allocator);
         try result_segments.appendSlice(allocator, self.segments);
 
-        var current_segment_index:usize = 0;
+        var current_segment_index: usize = 0;
 
-        while (current_segment_index < result_segments.items.len) 
-            : (current_segment_index += 1) 
+        while (current_segment_index < result_segments.items.len)
+            : (current_segment_index += 1)
         {
             for (ordinates)
                 |ordinate|
@@ -1413,31 +1412,28 @@ pub const Bezier = struct {
                 const seg = result_segments.items[current_segment_index];
                 const ext = seg.extents();
 
-                if (
-                    _is_between(
-                        ordinate,
-                        ext[0].out,
-                        ext[1].out
-                    )
-                ) 
+                if (_is_between(ordinate, ext[0].out, ext[1].out))
                 {
                     const u = seg.findU_value(ordinate);
 
                     // if it isn't an end point
-                    if (u > 0 + 0.000001 and u < 1 - 0.000001) 
+                    if (
+                        (u > 0 + 0.000001)
+                        and (u < 1 - 0.000001)
+                    )
                     {
                         const maybe_split_segments = seg.split_at(u);
 
-                        if (maybe_split_segments) 
-                            |split_segments| 
+                        if (maybe_split_segments)
+                            |split_segments|
                         {
                             try result_segments.insertSlice(
                                 allocator,
                                 current_segment_index,
-                                &split_segments
+                                &split_segments,
                             );
                             _ = result_segments.orderedRemove(
-                                current_segment_index + split_segments.len
+                                current_segment_index + split_segments.len,
                             );
                         }
                         continue;
@@ -1446,26 +1442,26 @@ pub const Bezier = struct {
             }
         }
 
-        return .{ 
+        return .{
             .segments = try result_segments.toOwnedSlice(allocator),
         };
     }
 
     pub fn split_at_each_input_ordinate(
-        self:@This(),
+        self: @This(),
         allocator: std.mem.Allocator,
-        ordinates:[]const opentime.Ordinate,
-    ) !Bezier 
+        ordinates: []const opentime.Ordinate,
+    ) !Bezier
     {
         var result_segments: std.ArrayList(Segment) = .empty;
         defer result_segments.deinit(allocator);
 
         try result_segments.appendSlice(allocator, self.segments);
 
-        var current_segment_index:usize = 0;
+        var current_segment_index: usize = 0;
 
-        while (current_segment_index < result_segments.items.len) 
-            : (current_segment_index += 1) 
+        while (current_segment_index < result_segments.items.len)
+            : (current_segment_index += 1)
         {
             for (ordinates)
                 |ordinate|
@@ -1473,18 +1469,16 @@ pub const Bezier = struct {
                 const seg = result_segments.items[current_segment_index];
                 const ext = seg.extents();
 
-                if (
-                    _is_between(
-                        ordinate,
-                        ext[0].in,
-                        ext[1].in
-                    )
-                ) 
+                if (_is_between(ordinate, ext[0].in, ext[1].in))
                 {
                     const u = seg.findU_input(ordinate);
 
                     // if it isn't an end point
-                    if (u > 0 + 0.000001 and u < 1 - 0.000001) {
+                    if (
+                        (u > 0 + 0.000001)
+                        and (u < 1 - 0.000001)
+                    )
+                    {
                         var split_segments = seg.split_at(u) orelse {
                             continue;
                         };
@@ -1492,10 +1486,10 @@ pub const Bezier = struct {
                         try result_segments.insertSlice(
                             allocator,
                             current_segment_index,
-                            &split_segments
+                            &split_segments,
                         );
                         _ = result_segments.orderedRemove(
-                            current_segment_index + split_segments.len
+                            current_segment_index + split_segments.len,
                         );
                         continue;
                     }
@@ -1523,30 +1517,30 @@ pub const Bezier = struct {
         allocator: std.mem.Allocator,
         ordinate: opentime.Ordinate,
         direction: TrimDir,
-    ) !Bezier 
+    ) !Bezier
     {
         if (
             (
-             self.extents_input().start.gteq(ordinate)
-             and direction == .trim_before
+                self.extents_input().start.gteq(ordinate)
+                and direction == .trim_before
             )
-            or
-            (
-             self.extents_input().end.lteq(ordinate)
-             and direction == .trim_after
+            or (
+                self.extents_input().end.lteq(ordinate)
+                and direction == .trim_after
             )
-        ) 
+        )
         {
             return try self.clone(allocator);
         }
 
         const seg_to_split_index = (
-            self.find_segment_index(ordinate)
-        ) orelse {
-            return error.OutOfBounds;
-        };
+            (self.find_segment_index(ordinate))
+            orelse {
+                return error.OutOfBounds;
+            }
+        );
 
-        const seg_to_split = self.segments[seg_to_split_index]; 
+        const seg_to_split = self.segments[seg_to_split_index];
 
         {
             const is_bounding_point = (
@@ -1554,12 +1548,13 @@ pub const Bezier = struct {
                 or seg_to_split.p3.in.eql_approx(ordinate)
             );
 
-            if (is_bounding_point) {
+            if (is_bounding_point)
+            {
                 return .{
-                    .segments =  try allocator.dupe(
+                    .segments = try allocator.dupe(
                         Segment,
                         self.segments,
-                    ) 
+                    ),
                 };
             }
         }
@@ -1567,7 +1562,8 @@ pub const Bezier = struct {
         const unorm = seg_to_split.findU_input(ordinate);
 
         const maybe_split_segments = seg_to_split.split_at(unorm);
-        if (maybe_split_segments == null) {
+        if (maybe_split_segments == null)
+        {
             return .empty;
         }
         const split_segments = maybe_split_segments.?;
@@ -1576,22 +1572,25 @@ pub const Bezier = struct {
             // keep later stuff
             .trim_before => {
                 const new_split = split_segments[1];
-                const segments_to_copy = self.segments[seg_to_split_index+1..];
+                const segments_to_copy = (
+                    self.segments[seg_to_split_index + 1..]
+                );
 
                 var new_segments = try allocator.alloc(
                     Segment,
-                    segments_to_copy.len + 1
+                    segments_to_copy.len + 1,
                 );
 
                 new_segments[0] = new_split;
                 std.mem.copyForwards(
                     Segment,
                     new_segments[1..],
-                    segments_to_copy
+                    segments_to_copy,
                 );
 
                 break :result new_segments;
             },
+
             // keep earlier stuff
             .trim_after => {
                 const new_split = split_segments[0];
@@ -1599,13 +1598,13 @@ pub const Bezier = struct {
 
                 var new_segments = try allocator.alloc(
                     Segment,
-                    segments_to_copy.len + 1
+                    segments_to_copy.len + 1,
                 );
 
                 std.mem.copyForwards(
                     Segment,
                     new_segments[0..segments_to_copy.len],
-                    segments_to_copy
+                    segments_to_copy,
                 );
                 new_segments[new_segments.len - 1] = new_split;
 
@@ -1616,14 +1615,14 @@ pub const Bezier = struct {
         return .{ .segments = result };
     }
 
-    /// returns a copy of self, trimmed by bounds.  If bounds are greater than 
+    /// returns a copy of self, trimmed by bounds.  If bounds are greater than
     /// the bounds of the existing curve, an unaltered copy is returned.  
     /// Otherwise the curve is copied, and trimmed to fit the bounds.
     pub fn trimmed_in_input_space(
         self: @This(),
         allocator: std.mem.Allocator,
         bounds: opentime.ContinuousInterval,
-    ) !Bezier 
+    ) !Bezier
     {
         // @TODO; implement this using slices of a larger segment buffer to
         //        reduce the number of allocations/copies
@@ -1649,8 +1648,8 @@ pub const Bezier = struct {
     /// split, memory is owned by the caller
     pub fn split_on_critical_points(
         self: @This(),
-        allocator: std.mem.Allocator
-    ) !Bezier 
+        allocator: std.mem.Allocator,
+    ) !Bezier
     {
         var cSeg = hodographs.BezierSegment{
             .order = 3,
@@ -1660,12 +1659,12 @@ pub const Bezier = struct {
         var split_segments: std.ArrayList(Segment) = .empty;
         defer split_segments.deinit(allocator);
 
-        for (self.segments) 
-            |seg| 
+        for (self.segments)
+            |seg|
         {
             // build the segment to pass into the C library
-            for (seg.points(), &cSeg.p) 
-                |pt, *p| 
+            for (seg.points(), &cSeg.p)
+                |pt, *p|
             {
                 p.x = pt.in.as(@TypeOf(p.x));
                 p.y = pt.out.as(@TypeOf(p.y));
@@ -1678,37 +1677,42 @@ pub const Bezier = struct {
             //-----------------------------------------------------------------
             // compute splits
             //-----------------------------------------------------------------
-            var splits:[3]opentime.Ordinate.InnerType = .{ 1,1,1 };
+            var splits: [3]opentime.Ordinate.InnerType = .{ 1, 1, 1 };
 
-            var split_count:usize = 0;
+            var split_count: usize = 0;
 
-            const possible_splits:[3]opentime.Ordinate.InnerType = .{
+            const possible_splits: [3]opentime.Ordinate.InnerType = .{
                 roots.x,
                 roots.y,
                 inflections.x,
             };
 
-            for (possible_splits) 
-                |possible_split| 
+            for (possible_splits)
+                |possible_split|
             {
                 // if the possible split isn't already a segment boundary
-                if (possible_split > 0 and possible_split < 1) 
+                if (
+                    possible_split > 0
+                    and possible_split < 1
+                )
                 {
-                    var duplicate:bool = false;
+                    var duplicate: bool = false;
 
-                    for (0..split_count) 
-                        |s_i| 
+                    for (0..split_count)
+                        |s_i|
                     {
                         if (
-                            opentime.abs(splits[s_i] - possible_split) 
+                            opentime.abs(splits[s_i] - possible_split)
                             < epsilon
-                        ) {
+                        )
+                        {
                             duplicate = true;
                             break;
                         }
                     }
 
-                    if (duplicate == false) {
+                    if (duplicate == false)
+                    {
                         splits[split_count] = possible_split;
                         split_count += 1;
                     }
@@ -1724,8 +1728,8 @@ pub const Bezier = struct {
 
             var current_seg = seg;
 
-            for (0..split_count) 
-                |i| 
+            for (0..split_count)
+                |i|
             {
                 const pt = seg.eval_at(splits[i]);
                 const u = current_seg.findU_input(pt.in);
@@ -1734,14 +1738,14 @@ pub const Bezier = struct {
                 //        ordinate?
                 const maybe_xsplits = current_seg.split_at(u);
 
-                if (maybe_xsplits) 
-                    |xsplits| 
+                if (maybe_xsplits)
+                    |xsplits|
                 {
-                    try split_segments.append(allocator,xsplits[0]);
+                    try split_segments.append(allocator, xsplits[0]);
                     current_seg = xsplits[1];
                 }
             }
-            try split_segments.append(allocator,current_seg);
+            try split_segments.append(allocator, current_seg);
         }
 
         return .{
@@ -1752,7 +1756,7 @@ pub const Bezier = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
         try writer.print("Bezier{{\n  .segments: [\n", .{});
 
@@ -1763,7 +1767,7 @@ pub const Bezier = struct {
             {
                 try writer.print(",\n", .{});
             }
-            try writer.print("    {f}", .{ s});
+            try writer.print("    {f}", .{s});
         }
 
         try writer.print("\n  ]\n}}", .{});
@@ -1772,10 +1776,10 @@ pub const Bezier = struct {
 
 /// Parse a .curve.json file from disk and return a Bezier.
 pub fn read_curve_json(
-    allocator:std.mem.Allocator,
+    allocator: std.mem.Allocator,
     io: std.Io,
     file_path: []const u8,
-) !Bezier 
+) !Bezier
 {
     const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
     defer file.close(io);
@@ -1788,13 +1792,7 @@ pub fn read_curve_json(
     defer allocator.free(source);
 
     // if its a linear curve
-    if (
-        std.mem.indexOf(
-            u8,
-            file_path,
-            ".linear.json"
-        ) != null
-    )
+    if (std.mem.indexOf(u8, file_path, ".linear.json") != null)
     {
         return read_linear_curve_data(allocator, source);
     }
@@ -1806,10 +1804,10 @@ pub fn read_curve_json(
 const BezierF = struct {
     const ControlPointType = control_point.ControlPoint_InnerType;
     const Segment = struct {
-        p0 : ControlPointType,
-        p1 : ControlPointType,
-        p2 : ControlPointType,
-        p3 : ControlPointType,
+        p0: ControlPointType,
+        p1: ControlPointType,
+        p2: ControlPointType,
+        p3: ControlPointType,
     };
     segments: []const Segment,
 };
@@ -1826,7 +1824,7 @@ pub fn read_bezier_curve_data(
         BezierF,
         allocator,
         source,
-        .{}
+        .{},
     );
     defer allocator.free(b_f.segments);
 
@@ -1846,7 +1844,9 @@ pub fn read_bezier_curve_data(
         };
     }
 
-    return .{ .segments = result_segments, };
+    return .{
+        .segments = result_segments,
+    };
 }
 
 /// Inner function that reads linear curve knots from the json
@@ -1858,7 +1858,7 @@ fn read_linear_curve_data(
     const lin_curve = try std.json.parseFromSliceLeaky(
         linear_curve.LinearF,
         allocator,
-        source, 
+        source,
         .{},
     );
 
@@ -1881,7 +1881,7 @@ fn read_linear_curve_data(
     );
 }
 
-test "Curve: read_curve_json" 
+test "Curve: read_curve_json"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -1898,11 +1898,7 @@ test "Curve: read_curve_json"
     // first segment should already be linear
     const segment = curve.segments[0];
 
-    const linearized_knots = try linearize_segment(
-        allocator,
-        segment,
-        0.01
-    );
+    const linearized_knots = try linearize_segment(allocator, segment, 0.01);
     defer allocator.free(linearized_knots);
 
     // already linear!
@@ -1911,72 +1907,124 @@ test "Curve: read_curve_json"
         control_point.ControlPoint,
         &[_]control_point.ControlPoint{
             .init(.{ .in = -0.5, .out = -0.5 }),
-            .init(.{ .in =  0.5, .out =  0.5 }),
+            .init(.{ .in = 0.5, .out = 0.5 }),
         },
         linearized_knots,
     );
 }
 
-test "Bezier.Segment: projected_segment to 1/2" 
+test "Bezier.Segment: projected_segment to 1/2"
 {
     {
         const half = Bezier.Segment.init_from_start_end(
-            .init(.{ .in = -0.5, .out = -0.25, }),
-            .init(.{ .in = 0.5, .out = 0.25, }),
+            .init(
+                .{
+                    .in = -0.5,
+                    .out = -0.25,
+                },
+            ),
+            .init(
+                .{
+                    .in = 0.5,
+                    .out = 0.25,
+                },
+            ),
         );
         const double = Bezier.Segment.init_from_start_end(
-            .init(.{ .in = -0.5, .out = -1, }),
-            .init(.{ .in = 0.5, .out = 1, }),
+            .init(
+                .{
+                    .in = -0.5,
+                    .out = -1,
+                },
+            ),
+            .init(
+                .{
+                    .in = 0.5,
+                    .out = 1,
+                },
+            ),
         );
 
         const half_through_double = double.project_segment(half);
 
-        var u:U_TYPE = 0;
-        while (u<1) 
+        var u: U_TYPE = 0;
+        while (u < 1)
             : (u += 0.01)
         {
             try opentime.expectOrdinateEqual(
                 // t at u = 0 is -0.5
-                u-0.5,
-                half_through_double.eval_at(u).out
+                u - 0.5,
+                half_through_double.eval_at(u).out,
             );
         }
     }
 
     {
         const half = Bezier.Segment.init_from_start_end(
-            .init(.{ .in = -0.5, .out = -0.5, }),
-            .init(.{ .in = 0.5, .out = 0.0, }),
+            .init(
+                .{
+                    .in = -0.5,
+                    .out = -0.5,
+                },
+            ),
+            .init(
+                .{
+                    .in = 0.5,
+                    .out = 0.0,
+                },
+            ),
         );
         const double = Bezier.Segment.init_from_start_end(
-            .init(.{ .in = -0.5, .out = -0.5, }),
-            .init(.{ .in = 0.5, .out = 1.5, }),
+            .init(
+                .{
+                    .in = -0.5,
+                    .out = -0.5,
+                },
+            ),
+            .init(
+                .{
+                    .in = 0.5,
+                    .out = 1.5,
+                },
+            ),
         );
 
         const half_through_double = double.project_segment(half);
 
-        var u:U_TYPE = 0;
-        while (u<1) 
+        var u: U_TYPE = 0;
+        while (u < 1)
             : (u += 0.01)
         {
             try opentime.expectOrdinateEqual(
                 // t at u = 0 is -0.5
-                u-0.5,
-                half_through_double.eval_at(u).out
+                u - 0.5,
+                half_through_double.eval_at(u).out,
             );
         }
     }
 }
 
-test "Bezier: positive length 1 linear segment test" 
+test "Bezier: positive length 1 linear segment test"
 {
     var crv_seg = [_]Bezier.Segment{
         Bezier.Segment.init_from_start_end(
-            .init(.{ .in = 1, .out = 0, }),
-            .init(.{ .in = 2, .out = 1, }),
-        )
+            .init(
+                .{
+                    .in = 1,
+                    .out = 0,
+                },
+            ),
+            .init(
+                .{
+                    .in = 2,
+                    .out = 1,
+                },
+            ),
+        ),
     };
-    const xform_curve: Bezier = .{ .segments = &crv_seg, };
+    const xform_curve: Bezier = .{
+        .segments = &crv_seg,
+    };
 
     // out of range returns error.OutOfBounds
     try std.testing.expectError(
@@ -1994,10 +2042,10 @@ test "Bezier: positive length 1 linear segment test"
 
     // find segment
     try std.testing.expect(
-        xform_curve.find_segment(opentime.Ordinate.init(1)) != null
+        xform_curve.find_segment(opentime.Ordinate.init(1)) != null,
     );
     try std.testing.expect(
-        xform_curve.find_segment(opentime.Ordinate.init(1.5)) != null
+        xform_curve.find_segment(opentime.Ordinate.init(1.5)) != null,
     );
     try std.testing.expectEqual(
         null,
@@ -2023,26 +2071,36 @@ test "Bezier: positive length 1 linear segment test"
     );
 }
 
-test "positive slope 2 linear segment test" 
+test "positive slope 2 linear segment test"
 {
     var test_segment_arr = [_]Bezier.Segment{
         Bezier.Segment.init_from_start_end(
-            .init(.{ .in = 1, .out = 0, }),
-            .init(.{ .in = 2, .out = 2, }),
-        )
+            .init(
+                .{
+                    .in = 1,
+                    .out = 0,
+                },
+            ),
+            .init(
+                .{
+                    .in = 2,
+                    .out = 2,
+                },
+            ),
+        ),
     };
     const xform_curve = Bezier{ .segments = &test_segment_arr };
 
     const tests = &.{
         // std.testing.expect result
-        .{ 0,   1   },
-        .{ 0.5, 1.25},
-        .{ 1,   1.5 },
-        .{ 1.5, 1.75},
+        .{ 0, 1 },
+        .{ 0.5, 1.25 },
+        .{ 1, 1.5 },
+        .{ 1.5, 1.75 },
     };
 
-    inline for (tests) 
-        |t| 
+    inline for (tests)
+        |t|
     {
         try opentime.expectOrdinateEqual(
             t[0],
@@ -2051,15 +2109,25 @@ test "positive slope 2 linear segment test"
     }
 }
 
-test "negative length 1 linear segment test" 
+test "negative length 1 linear segment test"
 {
     // declaring the segment here means that the memory management is handled
     // by stack unwinding
     var segments_xform = [_]Bezier.Segment{
         Bezier.Segment.init_from_start_end(
-            .init(.{ .in = -2, .out = 0, }),
-            .init(.{ .in = -1, .out = 1, }),
-        )
+            .init(
+                .{
+                    .in = -2,
+                    .out = 0,
+                },
+            ),
+            .init(
+                .{
+                    .in = -1,
+                    .out = 1,
+                },
+            ),
+        ),
     };
     const xform_curve = Bezier{ .segments = &segments_xform };
 
@@ -2089,7 +2157,7 @@ test "negative length 1 linear segment test"
     );
 }
 
-test "Bezier.Segment: eval_at for out of range u" 
+test "Bezier.Segment: eval_at for out of range u"
 {
     var seg = [1]Bezier.Segment{
         Bezier.Segment.init_identity(
@@ -2097,7 +2165,7 @@ test "Bezier.Segment: eval_at for out of range u"
             opentime.Ordinate.init(4),
         ),
     };
-    const tc = Bezier{ .segments = &seg};
+    const tc = Bezier{ .segments = &seg };
 
     try std.testing.expectError(
         error.OutOfBounds,
@@ -2119,8 +2187,8 @@ test "Bezier.Segment: eval_at for out of range u"
 fn write_text_to_file(
     io: std.Io,
     json_blob: []const u8,
-    to_fpath: []const u8
-) !void 
+    to_fpath: []const u8,
+) !void
 {
     const file = try std.Io.Dir.cwd().createFile(
         io,
@@ -2137,8 +2205,8 @@ pub fn write_json_file_curve(
     allocator: std.mem.Allocator,
     io: std.Io,
     curve: anytype,
-    to_fpath: []const u8
-) !void 
+    to_fpath: []const u8,
+) !void
 {
     const json_blob = try curve.debug_json_str(allocator);
     defer allocator.free(json_blob);
@@ -2150,14 +2218,17 @@ pub fn write_json_file_curve(
     );
 }
 
-test "json writer: curve" 
+test "json writer: curve"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    const ident = Bezier {
+    const ident = Bezier{
         .segments = &.{
-            .init_identity(.init(-20), .init(30),)
+            .init_identity(
+                .init(-20),
+                .init(30),
+            ),
         },
     };
 
@@ -2196,7 +2267,7 @@ test "json writer: curve"
     );
 }
 
-test "segment: findU_value" 
+test "segment: findU_value"
 {
     const test_segment = Bezier.Segment.init_identity(
         opentime.Ordinate.init(1),
@@ -2219,11 +2290,11 @@ test "segment: findU_value"
     );
 }
 
-test "Bezier: split_at_each_value u curve" 
+test "Bezier: split_at_each_value u curve"
 {
     const allocator = std.testing.allocator;
 
-    const upside_down_u = Bezier {
+    const upside_down_u = Bezier{
         .segments = &.{
             .init_f32(
                 .{
@@ -2231,23 +2302,23 @@ test "Bezier: split_at_each_value u curve"
                     .p1 = .{ .in = 0, .out = 100 },
                     .p2 = .{ .in = 100, .out = 100 },
                     .p3 = .{ .in = 100, .out = 0 },
-                }
+                },
             ),
         },
     };
     const u_seg = upside_down_u.segments[0];
 
     const upside_down_u_hodo = try upside_down_u.split_on_critical_points(
-        allocator
+        allocator,
     );
     defer upside_down_u_hodo.deinit(allocator);
 
     const split_points = [_]opentime.Ordinate{
-        u_seg.eval_at(0).out, 
-        u_seg.eval_at(0.5).out, 
-        u_seg.eval_at(0.75).out, 
-        u_seg.eval_at(0.88).out, 
-        u_seg.eval_at(1).out, 
+        u_seg.eval_at(0).out,
+        u_seg.eval_at(0.5).out,
+        u_seg.eval_at(0.75).out,
+        u_seg.eval_at(0.88).out,
+        u_seg.eval_at(1).out,
     };
 
     const result = try upside_down_u_hodo.split_at_each_output_ordinate(
@@ -2256,9 +2327,7 @@ test "Bezier: split_at_each_value u curve"
     );
     defer result.deinit(allocator);
 
-    const endpoints = try result.segment_endpoints(
-        allocator
-    );
+    const endpoints = try result.segment_endpoints(allocator);
     defer allocator.free(endpoints);
 
     for (split_points, 0..)
@@ -2270,7 +2339,7 @@ test "Bezier: split_at_each_value u curve"
                 index,
                 sp_p,
                 endpoints,
-            }
+            },
         );
 
         var found = false;
@@ -2282,9 +2351,9 @@ test "Bezier: split_at_each_value u curve"
                     opentime.Ordinate.InnerType,
                     sp_p.as(opentime.Ordinate.InnerType),
                     pt.out.as(opentime.Ordinate.InnerType),
-                    0.00001
+                    0.00001,
                 )
-            ) 
+            )
             {
                 found = true;
             }
@@ -2296,17 +2365,20 @@ test "Bezier: split_at_each_value u curve"
     try std.testing.expectEqual(@as(usize, 4), result.segments.len);
 }
 
-test "Bezier: split_at_each_value linear" 
+test "Bezier: split_at_each_value linear"
 {
     const allocator = std.testing.allocator;
 
-    const lin = Bezier {
+    const lin = Bezier{
         .segments = &.{
-            .init_identity(.init(-0.2), .init(1),)
+            .init_identity(
+                .init(-0.2),
+                .init(1),
+            ),
         },
     };
 
-    const split_points = [_]opentime.Ordinate{ 
+    const split_points = [_]opentime.Ordinate{
         opentime.Ordinate.init(-0.2),
         opentime.Ordinate.init(0),
         opentime.Ordinate.init(0.5),
@@ -2320,12 +2392,10 @@ test "Bezier: split_at_each_value linear"
     defer result.deinit(allocator);
 
     var fbuf: [1024]opentime.Ordinate = undefined;
-    const endpoints_cp = try result.segment_endpoints(
-        allocator
-    );
+    const endpoints_cp = try result.segment_endpoints(allocator);
     defer allocator.free(endpoints_cp);
-    for (endpoints_cp, 0..) 
-        |cp, index| 
+    for (endpoints_cp, 0..)
+        |cp, index|
     {
         fbuf[index] = cp.out;
     }
@@ -2340,7 +2410,7 @@ test "Bezier: split_at_each_value linear"
                 index,
                 sp_p,
                 endpoints,
-            }
+            },
         );
 
         var found = false;
@@ -2366,17 +2436,20 @@ test "Bezier: split_at_each_value linear"
     try std.testing.expectEqual(3, result.segments.len);
 }
 
-test "Bezier: split_at_each_input_ordinate linear" 
+test "Bezier: split_at_each_input_ordinate linear"
 {
     const allocator = std.testing.allocator;
 
-    const lin = Bezier {
+    const lin = Bezier{
         .segments = &.{
-            .init_identity( .init(-0.2), .one,)
+            .init_identity(
+                .init(-0.2),
+                .one,
+            ),
         },
     };
 
-    const split_points = [_]opentime.Ordinate{ 
+    const split_points = [_]opentime.Ordinate{
         .init(-0.2),
         .init(0),
         .init(0.5),
@@ -2390,13 +2463,11 @@ test "Bezier: split_at_each_input_ordinate linear"
     defer result.deinit(allocator);
 
     var fbuf: [1024]opentime.Ordinate = undefined;
-    const endpoints_cp = try result.segment_endpoints(
-        allocator
-    );
+    const endpoints_cp = try result.segment_endpoints(allocator);
     defer allocator.free(endpoints_cp);
 
-    for (endpoints_cp, 0..) 
-        |cp, index| 
+    for (endpoints_cp, 0..)
+        |cp, index|
     {
         fbuf[index] = cp.out;
     }
@@ -2411,7 +2482,7 @@ test "Bezier: split_at_each_input_ordinate linear"
                 index,
                 sp_p,
                 endpoints,
-            }
+            },
         );
 
         var found = false;
@@ -2425,7 +2496,7 @@ test "Bezier: split_at_each_input_ordinate linear"
                     pt.as(opentime.Ordinate.InnerType),
                     0.00001,
                 )
-            ) 
+            )
             {
                 found = true;
             }
@@ -2437,7 +2508,7 @@ test "Bezier: split_at_each_input_ordinate linear"
     try std.testing.expectEqual(@as(usize, 3), result.segments.len);
 }
 
-test "Bezier: split_at_input_ord" 
+test "Bezier: split_at_input_ord"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -2448,39 +2519,35 @@ test "Bezier: split_at_input_ord"
                 .init_identity(
                     opentime.Ordinate.init(-20),
                     opentime.Ordinate.init(30),
-                ) 
+                ),
             },
         },
         try read_curve_json(
             allocator,
             io,
             "curves/upside_down_u.curve.json",
-        ), 
+        ),
         try read_curve_json(
             allocator,
             io,
             "curves/scurve.curve.json",
-        ), 
+        ),
     };
     defer test_curves[1].deinit(allocator);
     defer test_curves[2].deinit(allocator);
 
-    for (test_curves, 0..) 
-        |ident, loop| 
+    for (test_curves, 0..)
+        |ident, loop|
     {
         const extents = ident.extents();
-        var split_loc = (
-            extents[0].in.as(opentime.Ordinate.InnerType) + 1
-        );
+        var split_loc = (extents[0].in.as(opentime.Ordinate.InnerType) + 1);
 
-        while (split_loc < extents[1].in.as(opentime.Ordinate.InnerType)) 
-            : (split_loc += 1) 
+        while (split_loc < extents[1].in.as(opentime.Ordinate.InnerType))
+            : (split_loc += 1)
         {
             errdefer std.log.err(
                 "loop_index: {} extents: {any}, split_loc: {} curve: {!s}\n",
-                .{
-                    loop, extents, split_loc, ident.debug_json_str(allocator)
-                }
+                .{ loop, extents, split_loc, ident.debug_json_str(allocator) },
             );
             const split_ident = try ident.split_at_input_ord(
                 allocator,
@@ -2490,20 +2557,20 @@ test "Bezier: split_at_input_ord"
 
             try std.testing.expectEqual(
                 ident.segments.len + 1,
-                split_ident.segments.len
+                split_ident.segments.len,
             );
 
             // check that the end points are the same
             try std.testing.expectEqual(
                 ident.segments[0].p0.in,
-                split_ident.segments[0].p0.in
+                split_ident.segments[0].p0.in,
             );
             try std.testing.expectEqual(
                 ident.segments[0].p3.in,
-                split_ident.segments[1].p3.in
+                split_ident.segments[1].p3.in,
             );
 
-            var i:opentime.Ordinate = extents[0].in;
+            var i: opentime.Ordinate = extents[0].in;
             while (i.lt(extents[1].in))
                 : (i = i.add(1))
             {
@@ -2511,7 +2578,7 @@ test "Bezier: split_at_input_ord"
                 const snd = try split_ident.output_at_input(i);
                 errdefer std.log.err(
                     "Loop: {d} orig: {f} new: {f}",
-                    .{i, fst, snd}
+                    .{ i, fst, snd },
                 );
                 try opentime.expectOrdinateEqual(
                     fst,
@@ -2522,18 +2589,18 @@ test "Bezier: split_at_input_ord"
     }
 }
 
-test "Bezier: trimmed_from_input_ordinate" 
+test "Bezier: trimmed_from_input_ordinate"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
     const TestData = struct {
         // inputs
-        ordinate:opentime.Ordinate,
+        ordinate: opentime.Ordinate,
         direction: Bezier.TrimDir,
 
         // expected results
-        result_extents:opentime.ContinuousInterval,
+        result_extents: opentime.ContinuousInterval,
         result_segment_count: usize,
     };
 
@@ -2542,29 +2609,29 @@ test "Bezier: trimmed_from_input_ordinate"
             allocator,
             io,
             "curves/linear_scurve_u.curve.json",
-        ), 
+        ),
         .{
             .segments = &.{
                 Bezier.Segment.init_identity(
                     opentime.Ordinate.init(-25),
                     opentime.Ordinate.init(-5),
-                ), 
+                ),
                 Bezier.Segment.init_identity(
                     opentime.Ordinate.init(-5),
                     opentime.Ordinate.init(5),
-                ), 
+                ),
                 Bezier.Segment.init_identity(
                     opentime.Ordinate.init(5),
                     opentime.Ordinate.init(25),
-                ), 
+                ),
             },
         },
     };
 
     defer test_curves[0].deinit(allocator);
 
-    for (test_curves, 0..) 
-        |ident, curve_index| 
+    for (test_curves, 0..)
+        |ident, curve_index|
     {
         const extents = ident.extents();
 
@@ -2620,12 +2687,12 @@ test "Bezier: trimmed_from_input_ordinate"
             },
         };
 
-        for (test_data, 0..) 
-            |td, index| 
+        for (test_data, 0..)
+            |td, index|
         {
             errdefer std.debug.print(
                 "\ncurve: {} / loop: {}\n",
-                .{ curve_index, index }
+                .{ curve_index, index },
             );
 
             const trimmed_curve = try ident.trimmed_from_input_ordinate(
@@ -2638,7 +2705,7 @@ test "Bezier: trimmed_from_input_ordinate"
 
             errdefer std.debug.print(
                 "\n test: {any}\n trimmed_extents: {any} \n\n",
-                .{ td , trimmed_extents}
+                .{ td, trimmed_extents },
             );
 
             try opentime.expectOrdinateEqual(
@@ -2653,7 +2720,7 @@ test "Bezier: trimmed_from_input_ordinate"
     }
 }
 
-test "Bezier: trimmed_in_input_space" 
+test "Bezier: trimmed_in_input_space"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -2669,25 +2736,25 @@ test "Bezier: trimmed_in_input_space"
                 .init_identity(
                     opentime.Ordinate.init(-20),
                     opentime.Ordinate.init(30),
-                ) 
-            }
+                ),
+            },
         },
         try read_curve_json(
             allocator,
             io,
             "curves/upside_down_u.curve.json",
-        ), 
+        ),
         try read_curve_json(
             allocator,
             io,
             "curves/scurve.curve.json",
-        ), 
+        ),
     };
 
     defer test_curves[1].deinit(allocator);
     defer test_curves[2].deinit(allocator);
 
-    for (test_curves, 0..) 
+    for (test_curves, 0..)
         |ident, crv_ind|
     {
         const extents = ident.extents();
@@ -2703,7 +2770,7 @@ test "Bezier: trimmed_in_input_space"
                     .start = extents[0].in.mul(0.25),
                     .end = extents[1].in.mul(0.75),
                 },
-                },
+            },
             // trim start
             .{
                 .trim_range = .{
@@ -2714,7 +2781,7 @@ test "Bezier: trimmed_in_input_space"
                     .start = extents[0].in.mul(0.25),
                     .end = extents[1].in,
                 },
-                },
+            },
             // trim end
             .{
                 .trim_range = .{
@@ -2725,7 +2792,7 @@ test "Bezier: trimmed_in_input_space"
                     .start = extents[0].in,
                     .end = extents[1].in.mul(0.75),
                 },
-                },
+            },
             // trim neither
             .{
                 .trim_range = .{
@@ -2736,7 +2803,7 @@ test "Bezier: trimmed_in_input_space"
                     .start = extents[0].in,
                     .end = extents[1].in,
                 },
-                },
+            },
             .{
                 .trim_range = .{
                     .start = extents[0].in,
@@ -2746,35 +2813,42 @@ test "Bezier: trimmed_in_input_space"
                     .start = extents[0].in,
                     .end = extents[1].in,
                 },
-                },
-            };
+            },
+        };
 
-        for (test_data, 0..) 
+        for (test_data, 0..)
             |td, td_ind|
         {
             errdefer {
-                const crv_str = ident.debug_json_str(
-                    allocator
-                ) catch "ERRMAKESTRING";
+                const crv_str = ident.debug_json_str(allocator)
+                catch "ERRMAKESTRING";
                 defer allocator.free(crv_str);
                 const crv_extents = ident.extents();
 
                 std.debug.print(
-                    "test curve:{d}\n  {s}\n  extents: (({d}, {d}), ({d}, {d}))\n",
+                    (
+                        "test curve:{d}\n  {s}\n  extents: (({d}, {d}), "
+                        ++ "({d}, {d}))\n"
+                    ),
                     .{
                         crv_ind,
                         crv_str,
-                        crv_extents[0].in, crv_extents[0].out,
-                        crv_extents[1].in, crv_extents[1].out,
-                    }
+                        crv_extents[0].in,
+                        crv_extents[0].out,
+                        crv_extents[1].in,
+                        crv_extents[1].out,
+                    },
                 );
-                std.debug.print("  Error on iteration: {d}\n", .{ td_ind });
+                std.debug.print("  Error on iteration: {d}\n", .{td_ind});
                 std.debug.print(
-                    "    trim_range: ({d}, {d})\n    result_extents: ({d}, {d})\n",
+                    (
+                        "    trim_range: ({d}, {d})\n    result_extents: "
+                        ++ "({d}, {d})\n"
+                    ),
                     .{
-                        td.trim_range.start, 
+                        td.trim_range.start,
                         td.trim_range.end,
-                        td.result_extents.start, 
+                        td.result_extents.start,
                         td.result_extents.end,
                     },
                 );
@@ -2790,9 +2864,9 @@ test "Bezier: trimmed_in_input_space"
                 std.debug.print(
                     "    measured result_extents: ({d}, {d}), ({d}, {d})\n",
                     .{
-                        trimmed_extents[0].in, 
+                        trimmed_extents[0].in,
                         trimmed_extents[0].out,
-                        trimmed_extents[1].in, 
+                        trimmed_extents[1].in,
                         trimmed_extents[1].out,
                     },
                 );
@@ -2810,7 +2884,7 @@ test "Bezier: trimmed_in_input_space"
     }
 }
 
-test "Bezier: project_affine" 
+test "Bezier: project_affine"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -2842,8 +2916,8 @@ test "Bezier: project_affine"
     };
 
     // @TODO: this seems like it could be cleaned up
-    for (test_affine) 
-        |testdata| 
+    for (test_affine)
+        |testdata|
     {
         const result = try test_crv.project_affine(
             allocator,
@@ -2857,27 +2931,27 @@ test "Bezier: project_affine"
             result.segments.len,
         );
 
-        for (test_crv.segments, 0..) 
-            |t_seg, t_seg_index| 
+        for (test_crv.segments, 0..)
+            |t_seg, t_seg_index|
         {
-            for (t_seg.points(), 0..) 
-                |pt, pt_index| 
+            for (t_seg.points(), 0..)
+                |pt, pt_index|
             {
                 const result_pt = (
                     result.segments[t_seg_index].points()[pt_index]
                 );
 
-                errdefer  std.log.err(
+                errdefer std.log.err(
                     "\nseg: {} pt: {} ({d:.2}, {d:.2})\n"
-                    ++ "computed: ({d:.2}, {d:.2})\n\n", 
+                    ++ "computed: ({d:.2}, {d:.2})\n\n",
                     .{
                         t_seg_index,
                         pt_index,
                         pt.in,
                         pt.out,
                         result_pt.in,
-                        result_pt.out, 
-                    }
+                        result_pt.out,
+                    },
                 );
 
                 try opentime.expectOrdinateEqual(
@@ -2899,18 +2973,18 @@ pub fn join_bez_aff_unbounded(
         a2b: Bezier,
         b2c: opentime.transform.AffineTransform1D,
     },
-) !Bezier 
+) !Bezier
 {
     const new_segments = try allocator.alloc(
         Bezier.Segment,
         args.a2b.segments.len,
     );
 
-    for (args.a2b.segments, new_segments) 
-        |src_seg, *dst_seg| 
+    for (args.a2b.segments, new_segments)
+        |src_seg, *dst_seg|
     {
-        for (src_seg.points(), dst_seg.point_ptrs()) 
-            |pt, dst_pt| 
+        for (src_seg.points(), dst_seg.point_ptrs())
+            |pt, dst_pt|
         {
             dst_pt.* = .{
                 .in = pt.in,
@@ -2924,7 +2998,7 @@ pub fn join_bez_aff_unbounded(
     };
 }
 
-test "join_bez_aff_unbounded" 
+test "join_bez_aff_unbounded"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -2955,12 +3029,12 @@ test "join_bez_aff_unbounded"
         },
     };
 
-    for (test_affine, 0..) 
-        |testdata, test_loop_index| 
+    for (test_affine, 0..)
+        |testdata, test_loop_index|
     {
         errdefer std.debug.print(
             "\ntest: {}, offset: {d:.2}, scale: {d:.2}\n",
-            .{ test_loop_index, testdata.offset, testdata.scale }
+            .{ test_loop_index, testdata.offset, testdata.scale },
         );
         const result = try join_bez_aff_unbounded(
             allocator,
@@ -2972,41 +3046,46 @@ test "join_bez_aff_unbounded"
         defer result.deinit(allocator);
 
         // number of segments shouldn't have changed
-        try std.testing.expectEqual(test_crv.segments.len, result.segments.len);
+        try std.testing.expectEqual(
+            test_crv.segments.len,
+            result.segments.len,
+        );
 
-        for (test_crv.segments, 0..) 
-            |t_seg, t_seg_index| 
+        for (test_crv.segments, 0..)
+            |t_seg, t_seg_index|
         {
-            for (t_seg.points(), 0..) 
-                |pt, pt_index| 
+            for (t_seg.points(), 0..)
+                |pt, pt_index|
             {
-                const result_pt = result.segments[t_seg_index].points()[pt_index];
-                errdefer  std.debug.print(
+                const result_pt = (
+                    result.segments[t_seg_index].points()[pt_index]
+                );
+                errdefer std.debug.print(
                     "\nseg: {} pt: {} ({d:.2}, {d:.2})\n"
-                    ++ "computed: ({d:.2}, {d:.2})\n\n", 
+                    ++ "computed: ({d:.2}, {d:.2})\n\n",
                     .{
                         t_seg_index,
                         pt_index,
                         pt.in,
                         pt.out,
                         result_pt.in,
-                        result_pt.out, 
-                    }
+                        result_pt.out,
+                    },
                 );
                 try opentime.expectOrdinateEqual(
-                        testdata.scale.mul(pt.out).add(testdata.offset),
-                    result_pt.out
+                    testdata.scale.mul(pt.out).add(testdata.offset),
+                    result_pt.out,
                 );
             }
         }
     }
 }
 
-test "Bezier: split_on_critical_points s curve" 
+test "Bezier: split_on_critical_points s curve"
 {
     const allocator = std.testing.allocator;
 
-    const s_curve_seg = Bezier {
+    const s_curve_seg = Bezier{
         .segments = &.{
             .init_f32(
                 .{
@@ -3014,20 +3093,18 @@ test "Bezier: split_on_critical_points s curve"
                     .p1 = .{ .in = 0, .out = 200 },
                     .p2 = .{ .in = 100, .out = -100 },
                     .p3 = .{ .in = 100, .out = 100 },
-                }
+                },
             ),
         },
     };
 
-    const s_curve_split = try s_curve_seg.split_on_critical_points(
-        allocator
-    );
+    const s_curve_split = try s_curve_seg.split_on_critical_points(allocator);
     defer s_curve_split.deinit(allocator);
 
     try std.testing.expectEqual(4, s_curve_split.segments.len);
 }
 
-test "Bezier: split_on_critical_points symmetric about the origin" 
+test "Bezier: split_on_critical_points symmetric about the origin"
 {
     const allocator = std.testing.allocator;
 
@@ -3043,26 +3120,26 @@ test "Bezier: split_on_critical_points symmetric about the origin"
             .segment = .init_f32(
                 .{
                     .p0 = .{ .in = -0.5, .out = -0.5 },
-                    .p1 = .{ .in =    0, .out = -0.5 },
-                    .p2 = .{ .in =    0, .out =  0.5 },
-                    .p3 = .{ .in =  0.5, .out =  0.5 },
-                }
+                    .p1 = .{ .in = 0, .out = -0.5 },
+                    .p2 = .{ .in = 0, .out = 0.5 },
+                    .p3 = .{ .in = 0.5, .out = 0.5 },
+                },
             ),
             .inflection_point = .init(0.5),
             .roots = .{
                 .init(-1),
-                .init(-1), 
+                .init(-1),
             },
             .split_segments = 2,
         },
         .{
             .segment = .init_f32(
                 .{
-                    .p0 = .{ .in = -0.5, .out =    0 },
-                    .p1 = .{ .in =    0, .out =   -1 },
-                    .p2 = .{ .in =    0, .out =    1 },
-                    .p3 = .{ .in =  0.5, .out =    0 },
-                }
+                    .p0 = .{ .in = -0.5, .out = 0 },
+                    .p1 = .{ .in = 0, .out = -1 },
+                    .p2 = .{ .in = 0, .out = 1 },
+                    .p3 = .{ .in = 0.5, .out = 0 },
+                },
             ),
             .inflection_point = .init(0.5),
             // assuming this is correct
@@ -3074,12 +3151,12 @@ test "Bezier: split_on_critical_points symmetric about the origin"
         },
     };
 
-    for (tests, 0..) 
-        |td, td_ind| 
+    for (tests, 0..)
+        |td, td_ind|
     {
-        errdefer std.debug.print("test that failed: {d}\n", .{ td_ind });
-        const s_curve_seg = Bezier {
-            .segments = &.{ td.segment },
+        errdefer std.debug.print("test that failed: {d}\n", .{td_ind});
+        const s_curve_seg = Bezier{
+            .segments = &.{td.segment},
         };
         const seg = s_curve_seg.segments[0];
 
@@ -3100,28 +3177,34 @@ test "Bezier: split_on_critical_points symmetric about the origin"
             opentime.EPSILON_F,
         );
 
-        var t:f32 = 0.0;
-        while (t < 1) 
-            : (t += 0.01) 
+        var t: f32 = 0.0;
+        while (t < 1)
+            : (t += 0.01)
         {
-            var c_split_l:hodographs.BezierSegment = undefined;
-            var c_split_r:hodographs.BezierSegment = undefined;
+            var c_split_l: hodographs.BezierSegment = undefined;
+            var c_split_r: hodographs.BezierSegment = undefined;
             const c_result = hodographs.split_bezier(
                 &cSeg,
                 t,
                 &c_split_l,
-                &c_split_r
+                &c_split_r,
             );
 
             const maybe_zig_splits = seg.split_at(t);
 
             errdefer std.debug.print("\nt: {}\n", .{t});
 
-            if (maybe_zig_splits == null) {
+            if (maybe_zig_splits == null)
+            {
                 try std.testing.expect(c_result == false);
                 continue;
-            } else {
-                errdefer std.debug.print("zig added a split where c didnt", .{});
+            }
+            else
+            {
+                errdefer std.debug.print(
+                    "zig added a split where c didnt",
+                    .{},
+                );
                 try std.testing.expect(c_result == true);
             }
 
@@ -3129,32 +3212,32 @@ test "Bezier: split_on_critical_points symmetric about the origin"
 
             errdefer {
                 std.debug.print("\n---\nc left:\n", .{});
-                for (c_split_l.p) 
-                    |p| 
+                for (c_split_l.p)
+                    |p|
                 {
-                    std.debug.print("  {d}, {d}\n", .{p.x, p.y});
+                    std.debug.print("  {d}, {d}\n", .{ p.x, p.y });
                 }
                 std.debug.print("\nc right:\n", .{});
-                for (c_split_r.p) 
-                    |p| 
+                for (c_split_r.p)
+                    |p|
                 {
-                    std.debug.print("  {d}, {d}\n", .{p.x, p.y});
+                    std.debug.print("  {d}, {d}\n", .{ p.x, p.y });
                 }
                 std.debug.print("\nzig left:\n", .{});
-                for (zig_splits[0].points()) 
-                    |p| 
+                for (zig_splits[0].points())
+                    |p|
                 {
-                    std.debug.print("  {d}, {d}\n", .{p.in, p.out});
+                    std.debug.print("  {d}, {d}\n", .{ p.in, p.out });
                 }
                 std.debug.print("\nzig right:\n", .{});
-                for (zig_splits[1].points()) 
-                    |p| 
+                for (zig_splits[1].points())
+                    |p|
                 {
-                    std.debug.print("  {d}, {d}\n", .{p.in, p.out});
+                    std.debug.print("  {d}, {d}\n", .{ p.in, p.out });
                 }
             }
 
-            for (0..4) 
+            for (0..4)
                 |i|
             {
                 errdefer std.debug.print("\n\npt: {d} t: {d}\n", .{ i, t });
@@ -3188,7 +3271,7 @@ test "Bezier: split_on_critical_points symmetric about the origin"
 
         try std.testing.expectEqual(
             @as(usize, td.split_segments),
-            s_curve_split.segments.len
+            s_curve_split.segments.len,
         );
 
         // test the hodographs for this curve
@@ -3201,12 +3284,12 @@ test "Bezier: split_on_critical_points symmetric about the origin"
             try std.testing.expectApproxEqAbs(
                 td.roots[0].as(f32),
                 roots.x,
-                opentime.EPSILON_F
+                opentime.EPSILON_F,
             );
             try std.testing.expectApproxEqAbs(
                 td.roots[1].as(f32),
                 roots.y,
-                opentime.EPSILON_F
+                opentime.EPSILON_F,
             );
         }
     }
@@ -3216,9 +3299,9 @@ pub const tpa_result = struct {
     result: ?Bezier.Segment = null,
     start_ddt: ?control_point.ControlPoint = null,
     start: ?control_point.ControlPoint = null,
-    A:  ?control_point.ControlPoint = null,
+    A: ?control_point.ControlPoint = null,
     midpoint: ?control_point.ControlPoint = null,
-    C:  ?control_point.ControlPoint = null,
+    C: ?control_point.ControlPoint = null,
     end: ?control_point.ControlPoint = null,
     end_ddt: ?control_point.ControlPoint = null,
     e1: ?control_point.ControlPoint = null,
@@ -3250,7 +3333,7 @@ pub fn three_point_guts_plot(
     // if B is the midpoint, there are points A and C such that C is the
     // midpoint of the first and last control points and A is the midpoint
     // of the inner control points.
-    // 
+    //
     // Based on this we can infer the position of the inner control points
 
     const t_cubed = t_mid_point * t_mid_point * t_mid_point;
@@ -3261,7 +3344,7 @@ pub fn three_point_guts_plot(
 
     // C is a lerp between the end points
     const C = opentime.lerp(
-        1-u,
+        1 - u,
         start_knot,
         end_knot,
     );
@@ -3270,9 +3353,7 @@ pub fn three_point_guts_plot(
     // abs( (t^3 + (1-t)^3 - 1) / ( t^3 + (1-t)^3 ) )
     const ratio_t = cmp_t: {
         const result = opentime.abs(
-            (t_cubed + one_minus_t_cubed - 1)
-            /
-            (t_cubed + one_minus_t_cubed)
+            (t_cubed + one_minus_t_cubed - 1) / (t_cubed + one_minus_t_cubed),
         );
         break :cmp_t result;
     };
@@ -3287,32 +3368,32 @@ pub fn three_point_guts_plot(
 
     // then set up an e1 and e2 parallel to the baseline
     const e1 = control_point.ControlPoint{
-        .in= mid_point.in.sub(d_mid_point_dt.in.mul((t_mid_point))),
-        .out= mid_point.out.sub(d_mid_point_dt.out.mul((t_mid_point))),
+        .in = mid_point.in.sub(d_mid_point_dt.in.mul((t_mid_point))),
+        .out = mid_point.out.sub(d_mid_point_dt.out.mul((t_mid_point))),
     };
     const e2 = control_point.ControlPoint{
-        .in= mid_point.in.add(d_mid_point_dt.in.mul((1-t_mid_point))),
-        .out = mid_point.out.add(d_mid_point_dt.out.mul((1-t_mid_point))),
+        .in = mid_point.in.add(d_mid_point_dt.in.mul((1 - t_mid_point))),
+        .out = mid_point.out.add(d_mid_point_dt.out.mul((1 - t_mid_point))),
     };
     final_result.e1 = e1;
     final_result.e2 = e2;
 
     // then use those e1/e2 to derive the new hull coordinates
     // v1 = (e1 - t*A)/(1-t)
-    const v1 = (e1.sub(A.mul(t_mid_point))).div(1-t_mid_point);
+    const v1 = (e1.sub(A.mul(t_mid_point))).div(1 - t_mid_point);
     // v2 = (e2 - (1-t)*A)/(t)
-    const v2 = (e2.sub(A.mul(1-t_mid_point))).div(t_mid_point);
+    const v2 = (e2.sub(A.mul(1 - t_mid_point))).div(t_mid_point);
     final_result.v1 = v1;
     final_result.v2 = v2;
 
     // C1 = (v1 - (1 - t) * start) / t
-    const C1 = (v1.sub(start_knot.mul(1-t_mid_point))).div(t_mid_point);
+    const C1 = (v1.sub(start_knot.mul(1 - t_mid_point))).div(t_mid_point);
     // C2 = (v2 - t * end) / (1 - t)
     const C2 = (v2.sub(end_knot.mul(t_mid_point))).div(1 - t_mid_point);
     final_result.C1 = C1;
     final_result.C2 = C2;
 
-    const result_seg : Bezier.Segment = .{
+    const result_seg: Bezier.Segment = .{
         .p0 = start_knot,
         .p1 = C1,
         .p2 = C2,

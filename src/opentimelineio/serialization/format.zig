@@ -71,8 +71,9 @@ pub const FileFormat = enum {
         }
         const lower = std.ascii.lowerString(&lower_buf, extension);
 
-        return std.meta.stringToEnum(FileFormat, lower) orelse
-            return error.UnsupportedFileFormat;
+        return std.meta.stringToEnum(FileFormat, lower) orelse return (
+            error.UnsupportedFileFormat
+        );
     }
 };
 
@@ -146,5 +147,4 @@ pub const WriteOptions = struct {
         /// Encode the bundle but do not write the file
         dryrun: bool = false,
     };
-
 };

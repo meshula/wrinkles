@@ -24,7 +24,7 @@ pub const MappingCurveLinearMonotonic = struct {
     pub fn deinit(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) void 
+    ) void
     {
         self.input_to_output_curve.deinit(allocator);
     }
@@ -40,14 +40,14 @@ pub const MappingCurveLinearMonotonic = struct {
 
     pub fn input_bounds(
         self: @This(),
-    ) ?opentime.ContinuousInterval 
+    ) ?opentime.ContinuousInterval
     {
         return self.input_to_output_curve.extents_input();
     }
 
     pub fn output_bounds(
         self: @This(),
-    ) ?opentime.ContinuousInterval 
+    ) ?opentime.ContinuousInterval
     {
         return self.input_to_output_curve.extents_output();
     }
@@ -55,7 +55,7 @@ pub const MappingCurveLinearMonotonic = struct {
     pub fn project_instantaneous_cc(
         self: @This(),
         input_ordinate: opentime.Ordinate,
-    ) opentime.ProjectionResult 
+    ) opentime.ProjectionResult
     {
         return self.input_to_output_curve.output_at_input(input_ordinate);
     }
@@ -71,7 +71,6 @@ pub const MappingCurveLinearMonotonic = struct {
     {
         return self.input_to_output_curve.input_at_output(output_ordinate);
     }
-
 
     pub fn clone(
         self: @This(),
@@ -184,18 +183,21 @@ pub const MappingCurveLinearMonotonic = struct {
             {
                 const new_knot = curve.ControlPoint{
                     .in = input_ord,
-                    .out = try self.input_to_output_curve.output_at_input(input_ord).ordinate(),
+                    .out = try self.input_to_output_curve.output_at_input(
+                        input_ord,
+                    ).ordinate(),
                 };
 
                 try left_knots.appendSlice(
                     allocator,
                     start_knots[0..k_ind],
                 );
-                try left_knots.append(allocator,new_knot);
+                try left_knots.append(allocator, new_knot);
 
-                try right_knots.append(allocator,new_knot);
+                try right_knots.append(allocator, new_knot);
                 try right_knots.appendSlice(
-                    allocator,start_knots[k_ind..],
+                    allocator,
+                    start_knots[k_ind..],
                 );
                 break;
             }
@@ -224,7 +226,7 @@ test "MappingCurveLinearMonotonic: init_knots"
 {
     const mcl = MappingCurveLinearMonotonic.init_knots(
         &.{
-            .init(.{ .in = 0,  .out = 0  }),
+            .init(.{ .in = 0, .out = 0 }),
             .init(.{ .in = 10, .out = 10 }),
         },
     ).mapping();
@@ -240,7 +242,7 @@ test "Mapping"
     const mcl = (
         MappingCurveLinearMonotonic.init_knots(
             &.{
-                .init(.{ .in = 0,  .out = 0  }),
+                .init(.{ .in = 0, .out = 0 }),
                 .init(.{ .in = 10, .out = 10 }),
                 .init(.{ .in = 20, .out = 30 }),
                 .init(.{ .in = 30, .out = 30 }),
@@ -251,18 +253,46 @@ test "Mapping"
     ).mapping();
 
     const TestThing = struct {
-        tp : i32,
-        exp : i32,
-        err : bool,
+        tp: i32,
+        exp: i32,
+        err: bool,
     };
     const test_points = [_]TestThing{
-        TestThing{ .tp = -1, .exp = 0, .err = true, },
-        TestThing{ .tp = 0, .exp = 0, .err = false, },
-        TestThing{ .tp = 5, .exp = 5, .err = false, },
-        TestThing{ .tp = 15, .exp = 20, .err = false, },
-        TestThing{ .tp = 25, .exp = 30, .err = false, },
-        TestThing{ .tp = 26, .exp = 30, .err = false, },
-        TestThing{ .tp = 45, .exp = -5, .err = false, },
+        TestThing{
+            .tp = -1,
+            .exp = 0,
+            .err = true,
+        },
+        TestThing{
+            .tp = 0,
+            .exp = 0,
+            .err = false,
+        },
+        TestThing{
+            .tp = 5,
+            .exp = 5,
+            .err = false,
+        },
+        TestThing{
+            .tp = 15,
+            .exp = 20,
+            .err = false,
+        },
+        TestThing{
+            .tp = 25,
+            .exp = 30,
+            .err = false,
+        },
+        TestThing{
+            .tp = 26,
+            .exp = 30,
+            .err = false,
+        },
+        TestThing{
+            .tp = 45,
+            .exp = -5,
+            .err = false,
+        },
     };
 
     for (test_points)
@@ -276,7 +306,7 @@ test "Mapping"
                 try measured.ordinate(),
             );
         }
-        else 
+        else
         {
             try std.testing.expectError(
                 error.OutOfBounds,
@@ -292,20 +322,20 @@ test "Linear.Monotonic: shrink_to_output_interval"
 
     const mcl = MappingCurveLinearMonotonic.init_knots(
         &.{
-            .init(.{ .in = 0,  .out = 0  }),
+            .init(.{ .in = 0, .out = 0 }),
             .init(.{ .in = 10, .out = 10 }),
             .init(.{ .in = 20, .out = 30 }),
-        }
+        },
     ).mapping();
 
     const result = (
         try mcl.shrink_to_output_interval(
             allocator,
             opentime.ContinuousInterval.init(
-                .{ 
+                .{
                     .start = 5,
                     .end = 25,
-                }
+                },
             ),
         )
     ) orelse return error.InvalidBounds;
@@ -339,7 +369,7 @@ test "MappingCurveLinearMonotonic: split_at_input_points"
     const mcl = (
         MappingCurveLinearMonotonic.init_knots(
             &.{
-                .init(.{ .in = 0,  .out = 0  }),
+                .init(.{ .in = 0, .out = 0 }),
                 .init(.{ .in = 10, .out = 10 }),
                 .init(.{ .in = 20, .out = 30 }),
             },
@@ -355,12 +385,12 @@ test "MappingCurveLinearMonotonic: split_at_input_points"
         defer split_mappings[1].deinit(allocator);
 
         try opentime.expectOrdinateEqual(
-            1, 
-            split_mappings[0].input_bounds().?.end
+            1,
+            split_mappings[0].input_bounds().?.end,
         );
         try opentime.expectOrdinateEqual(
-            1, 
-            split_mappings[1].input_bounds().?.start
+            1,
+            split_mappings[1].input_bounds().?.start,
         );
     }
 
@@ -374,7 +404,11 @@ test "MappingCurveLinearMonotonic: split_at_input_points"
             },
         );
         defer {
-            for (split_curves) |crv| crv.deinit(allocator);
+            for (split_curves)
+                |crv|
+            {
+                crv.deinit(allocator);
+            }
             allocator.free(split_curves);
         }
     }
@@ -385,7 +419,7 @@ test "MappingCurveLinearMonotonic: split_at_input_points"
             &.{
                 .init(1),
                 .init(11),
-            }
+            },
         );
         defer {
             for (split_mappings)
@@ -402,21 +436,21 @@ test "MappingCurveLinearMonotonic: split_at_input_points"
         );
 
         try opentime.expectOrdinateEqual(
-            1, 
-            split_mappings[0].input_bounds().?.end
+            1,
+            split_mappings[0].input_bounds().?.end,
         );
         try opentime.expectOrdinateEqual(
-            1, 
-            split_mappings[1].input_bounds().?.start
+            1,
+            split_mappings[1].input_bounds().?.start,
         );
 
         try opentime.expectOrdinateEqual(
-            11, 
-            split_mappings[1].input_bounds().?.end
+            11,
+            split_mappings[1].input_bounds().?.end,
         );
         try opentime.expectOrdinateEqual(
-            11, 
-            split_mappings[2].input_bounds().?.start
+            11,
+            split_mappings[2].input_bounds().?.start,
         );
     }
 }

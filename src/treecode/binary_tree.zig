@@ -12,14 +12,16 @@ const treecode = @import("treecode.zig");
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
+
 // const GRAPH_CONSTRUCTION_TRACE_MESSAGES = true;
 
-const DEBUG_MESSAGES= (
-    build_options.debug_graph_construction_trace_messages 
-    or build_options.debug_print_messages 
+const DEBUG_MESSAGES = (
+    build_options.debug_graph_construction_trace_messages
+    or build_options.debug_print_messages
 );
 
-/// Which style to render node labels in, as binary codes or hashes.  Codes are
+/// Which style to render node labels in, as binary codes or hashes.  Codes
+/// are
 /// more readable, but make large graphs impossible to read.
 const LabelStyle = enum(u1) { treecode, hash };
 
@@ -27,7 +29,7 @@ const LabelStyle = enum(u1) { treecode, hash };
 pub const NodeIndex = usize;
 
 /// Root code refers the root node the `BinaryTree`
-const ROOT_CODE:treecode.Treecode = .EMPTY;
+const ROOT_CODE: treecode.Treecode = .EMPTY;
 
 /// Type function that returns a `BinaryTree` of nodes parameterized by
 /// `NodeType`.
@@ -41,7 +43,8 @@ const ROOT_CODE:treecode.Treecode = .EMPTY;
 /// indices between two nodes, using the treecodes and pointers to avoid a
 /// search.
 ///
-/// Owns all the data put into the `BinaryTree`, including nodes in the `.nodes`
+/// Owns all the data put into the `BinaryTree`, including nodes in the
+/// `.nodes`
 /// list and treecodes in the `.graph_data` list.
 pub fn BinaryTree(
     comptime NodeType: type,
@@ -74,14 +77,15 @@ pub fn BinaryTree(
             /// Index in the `.nodes` list of parent, if one is present
             parent_index: ?NodeIndex = null,
             /// Indices of children, if present
-            child_indices: [2]?NodeIndex = .{null, null},
+            child_indices: [2]?NodeIndex = .{ null, null },
         };
 
         /// `std.AutoHashMapUnmanaged` mapping the hash of a `NodeType` to the
         /// index of the node in the `BinaryTree` the `.nodes` and
         /// `.tree_data` lists.
         ///
-        /// XXX: this currently does not support node types with slices in them,
+        /// XXX: this currently does not support node types with slices in
+        /// them,
         ///      due to constrants in the autohasher (as of zig 0.15.2)
         map_node_to_index: std.AutoHashMapUnmanaged(
             NodeType,
@@ -93,7 +97,7 @@ pub fn BinaryTree(
         tree_data: std.MultiArrayList(TreeData),
 
         /// Store of nodes in the `BinaryTree`
-        nodes:std.MultiArrayList(NodeType),
+        nodes: std.MultiArrayList(NodeType),
 
         locked: bool = false,
 
@@ -107,14 +111,14 @@ pub fn BinaryTree(
         pub fn deinit(
             self: @This(),
             allocator: std.mem.Allocator,
-        ) void 
+        ) void
         {
             // build a mutable alias of self
             var mutable_self = self;
 
             for (self.tree_data.items(.code))
                 |code|
-            { 
+            {
                 code.deinit(allocator);
             }
 
@@ -147,21 +151,16 @@ pub fn BinaryTree(
             capacity: usize,
         ) !void
         {
-            try self.tree_data.ensureUnusedCapacity(
-                allocator,
-                capacity
-            );
-            try self.nodes.ensureUnusedCapacity(
-                allocator,
-                capacity
-            );
+            try self.tree_data.ensureUnusedCapacity(allocator, capacity);
+            try self.nodes.ensureUnusedCapacity(allocator, capacity);
             try self.map_node_to_index.ensureUnusedCapacity(
                 allocator,
-                @intCast(capacity)
+                @intCast(capacity),
             );
         }
 
-        /// Add a Node to the `BinaryTree` and return the index of the new node.
+        /// Add a Node to the `BinaryTree` and return the index of the new
+        /// node.
         ///
         /// Note that `tree_data` is owned by the `BinaryTree`, specifically 
         /// the `treecode.Treecode`.
@@ -172,7 +171,6 @@ pub fn BinaryTree(
             tree_data: TreeData,
         ) !NodeIndex
         {
-
             try self.nodes.append(allocator, node);
 
             const new_path_index = self.tree_data.len;
@@ -192,21 +190,25 @@ pub fn BinaryTree(
             {
                 const parent_code = self.tree_data.items(.code)[parent_index];
                 const dir = parent_code.next_step_towards(tree_data.code);
-                var child_indices = &self.tree_data.items(
-                    .child_indices
-                )[parent_index];
+                var child_indices = (
+                    &self.tree_data.items(.child_indices)[parent_index]
+                );
                 child_indices[@intFromEnum(dir)] = new_path_index;
             }
 
             if (tree_data.child_indices[@intFromEnum(treecode.l_or_r.left)])
                 |left_child|
             {
-                self.tree_data.items(.parent_index)[left_child] = new_path_index;
+                self.tree_data.items(.parent_index)[left_child] = (
+                    new_path_index
+                );
             }
             if (tree_data.child_indices[@intFromEnum(treecode.l_or_r.right)])
                 |right_child|
             {
-                self.tree_data.items(.parent_index)[right_child] = new_path_index;
+                self.tree_data.items(.parent_index)[right_child] = (
+                    new_path_index
+                );
             }
 
             return new_path_index;
@@ -239,12 +241,12 @@ pub fn BinaryTree(
             {
                 const parent_code = self.tree_data.items(.code)[parent_index];
                 const dir = parent_code.next_step_towards(tree_data.code);
-                var child_indices = &self.tree_data.items(
-                    .child_indices
-                )[parent_index];
+                var child_indices = (
+                    &self.tree_data.items(.child_indices)[parent_index]
+                );
                 child_indices[@intFromEnum(dir)] = new_index;
             }
-            
+
             return new_index;
         }
 
@@ -278,14 +280,15 @@ pub fn BinaryTree(
         /// Return the root node associated with the `ROOT_CODE`.
         pub fn root_node(
             self: @This(),
-        ) NodeType 
+        ) NodeType
         {
             // should always have a root object, and root object should always
             // be the first entry in the nodes list
             return self.nodes.get(0);
         }
 
-        /// Serialize this `BinaryTree` to dot and then use graphviz to convert
+        /// Serialize this `BinaryTree` to dot and then use graphviz to
+        /// convert
         /// that dot to a png.  Writes the dot source to `png_filepath` and
         /// renders it to `png_filepath`.png.
         ///
@@ -293,7 +296,7 @@ pub fn BinaryTree(
         /// file, but will return before attempting to call dot on it to
         /// convert it to a png.
         pub fn write_dot_graph(
-            self:@This(),
+            self: @This(),
             allocator: std.mem.Allocator,
             io: std.Io,
             /// path to the desired resulting png file
@@ -306,7 +309,7 @@ pub fn BinaryTree(
                 /// if this is off, will generate the .dot file and return
                 render_png: bool = true,
             },
-        ) !void 
+        ) !void
         {
             var arena = std.heap.ArenaAllocator.init(allocator);
             defer arena.deinit();
@@ -320,15 +323,12 @@ pub fn BinaryTree(
             );
             defer file.close(io);
 
-            var file_writer_buffer: [16*1024]u8 = undefined;
+            var file_writer_buffer: [16 * 1024]u8 = undefined;
             var file_writer = file.writer(io, &file_writer_buffer);
             var writer = &file_writer.interface;
 
             // header text for the dot file
-            _ = try writer.print(
-                "digraph {s} {{\n",
-                .{ header_name }
-            );
+            _ = try writer.print("digraph {s} {{\n", .{header_name});
 
             var label_buf: [1024]u8 = undefined;
             var next_label_buf: [1024]u8 = undefined;
@@ -364,14 +364,14 @@ pub fn BinaryTree(
                         );
                         _ = try writer.print(
                             "  \"{s}\" -> \"{s}\"\n",
-                            .{current_label, next_label}
+                            .{ current_label, next_label },
                         );
-                    } 
-                    else 
+                    }
+                    else
                     {
                         _ = try writer.print(
                             " {f} \n  [shape=point]\"{s}\" -> {f}\n",
-                            .{current_code, current_label, current_code}
+                            .{ current_code, current_label, current_code },
                         );
                     }
                 }
@@ -384,13 +384,14 @@ pub fn BinaryTree(
             const pngfilepath = try std.fmt.bufPrint(
                 &label_buf,
                 "{s}.png",
-                .{ png_filepath }
+                .{png_filepath},
             );
 
             if (
-                build_options.graphviz_dot_path == null 
+                build_options.graphviz_dot_path == null
                 or options.render_png == false
-            ) {
+            )
+            {
                 return;
             }
 
@@ -408,7 +409,7 @@ pub fn BinaryTree(
                 .{
                     .allocator = arena_allocator,
                     .argv = arg,
-                }
+                },
             );
             _ = result;
         }
@@ -427,7 +428,9 @@ pub fn BinaryTree(
         ) !bool
         {
             const source_code = self.tree_data.items(.code)[endpoints.source];
-            const destination_code = self.tree_data.items(.code)[endpoints.destination];
+            const destination_code = (
+                self.tree_data.items(.code)[endpoints.destination]
+            );
 
             if (
                 treecode.path_exists(
@@ -437,12 +440,12 @@ pub fn BinaryTree(
             )
             {
                 errdefer dbg_print(
-                    @src(), 
+                    @src(),
                     "\nERROR\nsource: {f} dest: {f}\n",
                     .{
                         source_code,
                         destination_code,
-                    }
+                    },
                 );
                 return error.NoPathBetweenNodes;
             }
@@ -453,11 +456,11 @@ pub fn BinaryTree(
                 std.mem.swap(
                     NodeIndex,
                     &endpoints.source,
-                    &endpoints.destination
+                    &endpoints.destination,
                 );
                 return true;
             }
-            else 
+            else
             {
                 return false;
             }
@@ -474,10 +477,10 @@ pub fn BinaryTree(
             allocator: std.mem.Allocator,
             endpoints: PathEndPointIndices,
         ) ![]NodeIndex
-        { 
+        {
             var sorted_endpoint_indices = endpoints;
             const swapped = try self.sort_endpoint_indices(
-                &sorted_endpoint_indices
+                &sorted_endpoint_indices,
             );
 
             const result = try self.path_assume_sorted(
@@ -508,7 +511,10 @@ pub fn BinaryTree(
             const source_code = codes[source_index];
             const dest_code = codes[destination_index];
 
-            const length = dest_code.code_length - source_code.code_length + 1;
+            const length = (
+                dest_code.code_length - source_code.code_length
+                + 1
+            );
 
             const result_path = try allocator.alloc(
                 usize,
@@ -525,8 +531,8 @@ pub fn BinaryTree(
             return result_path;
         }
 
-
-        /// Generate a text label for a given node based on the format() of the
+        /// Generate a text label for a given node based on the format() of
+        /// the
         /// `NodeType`.
         pub fn node_label(
             buf: []u8,
@@ -536,16 +542,24 @@ pub fn BinaryTree(
         ) ![]const u8
         {
             return switch (label_style) {
-                .treecode => std.fmt.bufPrint(
-                    buf,
-                    "{f}.{f}",
-                    .{ ref, code, },
-                ),
-                .hash => std.fmt.bufPrint(
-                    buf,
-                    "{f}.{x}",
-                    .{ ref, code.hash(), },
-                ),
+                .treecode =>
+                    std.fmt.bufPrint(
+                        buf,
+                        "{f}.{f}",
+                        .{
+                            ref,
+                            code,
+                        },
+                    ),
+                .hash =>
+                    std.fmt.bufPrint(
+                        buf,
+                        "{f}.{x}",
+                        .{
+                            ref,
+                            code.hash(),
+                        },
+                    ),
             };
         }
     };
@@ -556,9 +570,9 @@ fn dbg_print(
     src: std.builtin.SourceLocation,
     comptime fmt: []const u8,
     args: anytype,
-) void 
+) void
 {
-    if (DEBUG_MESSAGES) 
+    if (DEBUG_MESSAGES)
     {
         std.debug.print(
             "[{s}:{s}:{d}] " ++ fmt ++ "\n",
@@ -572,14 +586,14 @@ fn dbg_print(
 }
 
 const DummyNode = struct {
-    label: enum (u8) { A, B, C, D, E },
+    label: enum(u8) { A, B, C, D, E },
 
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
-        try writer.print("Node: {s}",.{@tagName(self.label)});
+        try writer.print("Node: {s}", .{@tagName(self.label)});
     }
 };
 
@@ -618,7 +632,7 @@ test "BinaryTree: build w/ dummy node type and test path"
         d_a,
         .{
             .code = try root_code.clone(allocator),
-        }
+        },
     );
 
     const d_b = DummyNode{ .label = .B };
@@ -633,7 +647,7 @@ test "BinaryTree: build w/ dummy node type and test path"
         .{
             .code = b_code,
             .parent_index = root_index,
-        }
+        },
     );
 
     const d_c = DummyNode{ .label = .C };
@@ -648,7 +662,7 @@ test "BinaryTree: build w/ dummy node type and test path"
         .{
             .code = c_code,
             .parent_index = b_index,
-        }
+        },
     );
 
     // add d in the reverse order - add child first and then parent
@@ -684,16 +698,16 @@ test "BinaryTree: build w/ dummy node type and test path"
                 null,
                 e_index,
             },
-        }
+        },
     );
 
     tree.lock_pointers();
 
     try std.testing.expectEqual(
         e_index,
-        tree.tree_data.items(.child_indices)[d_index][
-            @intFromEnum(treecode.l_or_r.right)
-        ]
+        tree.tree_data.items(.child_indices)[d_index][@intFromEnum(
+            treecode.l_or_r.right,
+        )],
     );
 
     {
@@ -702,13 +716,17 @@ test "BinaryTree: build w/ dummy node type and test path"
             .{
                 .source = tree.map_node_to_index.get(d_a).?,
                 .destination = tree.map_node_to_index.get(d_c).?,
-            }
+            },
         );
         defer allocator.free(path_A_C);
 
         try std.testing.expectEqualSlices(
             NodeIndex,
-            &.{ root_index, b_index, c_index, },
+            &.{
+                root_index,
+                b_index,
+                c_index,
+            },
             path_A_C,
         );
     }
@@ -719,7 +737,7 @@ test "BinaryTree: build w/ dummy node type and test path"
             .{
                 .source = root_index,
                 .destination = e_index,
-            }
+            },
         );
         defer allocator.free(path_A_E);
 
@@ -736,7 +754,7 @@ test "BinaryTree: build w/ dummy node type and test path"
             .{
                 .source = b_index,
                 .destination = e_index,
-            }
+            },
         );
         defer allocator.free(path_B_E);
 
@@ -754,7 +772,7 @@ test "BinaryTree: build w/ dummy node type and test path"
             .{
                 .source = e_index,
                 .destination = b_index,
-            }
+            },
         );
         defer allocator.free(path_E_B);
 
@@ -772,13 +790,15 @@ test "BinaryTree: build w/ dummy node type and test path"
             .{
                 .source = e_index,
                 .destination = e_index,
-            }
+            },
         );
         defer allocator.free(path_E_E);
 
         try std.testing.expectEqualSlices(
             NodeIndex,
-            &.{ e_index, },
+            &.{
+                e_index,
+            },
             path_E_E,
         );
     }
@@ -792,8 +812,8 @@ test "BinaryTree: build w/ dummy node type and test path"
                 .{
                     .source = c_index,
                     .destination = e_index,
-                }
-            )        
+                },
+            ),
         );
     }
 
@@ -801,11 +821,11 @@ test "BinaryTree: build w/ dummy node type and test path"
         allocator,
         io,
         try artifacts.file_path(&path_buf, "binary_tree_test.dot"),
-       "Binary_Tree_Test", 
-       .{
-           .label_style = .treecode,
-           .render_png = true,
-       },
+        "Binary_Tree_Test",
+        .{
+            .label_style = .treecode,
+            .render_png = true,
+        },
     );
 }
 
@@ -820,11 +840,10 @@ fn fill_path_buffer(
 
     path[0] = source_index;
 
-    for (0..path.len-1)
+    for (0..path.len - 1)
         |ind|
     {
         path[path.len - 1 - ind] = current;
         current = parents[current].?;
     }
 }
-

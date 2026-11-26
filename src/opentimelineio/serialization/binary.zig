@@ -34,15 +34,22 @@ const MetadataMap = serializable.MetadataMap;
 const Allocator = std.mem.Allocator;
 
 /// Conditionally print test output based on build option
-fn test_print(comptime fmt: []const u8, args: anytype) void
+fn test_print(
+    comptime fmt: []const u8,
+    args: anytype,
+) void
 {
-    if (build_options.test_output) {
+    if (build_options.test_output)
+    {
         std.debug.print(fmt, args);
     }
 }
 
-/// Lap timer for optional performance timing (returns elapsed ms since last call).
-fn lap(last_ts: *u64) f64
+/// Lap timer for optional performance timing (returns elapsed ms since last
+/// call).
+fn lap(
+    last_ts: *u64,
+) f64
 {
     const now = std.c.mach_absolute_time();
     const elapsed = now - last_ts.*;
@@ -56,8 +63,9 @@ fn lap(last_ts: *u64) f64
 
 pub const TLB_MAGIC: [4]u8 = .{ 'O', 'T', 'F', 'B' };
 pub const TLB_FORMAT_VERSION: u32 = 1;
-pub const TLB_HEADER_SIZE: usize = 16; // Magic(4) + Version(4) + MetadataOffset(8)
+pub const TLB_HEADER_SIZE: usize = 16;
 
+// Magic(4) + Version(4) + MetadataOffset(8)
 // ----------------------------------------------------------------------------
 // Header Functions
 // ----------------------------------------------------------------------------
@@ -93,42 +101,56 @@ fn read_header(
     data: []const u8,
 ) !HeaderInfo
 {
-    if (data.len < TLB_HEADER_SIZE) return error.InvalidData;
-    if (!std.mem.eql(u8, data[0..4], &TLB_MAGIC)) return error.InvalidData;
+    if (data.len < TLB_HEADER_SIZE)
+    {
+        return error.InvalidData;
+    }
+    if (!std.mem.eql(u8, data[0..4], &TLB_MAGIC))
+    {
+        return error.InvalidData;
+    }
 
-    const version: u32 = (@as(u32, data[4]) << 24) |
-        (@as(u32, data[5]) << 16) |
-        (@as(u32, data[6]) << 8) |
-        @as(u32, data[7]);
+    const version: u32 = (
+        (@as(u32, data[4]) << 24)
+        | (@as(u32, data[5]) << 16)
+        | (@as(u32, data[6]) << 8)
+        | @as(u32, data[7])
+    );
 
-    if (version > TLB_FORMAT_VERSION) return error.UnsupportedVersion;
+    if (version > TLB_FORMAT_VERSION)
+    {
+        return error.UnsupportedVersion;
+    }
 
     // Read metadata offset (u64 big-endian)
-    const metadata_offset: u64 = (@as(u64, data[8]) << 56) |
-        (@as(u64, data[9]) << 48) |
-        (@as(u64, data[10]) << 40) |
-        (@as(u64, data[11]) << 32) |
-        (@as(u64, data[12]) << 24) |
-        (@as(u64, data[13]) << 16) |
-        (@as(u64, data[14]) << 8) |
-        @as(u64, data[15]);
+    const metadata_offset: u64 = (
+        (@as(u64, data[8]) << 56)
+        | (@as(u64, data[9]) << 48)
+        | (@as(u64, data[10]) << 40)
+        | (@as(u64, data[11]) << 32)
+        | (@as(u64, data[12]) << 24)
+        | (@as(u64, data[13]) << 16)
+        | (@as(u64, data[14]) << 8)
+        | @as(u64, data[15])
+    );
 
     return .{ .version = version, .metadata_offset = metadata_offset };
 }
 
 // ----------------------------------------------------------------------------
-// Metadata Conversion: MetadataMap -> FlatBuffers (High-Performance Columnar Format)
+// Metadata Conversion: MetadataMap -> FlatBuffers (High-Performance Columnar
+// Format)
 // ----------------------------------------------------------------------------
 //
 // The columnar format stores metadata in parallel arrays:
 // - keys: [string] - all keys in one vector
 // - types: [byte] - type of each value
-// - scalars: [PackedScalar] - packed bool/int/float values (inline, no vtable!)
+// - scalars: [PackedScalar] - packed bool/int/float values (inline, no
+// vtable!)
 // - string_values/indices: strings stored separately with index mapping
 // - nested_blocks/indices: nested objects stored as sub-blocks
 //
 // This reduces tables from O(n) to O(1) for flat metadata objects!
-
 
 /// Convert a KV metadata value to a columnar MetadataBlock
 /// This is the high-performance path that batches all entries into vectors
@@ -139,7 +161,8 @@ fn metadata_kv_to_block(
 ) anyerror!tlb.MetadataBlock
 {
     const count = kv.fields.count();
-    if (count == 0) {
+    if (count == 0)
+    {
         return try builder.writeTable(tlb.MetadataBlock, .{});
     }
 
@@ -157,73 +180,140 @@ fn metadata_kv_to_block(
     var array_indices_list: std.ArrayList(u32) = .empty;
 
     var i: usize = 0;
-    for (kv.fields.keys(), kv.fields.values()) |key, value| {
+    for (kv.fields.keys(), kv.fields.values())
+        |key, value|
+    {
         keys[i] = key;
 
         switch (value) {
             .null => {
                 types[i] = @intFromEnum(tlb.MetadataType.Null);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
             },
             .bool => |b| {
                 types[i] = @intFromEnum(tlb.MetadataType.Bool);
-                scalars[i] = .{ .bool_val = b, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = b,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
             },
             .integer => |v| {
                 types[i] = @intFromEnum(tlb.MetadataType.Int);
-                scalars[i] = .{ .bool_val = false, .int_val = v, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = v,
+                    .float_val = 0.0,
+                };
             },
             .float => |f| {
                 types[i] = @intFromEnum(tlb.MetadataType.Float);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = f };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = f,
+                };
             },
             .bytes => |s| {
                 types[i] = @intFromEnum(tlb.MetadataType.String);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
                 try string_indices_list.append(allocator, @intCast(i));
                 try string_values_list.append(allocator, s);
             },
             .@"enum" => |e| {
                 types[i] = @intFromEnum(tlb.MetadataType.String);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
                 try string_indices_list.append(allocator, @intCast(i));
                 try string_values_list.append(allocator, e);
             },
             .@"union" => |u| {
                 types[i] = @intFromEnum(tlb.MetadataType.String);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
                 try string_indices_list.append(allocator, @intCast(i));
                 try string_values_list.append(allocator, u.tag);
             },
             .kv => |nested_kv| {
                 types[i] = @intFromEnum(tlb.MetadataType.KV);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
                 try nested_indices_list.append(allocator, @intCast(i));
-                const nested_block = try metadata_kv_to_block(builder, allocator, nested_kv);
+                const nested_block = try metadata_kv_to_block(
+                    builder,
+                    allocator,
+                    nested_kv,
+                );
                 try nested_blocks_list.append(allocator, nested_block);
             },
             .array => |arr| {
                 types[i] = @intFromEnum(tlb.MetadataType.Array);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
                 try array_indices_list.append(allocator, @intCast(i));
-                const array_block = try metadata_array_to_block(builder, allocator, arr);
+                const array_block = try metadata_array_to_block(
+                    builder,
+                    allocator,
+                    arr,
+                );
                 try array_blocks_list.append(allocator, array_block);
             },
         }
         i += 1;
     }
 
-    return try builder.writeTable(tlb.MetadataBlock, .{
-        .keys = keys,
-        .types = types,
-        .scalars = scalars,
-        .string_values = if (string_values_list.items.len > 0) string_values_list.items else null,
-        .string_indices = if (string_indices_list.items.len > 0) string_indices_list.items else null,
-        .nested_blocks = if (nested_blocks_list.items.len > 0) nested_blocks_list.items else null,
-        .nested_indices = if (nested_indices_list.items.len > 0) nested_indices_list.items else null,
-        .array_blocks = if (array_blocks_list.items.len > 0) array_blocks_list.items else null,
-        .array_indices = if (array_indices_list.items.len > 0) array_indices_list.items else null,
-    });
+    return try builder.writeTable(
+        tlb.MetadataBlock,
+        .{
+            .keys = keys,
+            .types = types,
+            .scalars = scalars,
+            .string_values = if (string_values_list.items.len > 0) (
+                string_values_list.items
+            )
+            else null,
+            .string_indices = if (string_indices_list.items.len > 0) (
+                string_indices_list.items
+            )
+            else null,
+            .nested_blocks = if (nested_blocks_list.items.len > 0) (
+                nested_blocks_list.items
+            )
+            else null,
+            .nested_indices = if (nested_indices_list.items.len > 0) (
+                nested_indices_list.items
+            )
+            else null,
+            .array_blocks = if (array_blocks_list.items.len > 0) (
+                array_blocks_list.items
+            )
+            else null,
+            .array_indices = if (array_indices_list.items.len > 0) (
+                array_indices_list.items
+            )
+            else null,
+        },
+    );
 }
 
 /// Convert an array of MetadataValues to a columnar MetadataBlock
@@ -235,7 +325,8 @@ fn metadata_array_to_block(
 ) anyerror!tlb.MetadataBlock
 {
     const count = arr.len;
-    if (count == 0) {
+    if (count == 0)
+    {
         return try builder.writeTable(tlb.MetadataBlock, .{});
     }
 
@@ -256,74 +347,139 @@ fn metadata_array_to_block(
         |value, i|
     {
         keys[i] = ""; // Empty key for array elements
-
         switch (value) {
             .null => {
                 types[i] = @intFromEnum(tlb.MetadataType.Null);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
             },
             .bool => |b| {
                 types[i] = @intFromEnum(tlb.MetadataType.Bool);
-                scalars[i] = .{ .bool_val = b, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = b,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
             },
             .integer => |v| {
                 types[i] = @intFromEnum(tlb.MetadataType.Int);
-                scalars[i] = .{ .bool_val = false, .int_val = v, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = v,
+                    .float_val = 0.0,
+                };
             },
             .float => |f| {
                 types[i] = @intFromEnum(tlb.MetadataType.Float);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = f };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = f,
+                };
             },
             .bytes => |s| {
                 types[i] = @intFromEnum(tlb.MetadataType.String);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
                 try string_indices_list.append(allocator, @intCast(i));
                 try string_values_list.append(allocator, s);
             },
             .@"enum" => |e| {
                 types[i] = @intFromEnum(tlb.MetadataType.String);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
                 try string_indices_list.append(allocator, @intCast(i));
                 try string_values_list.append(allocator, e);
             },
             .@"union" => |u| {
                 types[i] = @intFromEnum(tlb.MetadataType.String);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
                 try string_indices_list.append(allocator, @intCast(i));
                 try string_values_list.append(allocator, u.tag);
             },
             .kv => |nested_kv| {
                 types[i] = @intFromEnum(tlb.MetadataType.KV);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
                 try nested_indices_list.append(allocator, @intCast(i));
-                const nested_block = try metadata_kv_to_block(builder, allocator, nested_kv);
+                const nested_block = try metadata_kv_to_block(
+                    builder,
+                    allocator,
+                    nested_kv,
+                );
                 try nested_blocks_list.append(allocator, nested_block);
             },
             .array => |nested_arr| {
                 types[i] = @intFromEnum(tlb.MetadataType.Array);
-                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                scalars[i] = .{
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                };
                 try array_indices_list.append(allocator, @intCast(i));
-                const array_block = try metadata_array_to_block(builder, allocator, nested_arr);
+                const array_block = try metadata_array_to_block(
+                    builder,
+                    allocator,
+                    nested_arr,
+                );
                 try array_blocks_list.append(allocator, array_block);
             },
         }
     }
 
-    return try builder.writeTable(tlb.MetadataBlock, .{
-        .keys = keys,
-        .types = types,
-        .scalars = scalars,
-        .string_values = if (string_values_list.items.len > 0) string_values_list.items else null,
-        .string_indices = if (string_indices_list.items.len > 0) string_indices_list.items else null,
-        .nested_blocks = if (nested_blocks_list.items.len > 0) nested_blocks_list.items else null,
-        .nested_indices = if (nested_indices_list.items.len > 0) nested_indices_list.items else null,
-        .array_blocks = if (array_blocks_list.items.len > 0) array_blocks_list.items else null,
-        .array_indices = if (array_indices_list.items.len > 0) array_indices_list.items else null,
-    });
+    return try builder.writeTable(
+        tlb.MetadataBlock,
+        .{
+            .keys = keys,
+            .types = types,
+            .scalars = scalars,
+            .string_values = if (string_values_list.items.len > 0) (
+                string_values_list.items
+            )
+            else null,
+            .string_indices = if (string_indices_list.items.len > 0) (
+                string_indices_list.items
+            )
+            else null,
+            .nested_blocks = if (nested_blocks_list.items.len > 0) (
+                nested_blocks_list.items
+            )
+            else null,
+            .nested_indices = if (nested_indices_list.items.len > 0) (
+                nested_indices_list.items
+            )
+            else null,
+            .array_blocks = if (array_blocks_list.items.len > 0) (
+                array_blocks_list.items
+            )
+            else null,
+            .array_indices = if (array_indices_list.items.len > 0) (
+                array_indices_list.items
+            )
+            else null,
+        },
+    );
 }
 
 /// Convert a MetadataMap to single-table columnar format (MetadataMap)
-/// This format eliminates vtable overhead by storing all metadata in one table
+/// This format eliminates vtable overhead by storing all metadata in one
+/// table
 /// with parallel arrays, instead of one table per hash entry.
 fn metadata_map_to_fb(
     builder: *flatbuffers.Builder,
@@ -332,7 +488,8 @@ fn metadata_map_to_fb(
 ) !?tlb.MetadataMap
 {
     const hash_count = metadata_map.fields.count();
-    if (hash_count == 0) {
+    if (hash_count == 0)
+    {
         return null;
     }
 
@@ -385,7 +542,9 @@ fn metadata_map_to_fb(
 
                     switch (val) {
                         .null => {
-                            all_types[flat_idx] = @intFromEnum(tlb.MetadataType.Null);
+                            all_types[flat_idx] = @intFromEnum(
+                                tlb.MetadataType.Null,
+                            );
                             all_scalars[flat_idx] = .{
                                 .bool_val = false,
                                 .int_val = 0,
@@ -393,7 +552,9 @@ fn metadata_map_to_fb(
                             };
                         },
                         .bool => |b| {
-                            all_types[flat_idx] = @intFromEnum(tlb.MetadataType.Bool);
+                            all_types[flat_idx] = @intFromEnum(
+                                tlb.MetadataType.Bool,
+                            );
                             all_scalars[flat_idx] = .{
                                 .bool_val = b,
                                 .int_val = 0,
@@ -401,7 +562,9 @@ fn metadata_map_to_fb(
                             };
                         },
                         .integer => |v| {
-                            all_types[flat_idx] = @intFromEnum(tlb.MetadataType.Int);
+                            all_types[flat_idx] = @intFromEnum(
+                                tlb.MetadataType.Int,
+                            );
                             all_scalars[flat_idx] = .{
                                 .bool_val = false,
                                 .int_val = v,
@@ -409,7 +572,9 @@ fn metadata_map_to_fb(
                             };
                         },
                         .float => |f| {
-                            all_types[flat_idx] = @intFromEnum(tlb.MetadataType.Float);
+                            all_types[flat_idx] = @intFromEnum(
+                                tlb.MetadataType.Float,
+                            );
                             all_scalars[flat_idx] = .{
                                 .bool_val = false,
                                 .int_val = 0,
@@ -417,13 +582,18 @@ fn metadata_map_to_fb(
                             };
                         },
                         .bytes => |s| {
-                            all_types[flat_idx] = @intFromEnum(tlb.MetadataType.String);
+                            all_types[flat_idx] = @intFromEnum(
+                                tlb.MetadataType.String,
+                            );
                             all_scalars[flat_idx] = .{
                                 .bool_val = false,
                                 .int_val = 0,
                                 .float_val = 0.0,
                             };
-                            try string_key_indices_list.append(allocator, @intCast(flat_idx));
+                            try string_key_indices_list.append(
+                                allocator,
+                                @intCast(flat_idx),
+                            );
                             try string_value_indices_list.append(
                                 allocator,
                                 @intCast(string_values_list.items.len),
@@ -431,13 +601,18 @@ fn metadata_map_to_fb(
                             try string_values_list.append(allocator, s);
                         },
                         .@"enum" => |e| {
-                            all_types[flat_idx] = @intFromEnum(tlb.MetadataType.String);
+                            all_types[flat_idx] = @intFromEnum(
+                                tlb.MetadataType.String,
+                            );
                             all_scalars[flat_idx] = .{
                                 .bool_val = false,
                                 .int_val = 0,
                                 .float_val = 0.0,
                             };
-                            try string_key_indices_list.append(allocator, @intCast(flat_idx));
+                            try string_key_indices_list.append(
+                                allocator,
+                                @intCast(flat_idx),
+                            );
                             try string_value_indices_list.append(
                                 allocator,
                                 @intCast(string_values_list.items.len),
@@ -445,13 +620,18 @@ fn metadata_map_to_fb(
                             try string_values_list.append(allocator, e);
                         },
                         .@"union" => |u| {
-                            all_types[flat_idx] = @intFromEnum(tlb.MetadataType.String);
+                            all_types[flat_idx] = @intFromEnum(
+                                tlb.MetadataType.String,
+                            );
                             all_scalars[flat_idx] = .{
                                 .bool_val = false,
                                 .int_val = 0,
                                 .float_val = 0.0,
                             };
-                            try string_key_indices_list.append(allocator, @intCast(flat_idx));
+                            try string_key_indices_list.append(
+                                allocator,
+                                @intCast(flat_idx),
+                            );
                             try string_value_indices_list.append(
                                 allocator,
                                 @intCast(string_values_list.items.len),
@@ -459,35 +639,60 @@ fn metadata_map_to_fb(
                             try string_values_list.append(allocator, u.tag);
                         },
                         .kv => |nested_kv| {
-                            all_types[flat_idx] = @intFromEnum(tlb.MetadataType.KV);
+                            all_types[flat_idx] = @intFromEnum(
+                                tlb.MetadataType.KV,
+                            );
                             all_scalars[flat_idx] = .{
                                 .bool_val = false,
                                 .int_val = 0,
                                 .float_val = 0.0,
                             };
-                            try nested_key_indices_list.append(allocator, @intCast(flat_idx));
+                            try nested_key_indices_list.append(
+                                allocator,
+                                @intCast(flat_idx),
+                            );
                             try nested_block_indices_list.append(
                                 allocator,
                                 @intCast(nested_blocks_list.items.len),
                             );
-                            const nested_block = try metadata_kv_to_block(builder, allocator, nested_kv);
-                            try nested_blocks_list.append(allocator, nested_block);
+                            const nested_block = try metadata_kv_to_block(
+                                builder,
+                                allocator,
+                                nested_kv,
+                            );
+                            try nested_blocks_list.append(
+                                allocator,
+                                nested_block,
+                            );
                         },
                         .array => |arr| {
-                            all_types[flat_idx] = @intFromEnum(tlb.MetadataType.Array);
+                            all_types[flat_idx] = @intFromEnum(
+                                tlb.MetadataType.Array,
+                            );
                             all_scalars[flat_idx] = .{
                                 .bool_val = false,
                                 .int_val = 0,
                                 .float_val = 0.0,
                             };
-                            // Store array as MetadataBlock using nested_blocks mechanism
-                            try nested_key_indices_list.append(allocator, @intCast(flat_idx));
+                            // Store array as MetadataBlock using
+                            // nested_blocks mechanism
+                            try nested_key_indices_list.append(
+                                allocator,
+                                @intCast(flat_idx),
+                            );
                             try nested_block_indices_list.append(
                                 allocator,
                                 @intCast(nested_blocks_list.items.len),
                             );
-                            const array_block = try metadata_array_to_block(builder, allocator, arr);
-                            try nested_blocks_list.append(allocator, array_block);
+                            const array_block = try metadata_array_to_block(
+                                builder,
+                                allocator,
+                                arr,
+                            );
+                            try nested_blocks_list.append(
+                                allocator,
+                                array_block,
+                            );
                         },
                     }
                     flat_idx += 1;
@@ -501,34 +706,40 @@ fn metadata_map_to_fb(
         hash_idx += 1;
     }
 
-    return try builder.writeTable(tlb.MetadataMap, .{
-        .hashes = hashes,
-        .block_offsets = block_offsets,
-        .block_lengths = block_lengths,
-        .all_keys = all_keys,
-        .all_types = all_types,
-        .all_scalars = all_scalars,
-        .string_values = if (string_values_list.items.len > 0) string_values_list.items else null,
-        .string_key_indices = if (string_key_indices_list.items.len > 0)
-            string_key_indices_list.items
-        else
-            null,
-        .string_value_indices = if (string_value_indices_list.items.len > 0)
-            string_value_indices_list.items
-        else
-            null,
-        .nested_blocks = if (nested_blocks_list.items.len > 0) nested_blocks_list.items else null,
-        .nested_key_indices = if (nested_key_indices_list.items.len > 0)
-            nested_key_indices_list.items
-        else
-            null,
-        .nested_block_indices = if (nested_block_indices_list.items.len > 0)
-            nested_block_indices_list.items
-        else
-            null,
-    });
+    return try builder.writeTable(
+        tlb.MetadataMap,
+        .{
+            .hashes = hashes,
+            .block_offsets = block_offsets,
+            .block_lengths = block_lengths,
+            .all_keys = all_keys,
+            .all_types = all_types,
+            .all_scalars = all_scalars,
+            .string_values = if (string_values_list.items.len > 0) (
+                string_values_list.items
+            )
+            else null,
+            .string_key_indices = if (string_key_indices_list.items.len > 0) (
+                string_key_indices_list.items
+            )
+            else null,
+            .string_value_indices = if (string_value_indices_list.items.len
+            > 0) string_value_indices_list.items
+            else null,
+            .nested_blocks = if (nested_blocks_list.items.len > 0) (
+                nested_blocks_list.items
+            )
+            else null,
+            .nested_key_indices = if (nested_key_indices_list.items.len > 0) (
+                nested_key_indices_list.items
+            )
+            else null,
+            .nested_block_indices = if (nested_block_indices_list.items.len
+            > 0) nested_block_indices_list.items
+            else null,
+        },
+    );
 }
-
 
 // ----------------------------------------------------------------------------
 // SerializableComposable -> FlatBuffers Conversion
@@ -546,14 +757,22 @@ fn serializable_bounds_to_fb(
 ) !tlb.Bounds
 {
     return switch (bounds) {
-        .continuous => |c| try builder.writeTable(tlb.Bounds, .{
-            .bounds_type = .Continuous,
-            .continuous = .{ .start = c[0], .end = c[1] },
-        }),
-        .discrete => |d| try builder.writeTable(tlb.Bounds, .{
-            .bounds_type = .Discrete,
-            .discrete = .{ .start = d[0], .end = d[1] },
-        }),
+        .continuous => |c|
+            try builder.writeTable(
+                tlb.Bounds,
+                .{
+                    .bounds_type = .Continuous,
+                    .continuous = .{ .start = c[0], .end = c[1] },
+                },
+            ),
+        .discrete => |d|
+            try builder.writeTable(
+                tlb.Bounds,
+                .{
+                    .bounds_type = .Discrete,
+                    .discrete = .{ .start = d[0], .end = d[1] },
+                },
+            ),
     };
 }
 
@@ -565,35 +784,85 @@ fn serializable_composable_to_fb(
 ) anyerror!tlb.ComposableWrapper
 {
     return switch (composable) {
-        .clip => |clip| try builder.writeTable(tlb.ComposableWrapper, .{
-            .comp_type = .Clip,
-            .clip = try serializable_clip_to_fb(builder, allocator, clip),
-        }),
-        .gap => |gap| try builder.writeTable(tlb.ComposableWrapper, .{
-            .comp_type = .Gap,
-            .gap = try builder.writeTable(tlb.Gap, .{
-                .name = gap.name,
-                .bounds_start = gap.bounds_s[0],
-                .bounds_end = gap.bounds_s[1],
-                .markers = try serializable_markers_to_fb(builder, gap.markers),
-            }),
-        }),
-        .track => |track| try builder.writeTable(tlb.ComposableWrapper, .{
-            .comp_type = .Track,
-            .track = try serializable_track_to_fb(builder, allocator, track),
-        }),
-        .stack => |stack| try builder.writeTable(tlb.ComposableWrapper, .{
-            .comp_type = .Stack,
-            .stack = try serializable_stack_to_fb(builder, allocator, stack),
-        }),
-        .warp => |warp| try builder.writeTable(tlb.ComposableWrapper, .{
-            .comp_type = .Warp,
-            .warp = try serializable_warp_to_fb(builder, allocator, warp),
-        }),
-        .transition => |trans| try builder.writeTable(tlb.ComposableWrapper, .{
-            .comp_type = .Transition,
-            .transition = try serializable_transition_to_fb(builder, allocator, trans),
-        }),
+        .clip => |clip|
+            try builder.writeTable(
+                tlb.ComposableWrapper,
+                .{
+                    .comp_type = .Clip,
+                    .clip = try serializable_clip_to_fb(
+                        builder,
+                        allocator,
+                        clip,
+                    ),
+                },
+            ),
+        .gap => |gap|
+            try builder.writeTable(
+                tlb.ComposableWrapper,
+                .{
+                    .comp_type = .Gap,
+                    .gap = try builder.writeTable(
+                        tlb.Gap,
+                        .{
+                            .name = gap.name,
+                            .bounds_start = gap.bounds_s[0],
+                            .bounds_end = gap.bounds_s[1],
+                            .markers = try serializable_markers_to_fb(
+                                builder,
+                                gap.markers,
+                            ),
+                        },
+                    ),
+                },
+            ),
+        .track => |track|
+            try builder.writeTable(
+                tlb.ComposableWrapper,
+                .{
+                    .comp_type = .Track,
+                    .track = try serializable_track_to_fb(
+                        builder,
+                        allocator,
+                        track,
+                    ),
+                },
+            ),
+        .stack => |stack|
+            try builder.writeTable(
+                tlb.ComposableWrapper,
+                .{
+                    .comp_type = .Stack,
+                    .stack = try serializable_stack_to_fb(
+                        builder,
+                        allocator,
+                        stack,
+                    ),
+                },
+            ),
+        .warp => |warp|
+            try builder.writeTable(
+                tlb.ComposableWrapper,
+                .{
+                    .comp_type = .Warp,
+                    .warp = try serializable_warp_to_fb(
+                        builder,
+                        allocator,
+                        warp,
+                    ),
+                },
+            ),
+        .transition => |trans|
+            try builder.writeTable(
+                tlb.ComposableWrapper,
+                .{
+                    .comp_type = .Transition,
+                    .transition = try serializable_transition_to_fb(
+                        builder,
+                        allocator,
+                        trans,
+                    ),
+                },
+            ),
     };
 }
 
@@ -603,13 +872,16 @@ fn serializable_marker_to_fb(
     marker: serializable.SerializableMarker,
 ) !tlb.Marker
 {
-    return try builder.writeTable(tlb.Marker, .{
-        .name = marker.name,
-        .marked_range_start = marker.marked_range[0],
-        .marked_range_end = marker.marked_range[1],
-        .color = marker.color,
-        .comment = marker.comment,
-    });
+    return try builder.writeTable(
+        tlb.Marker,
+        .{
+            .name = marker.name,
+            .marked_range_start = marker.marked_range[0],
+            .marked_range_end = marker.marked_range[1],
+            .color = marker.color,
+            .comment = marker.comment,
+        },
+    );
 }
 
 /// Convert array of SerializableMarker to FlatBuffers Marker vector
@@ -618,7 +890,8 @@ fn serializable_markers_to_fb(
     markers: []serializable.SerializableMarker,
 ) !?[]tlb.Marker
 {
-    if (markers.len == 0) {
+    if (markers.len == 0)
+    {
         return null;
     }
     var fb_markers = try builder.allocator.alloc(tlb.Marker, markers.len);
@@ -640,18 +913,30 @@ fn serializable_clip_to_fb(
 ) !tlb.Clip
 {
     // Convert hex string to u64 for binary storage
-    const hash_val: u64 = if (clip.metadata_hash) |h|
+    const hash_val: u64 = if (clip.metadata_hash)
+        |h|
         serializable.hex_string_to_hash(h) orelse 0
     else
         0;
 
-    return try builder.writeTable(tlb.Clip, .{
-        .name = clip.name,
-        .bounds = if (clip.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null,
-        .media = try serializable_media_ref_to_fb(builder, allocator, clip.media),
-        .metadata_hash = hash_val,
-        .markers = try serializable_markers_to_fb(builder, clip.markers),
-    });
+    return try builder.writeTable(
+        tlb.Clip,
+        .{
+            .name = clip.name,
+            .bounds = if (clip.bounds_s)
+                |b|
+                try serializable_bounds_to_fb(builder, b)
+            else
+                null,
+            .media = try serializable_media_ref_to_fb(
+                builder,
+                allocator,
+                clip.media,
+            ),
+            .metadata_hash = hash_val,
+            .markers = try serializable_markers_to_fb(builder, clip.markers),
+        },
+    );
 }
 
 /// Convert SerializableMediaReference to FlatBuffers MediaReference
@@ -662,30 +947,62 @@ fn serializable_media_ref_to_fb(
 ) !tlb.MediaReference
 {
     _ = allocator;
-    return try builder.writeTable(tlb.MediaReference, .{
-        .data_reference_type = try serializable_data_ref_to_fb(builder, ref.data_reference),
-        .bounds = if (ref.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null,
-        .domain = try builder.writeTable(tlb.Domain, .{
-            .domain_type = switch (ref.domain) {
-                .time => .Time,
-                .picture => .Picture,
-                .audio => .Audio,
-                .metadata => .Metadata,
-                .other => .Other,
-            },
-            .other_name = if (ref.domain == .other) ref.domain.other.name else null,
-        }),
-        .discrete_partition = if (ref.discrete_partition) |dp|
-            try builder.writeTable(tlb.SampleIndexGenerator, .{
-                .sample_rate_hz_type = switch (dp.sample_rate_hz) {
-                    .Integer => |v| .{ .IntRate = try builder.writeTable(tlb.IntRate, .{ .value = v }) },
-                    .Rational => |r| .{ .RationalRate = try builder.writeTable(tlb.RationalRate, .{ .num = r.num, .den = r.den }) },
+    return try builder.writeTable(
+        tlb.MediaReference,
+        .{
+            .data_reference_type = try serializable_data_ref_to_fb(
+                builder,
+                ref.data_reference,
+            ),
+            .bounds = if (ref.bounds_s)
+                |b|
+                try serializable_bounds_to_fb(builder, b)
+            else
+                null,
+            .domain = try builder.writeTable(
+                tlb.Domain,
+                .{
+                    .domain_type = switch (ref.domain) {
+                        .time => .Time,
+                        .picture => .Picture,
+                        .audio => .Audio,
+                        .metadata => .Metadata,
+                        .other => .Other,
+                    },
+                    .other_name = if (ref.domain == .other) (
+                        ref.domain.other.name
+                    )
+                    else null,
                 },
-                .start_index = dp.start_index,
-            })
-        else
-            null,
-    });
+            ),
+            .discrete_partition = if (ref.discrete_partition)
+                |dp|
+                try builder.writeTable(
+                    tlb.SampleIndexGenerator,
+                    .{
+                        .sample_rate_hz_type = switch (dp.sample_rate_hz) {
+                            .Integer => |v|
+                                .{
+                                    .IntRate = try builder.writeTable(
+                                        tlb.IntRate,
+                                        .{ .value = v },
+                                    ),
+                                },
+                            .Rational => |r|
+                                .{
+                                    .RationalRate = try builder.writeTable(
+                                        tlb.RationalRate,
+                                        .{ .num = r.num, .den = r.den },
+                                    ),
+                                },
+                        },
+                        .start_index = dp.start_index,
+                    },
+                )
+            else
+                null,
+        },
+    );
 }
 
 /// Convert SerializableMediaDataReference to FlatBuffers
@@ -695,38 +1012,72 @@ fn serializable_data_ref_to_fb(
 ) !tlb.MediaDataReference
 {
     return switch (ref) {
-        .uri => |u| .{ .URIReference = try builder.writeTable(tlb.URIReference, .{ .target_uri = u.target_uri }) },
+        .uri => |u|
+            .{
+                .URIReference = try builder.writeTable(
+                    tlb.URIReference,
+                    .{ .target_uri = u.target_uri },
+                ),
+            },
         .signal => |s| blk: {
             const sig_gen = switch (s.signal_generator) {
-                .sine => |sine| tlb.SignalGenerator{
-                    .SineSignal = try builder.writeTable(tlb.SineSignal, .{
-                        .frequency_hz = sine.frequency_hz,
-                    }),
-                },
-                .linear_ramp => tlb.SignalGenerator{
-                    .LinearRampSignal = try builder.writeTable(tlb.LinearRampSignal, .{}),
-                },
+                .sine => |sine|
+                    tlb.SignalGenerator{
+                        .SineSignal = try builder.writeTable(
+                            tlb.SineSignal,
+                            .{
+                                .frequency_hz = sine.frequency_hz,
+                            },
+                        ),
+                    },
+                .linear_ramp =>
+                    tlb.SignalGenerator{
+                        .LinearRampSignal = try builder.writeTable(
+                            tlb.LinearRampSignal,
+                            .{},
+                        ),
+                    },
             };
             break :blk .{
-                .SignalReference = try builder.writeTable(tlb.SignalReference, .{
-                    .signal_generator_type = sig_gen,
-                }),
+                .SignalReference = try builder.writeTable(
+                    tlb.SignalReference,
+                    .{
+                        .signal_generator_type = sig_gen,
+                    },
+                ),
             };
         },
-        .image_sequence => |img_seq| .{
-            .ImageSequenceReference = try builder.writeTable(tlb.ImageSequenceReference, .{
-                .target_url_base = img_seq.target_url_base,
-                .name_prefix = if (img_seq.name_prefix.len > 0) img_seq.name_prefix else null,
-                .name_suffix = if (img_seq.name_suffix.len > 0) img_seq.name_suffix else null,
-                .frame_zero_padding = img_seq.frame_zero_padding,
-                .missing_frame_policy = (
-                    if (img_seq.missing_frame_policy.len > 0)
-                        img_seq.missing_frame_policy
-                    else null
+        .image_sequence => |img_seq|
+            .{
+                .ImageSequenceReference = try builder.writeTable(
+                    tlb.ImageSequenceReference,
+                    .{
+                        .target_url_base = img_seq.target_url_base,
+                        .name_prefix = if (img_seq.name_prefix.len > 0) (
+                            img_seq.name_prefix
+                        )
+                        else null,
+                        .name_suffix = if (img_seq.name_suffix.len > 0) (
+                            img_seq.name_suffix
+                        )
+                        else null,
+                        .frame_zero_padding = img_seq.frame_zero_padding,
+                        .missing_frame_policy = (
+                            if (img_seq.missing_frame_policy.len > 0) (
+                                img_seq.missing_frame_policy
+                            )
+                            else null
+                        ),
+                    },
                 ),
-            }),
-        },
-        .null => .{ .NullReference = try builder.writeTable(tlb.NullReference, .{}) },
+            },
+        .null =>
+            .{
+                .NullReference = try builder.writeTable(
+                    tlb.NullReference,
+                    .{},
+                ),
+            },
     };
 }
 
@@ -737,29 +1088,46 @@ fn serializable_track_to_fb(
     track: serializable.SerializableTrack,
 ) !tlb.Track
 {
-    if (track.children.len == 0) {
-        return try builder.writeTable(tlb.Track, .{
-            .name = track.name,
-            .children = null,
-            .markers = try serializable_markers_to_fb(builder, track.markers),
-        });
+    if (track.children.len == 0)
+    {
+        return try builder.writeTable(
+            tlb.Track,
+            .{
+                .name = track.name,
+                .children = null,
+                .markers = try serializable_markers_to_fb(
+                    builder,
+                    track.markers,
+                ),
+            },
+        );
     }
 
     // Pre-allocate exact capacity needed
-    const children = try allocator.alloc(tlb.ComposableWrapper, track.children.len);
+    const children = try allocator.alloc(
+        tlb.ComposableWrapper,
+        track.children.len,
+    );
     defer allocator.free(children);
 
     for (track.children, 0..)
         |child, i|
     {
-        children[i] = try serializable_composable_to_fb(builder, allocator, child);
+        children[i] = try serializable_composable_to_fb(
+            builder,
+            allocator,
+            child,
+        );
     }
 
-    return try builder.writeTable(tlb.Track, .{
-        .name = track.name,
-        .children = children,
-        .markers = try serializable_markers_to_fb(builder, track.markers),
-    });
+    return try builder.writeTable(
+        tlb.Track,
+        .{
+            .name = track.name,
+            .children = children,
+            .markers = try serializable_markers_to_fb(builder, track.markers),
+        },
+    );
 }
 
 /// Convert SerializableStack to FlatBuffers Stack
@@ -769,29 +1137,46 @@ fn serializable_stack_to_fb(
     stack: serializable.SerializableStack,
 ) !tlb.Stack
 {
-    if (stack.children.len == 0) {
-        return try builder.writeTable(tlb.Stack, .{
-            .name = stack.name,
-            .children = null,
-            .markers = try serializable_markers_to_fb(builder, stack.markers),
-        });
+    if (stack.children.len == 0)
+    {
+        return try builder.writeTable(
+            tlb.Stack,
+            .{
+                .name = stack.name,
+                .children = null,
+                .markers = try serializable_markers_to_fb(
+                    builder,
+                    stack.markers,
+                ),
+            },
+        );
     }
 
     // Pre-allocate exact capacity needed
-    const children = try allocator.alloc(tlb.ComposableWrapper, stack.children.len);
+    const children = try allocator.alloc(
+        tlb.ComposableWrapper,
+        stack.children.len,
+    );
     defer allocator.free(children);
 
     for (stack.children, 0..)
         |child, i|
     {
-        children[i] = try serializable_composable_to_fb(builder, allocator, child);
+        children[i] = try serializable_composable_to_fb(
+            builder,
+            allocator,
+            child,
+        );
     }
 
-    return try builder.writeTable(tlb.Stack, .{
-        .name = stack.name,
-        .children = children,
-        .markers = try serializable_markers_to_fb(builder, stack.markers),
-    });
+    return try builder.writeTable(
+        tlb.Stack,
+        .{
+            .name = stack.name,
+            .children = children,
+            .markers = try serializable_markers_to_fb(builder, stack.markers),
+        },
+    );
 }
 
 /// Convert SerializableWarp to FlatBuffers Warp
@@ -801,13 +1186,24 @@ fn serializable_warp_to_fb(
     warp: serializable.SerializableWarp,
 ) !tlb.Warp
 {
-    const child_wrapper = try serializable_composable_to_fb(builder, allocator, warp.child.*);
-    const topology = try serializable_topology_to_fb(builder, allocator, warp.transform);
-    return try builder.writeTable(tlb.Warp, .{
-        .name = warp.name,
-        .child = child_wrapper,
-        .transform = topology,
-    });
+    const child_wrapper = try serializable_composable_to_fb(
+        builder,
+        allocator,
+        warp.child.*,
+    );
+    const topology = try serializable_topology_to_fb(
+        builder,
+        allocator,
+        warp.transform,
+    );
+    return try builder.writeTable(
+        tlb.Warp,
+        .{
+            .name = warp.name,
+            .child = child_wrapper,
+            .transform = topology,
+        },
+    );
 }
 
 /// Convert SerializableTopology to FlatBuffers Topology
@@ -823,12 +1219,18 @@ fn serializable_topology_to_fb(
     for (topo.mappings)
         |mapping|
     {
-        try mapping_wrappers.append(allocator, try serializable_mapping_to_fb(builder, mapping));
+        try mapping_wrappers.append(
+            allocator,
+            try serializable_mapping_to_fb(builder, mapping),
+        );
     }
 
-    return try builder.writeTable(tlb.Topology, .{
-        .mappings = mapping_wrappers.items,
-    });
+    return try builder.writeTable(
+        tlb.Topology,
+        .{
+            .mappings = mapping_wrappers.items,
+        },
+    );
 }
 
 /// Convert SerializableMapping to FlatBuffers MappingWrapper
@@ -838,37 +1240,57 @@ fn serializable_mapping_to_fb(
 ) !tlb.MappingWrapper
 {
     return switch (mapping) {
-        .affine => |aff| try builder.writeTable(tlb.MappingWrapper, .{
-            .mapping_type = .Affine,
-            .affine = try builder.writeTable(tlb.MappingAffine, .{
-                .input_bounds_start = aff.input_bounds_val[0],
-                .input_bounds_end = aff.input_bounds_val[1],
-                .transform = .{
-                    .offset = aff.input_to_output_xform.offset,
-                    .scale = aff.input_to_output_xform.scale,
+        .affine => |aff|
+            try builder.writeTable(
+                tlb.MappingWrapper,
+                .{
+                    .mapping_type = .Affine,
+                    .affine = try builder.writeTable(
+                        tlb.MappingAffine,
+                        .{
+                            .input_bounds_start = aff.input_bounds_val[0],
+                            .input_bounds_end = aff.input_bounds_val[1],
+                            .transform = .{
+                                .offset = aff.input_to_output_xform.offset,
+                                .scale = aff.input_to_output_xform.scale,
+                            },
+                        },
+                    ),
                 },
-            }),
-        }),
+            ),
         .linear => |lin| blk: {
             var knots: std.ArrayList(tlb.ControlPoint) = .empty;
             defer knots.deinit(builder.allocator);
             for (lin.knots)
                 |knot|
             {
-                try knots.append(builder.allocator, .{ .in_val = knot[0], .out_val = knot[1] });
+                try knots.append(
+                    builder.allocator,
+                    .{ .in_val = knot[0], .out_val = knot[1] },
+                );
             }
-            break :blk try builder.writeTable(tlb.MappingWrapper, .{
-                .mapping_type = .Linear,
-                .linear = try builder.writeTable(tlb.MappingLinear, .{
-                    .input_bounds_start = lin.input_bounds_val[0],
-                    .input_bounds_end = lin.input_bounds_val[1],
-                    .knots = knots.items,
-                }),
-            });
+            break :blk try builder.writeTable(
+                tlb.MappingWrapper,
+                .{
+                    .mapping_type = .Linear,
+                    .linear = try builder.writeTable(
+                        tlb.MappingLinear,
+                        .{
+                            .input_bounds_start = lin.input_bounds_val[0],
+                            .input_bounds_end = lin.input_bounds_val[1],
+                            .knots = knots.items,
+                        },
+                    ),
+                },
+            );
         },
-        .empty => try builder.writeTable(tlb.MappingWrapper, .{
-            .mapping_type = .Empty,
-        }),
+        .empty =>
+            try builder.writeTable(
+                tlb.MappingWrapper,
+                .{
+                    .mapping_type = .Empty,
+                },
+            ),
     };
 }
 
@@ -882,16 +1304,23 @@ fn serializable_transition_to_fb(
     const has_bounds = trans.bounds_s != null;
 
     // Serialize container children if present
-    const container = try serializable_stack_to_fb(builder, allocator, trans.container);
+    const container = try serializable_stack_to_fb(
+        builder,
+        allocator,
+        trans.container,
+    );
 
-    return try builder.writeTable(tlb.Transition, .{
-        .name = trans.name,
-        .kind = trans.kind,
-        .has_bounds = has_bounds,
-        .bounds_start = if (trans.bounds_s) |b| b[0] else 0.0,
-        .bounds_end = if (trans.bounds_s) |b| b[1] else 0.0,
-        .container = container,
-    });
+    return try builder.writeTable(
+        tlb.Transition,
+        .{
+            .name = trans.name,
+            .kind = trans.kind,
+            .has_bounds = has_bounds,
+            .bounds_start = if (trans.bounds_s) |b| b[0] else 0.0,
+            .bounds_end = if (trans.bounds_s) |b| b[1] else 0.0,
+            .container = container,
+        },
+    );
 }
 
 /// Convert SerializableRateSpecifier to FlatBuffers RateSpecifier
@@ -901,49 +1330,78 @@ fn serializable_rate_to_fb(
 ) !tlb.RateSpecifier
 {
     return switch (rate) {
-        .Integer => |val| .{
-            .IntRate = try builder.writeTable(tlb.IntRate, .{ .value = val }),
-        },
-        .Rational => |r| .{
-            .RationalRate = try builder.writeTable(
-                tlb.RationalRate,
-                .{ .num = r.num, .den = r.den },
-            ),
-        },
+        .Integer => |val|
+            .{
+                .IntRate = try builder.writeTable(
+                    tlb.IntRate,
+                    .{ .value = val },
+                ),
+            },
+        .Rational => |r|
+            .{
+                .RationalRate = try builder.writeTable(
+                    tlb.RationalRate,
+                    .{ .num = r.num, .den = r.den },
+                ),
+            },
     };
 }
 
-/// Convert SerializableSampleIndexGenerator to FlatBuffers SampleIndexGenerator
+/// Convert SerializableSampleIndexGenerator to FlatBuffers
+/// SampleIndexGenerator
 fn serializable_sig_to_fb(
     builder: *flatbuffers.Builder,
     sig: serializable.SerializableSampleIndexGenerator,
 ) !tlb.SampleIndexGenerator
 {
-    return try builder.writeTable(tlb.SampleIndexGenerator, .{
-        .sample_rate_hz_type = try serializable_rate_to_fb(builder, sig.sample_rate_hz),
-        .start_index = sig.start_index,
-    });
+    return try builder.writeTable(
+        tlb.SampleIndexGenerator,
+        .{
+            .sample_rate_hz_type = try serializable_rate_to_fb(
+                builder,
+                sig.sample_rate_hz,
+            ),
+            .start_index = sig.start_index,
+        },
+    );
 }
 
-/// Convert SerializableDiscretePartitionDomainMap to FlatBuffers DiscretePartitionDomainMap
+/// Convert SerializableDiscretePartitionDomainMap to FlatBuffers
+/// DiscretePartitionDomainMap
 fn serializable_discrete_partitions_to_fb(
     builder: *flatbuffers.Builder,
     partitions: serializable.SerializableDiscretePartitionDomainMap,
 ) !?tlb.DiscretePartitionDomainMap
 {
     // Only create the table if at least one partition is set
-    if (partitions.picture == null and partitions.audio == null) {
+    if (
+        partitions.picture == null
+        and partitions.audio == null
+    )
+    {
         return null;
     }
 
-    return try builder.writeTable(tlb.DiscretePartitionDomainMap, .{
-        .picture = if (partitions.picture) |p| try serializable_sig_to_fb(builder, p) else null,
-        .audio = if (partitions.audio) |a| try serializable_sig_to_fb(builder, a) else null,
-    });
+    return try builder.writeTable(
+        tlb.DiscretePartitionDomainMap,
+        .{
+            .picture = if (partitions.picture)
+                |p|
+                try serializable_sig_to_fb(builder, p)
+            else
+                null,
+            .audio = if (partitions.audio)
+                |a|
+                try serializable_sig_to_fb(builder, a)
+            else
+                null,
+        },
+    );
 }
 
 // ----------------------------------------------------------------------------
-// Metadata Conversion: FlatBuffers -> MetadataMap (High-Performance Columnar Format)
+// Metadata Conversion: FlatBuffers -> MetadataMap (High-Performance Columnar
+// Format)
 // ----------------------------------------------------------------------------
 
 /// Error type for metadata block conversion
@@ -960,7 +1418,10 @@ fn fb_block_to_metadata_array(
     const scalars_vec = block.scalars() orelse return &.{};
 
     const count = keys_vec.len();
-    if (count == 0) return &.{};
+    if (count == 0)
+    {
+        return &.{};
+    }
 
     var result = try allocator.alloc(MetadataValue, count);
 
@@ -972,18 +1433,30 @@ fn fb_block_to_metadata_array(
     var array_lookup = std.AutoHashMap(u32, u32).init(allocator);
     defer array_lookup.deinit();
 
-    if (block.string_indices()) |si| {
-        for (0..si.len()) |j| {
+    if (block.string_indices())
+        |si|
+    {
+        for (0..si.len())
+            |j|
+        {
             try string_lookup.put(si.get(j), @intCast(j));
         }
     }
-    if (block.nested_indices()) |ni| {
-        for (0..ni.len()) |j| {
+    if (block.nested_indices())
+        |ni|
+    {
+        for (0..ni.len())
+            |j|
+        {
             try nested_lookup.put(ni.get(j), @intCast(j));
         }
     }
-    if (block.array_indices()) |ai| {
-        for (0..ai.len()) |j| {
+    if (block.array_indices())
+        |ai|
+    {
+        for (0..ai.len())
+            |j|
+        {
             try array_lookup.put(ai.get(j), @intCast(j));
         }
     }
@@ -1000,30 +1473,60 @@ fn fb_block_to_metadata_array(
             .Int => .{ .integer = scalar.int_val },
             .Float => .{ .float = scalar.float_val },
             .String => blk: {
-                if (string_lookup.get(@intCast(i))) |str_list_idx| {
-                    if (block.string_values()) |sv| {
-                        if (str_list_idx < sv.len()) {
-                            break :blk .{ .bytes = try allocator.dupe(u8, sv.get(str_list_idx)) };
+                if (string_lookup.get(@intCast(i)))
+                    |str_list_idx|
+                {
+                    if (block.string_values())
+                        |sv|
+                    {
+                        if (str_list_idx < sv.len())
+                        {
+                            break :blk .{
+                                .bytes = try allocator.dupe(
+                                    u8,
+                                    sv.get(str_list_idx),
+                                ),
+                            };
                         }
                     }
                 }
                 break :blk .{ .bytes = "" };
             },
             .KV => blk: {
-                if (nested_lookup.get(@intCast(i))) |blk_list_idx| {
-                    if (block.nested_blocks()) |nb| {
-                        if (blk_list_idx < nb.len()) {
-                            break :blk .{ .kv = try fb_block_to_metadata_kv(allocator, nb.get(blk_list_idx)) };
+                if (nested_lookup.get(@intCast(i)))
+                    |blk_list_idx|
+                {
+                    if (block.nested_blocks())
+                        |nb|
+                    {
+                        if (blk_list_idx < nb.len())
+                        {
+                            break :blk .{
+                                .kv = try fb_block_to_metadata_kv(
+                                    allocator,
+                                    nb.get(blk_list_idx),
+                                ),
+                            };
                         }
                     }
                 }
                 break :blk .{ .kv = .{ .container_kind = .dict } };
             },
             .Array => blk: {
-                if (array_lookup.get(@intCast(i))) |arr_list_idx| {
-                    if (block.array_blocks()) |ab| {
-                        if (arr_list_idx < ab.len()) {
-                            break :blk .{ .array = try fb_block_to_metadata_array(allocator, ab.get(arr_list_idx)) };
+                if (array_lookup.get(@intCast(i)))
+                    |arr_list_idx|
+                {
+                    if (block.array_blocks())
+                        |ab|
+                    {
+                        if (arr_list_idx < ab.len())
+                        {
+                            break :blk .{
+                                .array = try fb_block_to_metadata_array(
+                                    allocator,
+                                    ab.get(arr_list_idx),
+                                ),
+                            };
                         }
                     }
                 }
@@ -1042,11 +1545,19 @@ fn fb_block_to_metadata_kv(
 ) MetadataBlockConvertError!MetadataMap
 {
     const keys_vec = block.keys() orelse return .{ .container_kind = .dict };
-    const types_vec = block.types() orelse return .{ .container_kind = .dict };
-    const scalars_vec = block.scalars() orelse return .{ .container_kind = .dict };
+    const types_vec = (
+        block.types()
+        orelse return .{ .container_kind = .dict }
+    );
+    const scalars_vec = block.scalars() orelse return .{
+        .container_kind = .dict,
+    };
 
     const count = keys_vec.len();
-    if (count == 0) return .{ .container_kind = .dict };
+    if (count == 0)
+    {
+        return .{ .container_kind = .dict };
+    }
 
     var map: MetadataMap = .{ .container_kind = .dict };
     try map.fields.ensureTotalCapacity(allocator, count);
@@ -1059,18 +1570,30 @@ fn fb_block_to_metadata_kv(
     var array_lookup = std.AutoHashMap(u32, u32).init(allocator);
     defer array_lookup.deinit();
 
-    if (block.string_indices()) |si| {
-        for (0..si.len()) |j| {
+    if (block.string_indices())
+        |si|
+    {
+        for (0..si.len())
+            |j|
+        {
             try string_lookup.put(si.get(j), @intCast(j));
         }
     }
-    if (block.nested_indices()) |ni| {
-        for (0..ni.len()) |j| {
+    if (block.nested_indices())
+        |ni|
+    {
+        for (0..ni.len())
+            |j|
+        {
             try nested_lookup.put(ni.get(j), @intCast(j));
         }
     }
-    if (block.array_indices()) |ai| {
-        for (0..ai.len()) |j| {
+    if (block.array_indices())
+        |ai|
+    {
+        for (0..ai.len())
+            |j|
+        {
             try array_lookup.put(ai.get(j), @intCast(j));
         }
     }
@@ -1088,30 +1611,60 @@ fn fb_block_to_metadata_kv(
             .Int => .{ .integer = scalar.int_val },
             .Float => .{ .float = scalar.float_val },
             .String => blk: {
-                if (string_lookup.get(@intCast(i))) |str_list_idx| {
-                    if (block.string_values()) |sv| {
-                        if (str_list_idx < sv.len()) {
-                            break :blk .{ .bytes = try allocator.dupe(u8, sv.get(str_list_idx)) };
+                if (string_lookup.get(@intCast(i)))
+                    |str_list_idx|
+                {
+                    if (block.string_values())
+                        |sv|
+                    {
+                        if (str_list_idx < sv.len())
+                        {
+                            break :blk .{
+                                .bytes = try allocator.dupe(
+                                    u8,
+                                    sv.get(str_list_idx),
+                                ),
+                            };
                         }
                     }
                 }
                 break :blk .{ .bytes = "" };
             },
             .KV => blk: {
-                if (nested_lookup.get(@intCast(i))) |blk_list_idx| {
-                    if (block.nested_blocks()) |nb| {
-                        if (blk_list_idx < nb.len()) {
-                            break :blk .{ .kv = try fb_block_to_metadata_kv(allocator, nb.get(blk_list_idx)) };
+                if (nested_lookup.get(@intCast(i)))
+                    |blk_list_idx|
+                {
+                    if (block.nested_blocks())
+                        |nb|
+                    {
+                        if (blk_list_idx < nb.len())
+                        {
+                            break :blk .{
+                                .kv = try fb_block_to_metadata_kv(
+                                    allocator,
+                                    nb.get(blk_list_idx),
+                                ),
+                            };
                         }
                     }
                 }
                 break :blk .{ .kv = .{ .container_kind = .dict } };
             },
             .Array => blk: {
-                if (array_lookup.get(@intCast(i))) |arr_list_idx| {
-                    if (block.array_blocks()) |ab| {
-                        if (arr_list_idx < ab.len()) {
-                            break :blk .{ .array = try fb_block_to_metadata_array(allocator, ab.get(arr_list_idx)) };
+                if (array_lookup.get(@intCast(i)))
+                    |arr_list_idx|
+                {
+                    if (block.array_blocks())
+                        |ab|
+                    {
+                        if (arr_list_idx < ab.len())
+                        {
+                            break :blk .{
+                                .array = try fb_block_to_metadata_array(
+                                    allocator,
+                                    ab.get(arr_list_idx),
+                                ),
+                            };
                         }
                     }
                 }
@@ -1131,15 +1684,30 @@ fn fb_to_metadata_map_single_table(
     fb_map: tlb.MetadataMap,
 ) !MetadataMap
 {
-    const hashes_vec = fb_map.hashes() orelse return .{ .container_kind = .dict };
-    const offsets_vec = fb_map.block_offsets() orelse return .{ .container_kind = .dict };
-    const lengths_vec = fb_map.block_lengths() orelse return .{ .container_kind = .dict };
-    const all_keys_vec = fb_map.all_keys() orelse return .{ .container_kind = .dict };
-    const all_types_vec = fb_map.all_types() orelse return .{ .container_kind = .dict };
-    const all_scalars_vec = fb_map.all_scalars() orelse return .{ .container_kind = .dict };
+    const hashes_vec = fb_map.hashes() orelse return .{
+        .container_kind = .dict,
+    };
+    const offsets_vec = fb_map.block_offsets() orelse return .{
+        .container_kind = .dict,
+    };
+    const lengths_vec = fb_map.block_lengths() orelse return .{
+        .container_kind = .dict,
+    };
+    const all_keys_vec = fb_map.all_keys() orelse return .{
+        .container_kind = .dict,
+    };
+    const all_types_vec = fb_map.all_types() orelse return .{
+        .container_kind = .dict,
+    };
+    const all_scalars_vec = fb_map.all_scalars() orelse return .{
+        .container_kind = .dict,
+    };
 
     const hash_count = hashes_vec.len();
-    if (hash_count == 0) return .{ .container_kind = .dict };
+    if (hash_count == 0)
+    {
+        return .{ .container_kind = .dict };
+    }
 
     // Get optional string and nested vectors
     const string_values_vec = fb_map.string_values();
@@ -1206,7 +1774,9 @@ fn fb_to_metadata_map_single_table(
         {
             const flat_idx = offset + @as(u32, @intCast(i));
             const key = try allocator.dupe(u8, all_keys_vec.get(flat_idx));
-            const value_type: tlb.MetadataType = @enumFromInt(all_types_vec.get(flat_idx));
+            const value_type: tlb.MetadataType = @enumFromInt(
+                all_types_vec.get(flat_idx),
+            );
             const scalar = all_scalars_vec.get(flat_idx);
 
             const value: MetadataValue = switch (value_type) {
@@ -1221,8 +1791,14 @@ fn fb_to_metadata_map_single_table(
                         if (string_values_vec)
                             |sv|
                         {
-                            if (str_idx < sv.len()) {
-                                break :blk .{ .bytes = try allocator.dupe(u8, sv.get(str_idx)) };
+                            if (str_idx < sv.len())
+                            {
+                                break :blk .{
+                                    .bytes = try allocator.dupe(
+                                        u8,
+                                        sv.get(str_idx),
+                                    ),
+                                };
                             }
                         }
                     }
@@ -1235,9 +1811,13 @@ fn fb_to_metadata_map_single_table(
                         if (nested_blocks_vec)
                             |nb|
                         {
-                            if (blk_idx < nb.len()) {
+                            if (blk_idx < nb.len())
+                            {
                                 break :blk .{
-                                    .kv = try fb_block_to_metadata_kv(allocator, nb.get(blk_idx)),
+                                    .kv = try fb_block_to_metadata_kv(
+                                        allocator,
+                                        nb.get(blk_idx),
+                                    ),
                                 };
                             }
                         }
@@ -1252,9 +1832,13 @@ fn fb_to_metadata_map_single_table(
                         if (nested_blocks_vec)
                             |nb|
                         {
-                            if (blk_idx < nb.len()) {
+                            if (blk_idx < nb.len())
+                            {
                                 break :blk .{
-                                    .array = try fb_block_to_metadata_array(allocator, nb.get(blk_idx)),
+                                    .array = try fb_block_to_metadata_array(
+                                        allocator,
+                                        nb.get(blk_idx),
+                                    ),
                                 };
                             }
                         }
@@ -1272,7 +1856,6 @@ fn fb_to_metadata_map_single_table(
     return map;
 }
 
-
 // ----------------------------------------------------------------------------
 // FlatBuffers -> SerializableComposable Conversion
 // ----------------------------------------------------------------------------
@@ -1284,13 +1867,17 @@ fn fb_to_serializable_bounds(
 {
     return switch (fb_bounds.bounds_type()) {
         .Continuous => blk: {
-            if (fb_bounds.continuous()) |c| {
+            if (fb_bounds.continuous())
+                |c|
+            {
                 break :blk .{ .continuous = .{ c.start, c.end } };
             }
             break :blk .{ .continuous = .{ 0.0, 0.0 } };
         },
         .Discrete => blk: {
-            if (fb_bounds.discrete()) |d| {
+            if (fb_bounds.discrete())
+                |d|
+            {
                 break :blk .{ .discrete = .{ d.start, d.end } };
             }
             break :blk .{ .discrete = .{ 0, 0 } };
@@ -1305,16 +1892,21 @@ fn fb_to_serializable_data_ref(
 ) !serializable.SerializableMediaDataReference
 {
     return switch (fb_ref) {
-        .URIReference => |uri_ref| .{
-            .uri = .{
-                // target_uri() returns non-optional flatbuffers.String
-                .target_uri = try allocator.dupe(u8, uri_ref.target_uri()),
+        .URIReference => |uri_ref|
+            .{
+                .uri = .{
+                    // target_uri() returns non-optional flatbuffers.String
+                    .target_uri = try allocator.dupe(u8, uri_ref.target_uri()),
+                },
             },
-        },
         .SignalReference => |sig_ref| blk: {
             const sg = sig_ref.signal_generator_type();
-            const signal_gen: serializable.SerializableSignalGenerator = switch (sg) {
-                .SineSignal => |sine| .{ .sine = .{ .frequency_hz = sine.frequency_hz() } },
+            const signal_gen: serializable.SerializableSignalGenerator = switch (
+                sg
+            )
+            {
+                .SineSignal => |sine|
+                    .{ .sine = .{ .frequency_hz = sine.frequency_hz() } },
                 .LinearRampSignal => .linear_ramp,
                 .NONE => .{ .sine = .{ .frequency_hz = 1000.0 } },
             };
@@ -1322,28 +1914,37 @@ fn fb_to_serializable_data_ref(
                 .signal = .{ .signal_generator = signal_gen },
             };
         },
-        .ImageSequenceReference => |img_seq| .{
-            .image_sequence = .{
-                // target_url_base() returns non-optional flatbuffers.String
-                .target_url_base = try allocator.dupe(u8, img_seq.target_url_base()),
-                // name_prefix() returns optional ?flatbuffers.String
-                .name_prefix = if (img_seq.name_prefix()) |p|
-                    try allocator.dupe(u8, p)
-                else
-                    "",
-                // name_suffix() returns optional ?flatbuffers.String
-                .name_suffix = if (img_seq.name_suffix()) |s|
-                    try allocator.dupe(u8, s)
-                else
-                    "",
-                .frame_zero_padding = img_seq.frame_zero_padding(),
-                // missing_frame_policy() returns optional ?flatbuffers.String
-                .missing_frame_policy = if (img_seq.missing_frame_policy()) |p|
-                    try allocator.dupe(u8, p)
-                else
-                    "error",
+        .ImageSequenceReference => |img_seq|
+            .{
+                .image_sequence = .{
+                    // target_url_base() returns non-optional
+                    // flatbuffers.String
+                    .target_url_base = try allocator.dupe(
+                        u8,
+                        img_seq.target_url_base(),
+                    ),
+                    // name_prefix() returns optional ?flatbuffers.String
+                    .name_prefix = if (img_seq.name_prefix())
+                        |p|
+                        try allocator.dupe(u8, p)
+                    else
+                        "",
+                    // name_suffix() returns optional ?flatbuffers.String
+                    .name_suffix = if (img_seq.name_suffix())
+                        |s|
+                        try allocator.dupe(u8, s)
+                    else
+                        "",
+                    .frame_zero_padding = img_seq.frame_zero_padding(),
+                    // missing_frame_policy() returns optional
+                    // ?flatbuffers.String
+                    .missing_frame_policy = if (img_seq.missing_frame_policy())
+                        |p|
+                        try allocator.dupe(u8, p)
+                    else
+                        "error",
+                },
             },
-        },
         .NullReference, .NONE => .null,
     };
 }
@@ -1359,7 +1960,15 @@ fn fb_to_serializable_domain(
         .Picture => .picture,
         .Audio => .audio,
         .Metadata => .metadata,
-        .Other => .{ .other = .{ .name = try allocator.dupe(u8, fb_dom.other_name() orelse "") } },
+        .Other =>
+            .{
+                .other = .{
+                    .name = try allocator.dupe(
+                        u8,
+                        fb_dom.other_name() orelse "",
+                    ),
+                },
+            },
     };
 }
 
@@ -1370,7 +1979,8 @@ fn fb_to_serializable_rate(
 {
     return switch (fb_rate) {
         .IntRate => |rate| .{ .Integer = rate.value() },
-        .RationalRate => |rate| .{ .Rational = .{ .num = rate.num(), .den = rate.den() } },
+        .RationalRate => |rate|
+            .{ .Rational = .{ .num = rate.num(), .den = rate.den() } },
         .NONE => .{ .Integer = 1 },
     };
 }
@@ -1382,12 +1992,26 @@ fn fb_to_serializable_media_ref(
 ) !serializable.SerializableMediaReference
 {
     return .{
-        .data_reference = try fb_to_serializable_data_ref(allocator, fb_ref.data_reference_type()),
-        .bounds_s = if (fb_ref.bounds()) |b| fb_to_serializable_bounds(b) else null,
-        .domain = if (fb_ref.domain()) |d| try fb_to_serializable_domain(allocator, d) else .time,
-        .discrete_partition = if (fb_ref.discrete_partition()) |dp|
+        .data_reference = try fb_to_serializable_data_ref(
+            allocator,
+            fb_ref.data_reference_type(),
+        ),
+        .bounds_s = if (fb_ref.bounds())
+            |b|
+            fb_to_serializable_bounds(b)
+        else
+            null,
+        .domain = if (fb_ref.domain())
+            |d|
+            try fb_to_serializable_domain(allocator, d)
+        else
+            .time,
+        .discrete_partition = if (fb_ref.discrete_partition())
+            |dp|
             .{
-                .sample_rate_hz = fb_to_serializable_rate(dp.sample_rate_hz_type()),
+                .sample_rate_hz = fb_to_serializable_rate(
+                    dp.sample_rate_hz_type(),
+                ),
                 .start_index = dp.start_index(),
             }
         else
@@ -1408,7 +2032,11 @@ fn fb_to_serializable_marker(
             fb_marker.marked_range_end(),
         },
         .color = try allocator.dupe(u8, fb_marker.color()),
-        .comment = if (fb_marker.comment()) |c| try allocator.dupe(u8, c) else "",
+        .comment = if (fb_marker.comment())
+            |c|
+            try allocator.dupe(u8, c)
+        else
+            "",
     };
 }
 
@@ -1422,14 +2050,20 @@ fn fb_to_serializable_markers(
         |markers|
     {
         const len = markers.len();
-        if (len == 0) {
+        if (len == 0)
+        {
             return &.{};
         }
-        var result = try allocator.alloc(serializable.SerializableMarker, len);
+        var result = (
+            try allocator.alloc(serializable.SerializableMarker, len)
+        );
         for (0..len)
             |i|
         {
-            result[i] = try fb_to_serializable_marker(allocator, markers.get(i));
+            result[i] = try fb_to_serializable_marker(
+                allocator,
+                markers.get(i),
+            );
         }
         return result;
     }
@@ -1444,22 +2078,33 @@ fn fb_to_serializable_clip(
 {
     const hash_val = fb_clip.metadata_hash();
     // Convert u64 back to hex string for SerializableClip
-    const hash_str: ?[]const u8 = if (hash_val != 0)
+    const hash_str: ?[]const u8 = if (hash_val != 0) (
         try serializable.hash_to_hex_string(allocator, hash_val)
-    else
-        null;
+    )
+    else null;
 
     return .{
         .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else "",
-        .bounds_s = if (fb_clip.bounds()) |b| fb_to_serializable_bounds(b) else null,
-        .media = if (fb_clip.media()) |m| try fb_to_serializable_media_ref(allocator, m) else .{
-            .data_reference = .null,
-            .bounds_s = null,
-            .domain = .time,
-            .discrete_partition = null,
-        },
+        .bounds_s = if (fb_clip.bounds())
+            |b|
+            fb_to_serializable_bounds(b)
+        else
+            null,
+        .media = if (fb_clip.media())
+            |m|
+            try fb_to_serializable_media_ref(allocator, m)
+        else
+            .{
+                .data_reference = .null,
+                .bounds_s = null,
+                .domain = .time,
+                .discrete_partition = null,
+            },
         .metadata_hash = hash_str,
-        .markers = try fb_to_serializable_markers(allocator, fb_clip.markers()),
+        .markers = try fb_to_serializable_markers(
+            allocator,
+            fb_clip.markers(),
+        ),
     };
 }
 
@@ -1483,16 +2128,28 @@ fn fb_to_serializable_track(
 ) !serializable.SerializableTrack
 {
     var children: std.ArrayList(SerializableComposable) = .empty;
-    if (fb_track.children()) |fb_children| {
+    if (fb_track.children())
+        |fb_children|
+    {
         try children.ensureTotalCapacity(allocator, fb_children.len());
-        for (0..fb_children.len()) |i| {
-            children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+        for (0..fb_children.len())
+            |i|
+        {
+            children.appendAssumeCapacity(
+                try fb_to_serializable_composable(
+                    allocator,
+                    fb_children.get(i),
+                ),
+            );
         }
     }
     return .{
         .name = if (fb_track.name()) |n| try allocator.dupe(u8, n) else "",
         .children = try children.toOwnedSlice(allocator),
-        .markers = try fb_to_serializable_markers(allocator, fb_track.markers()),
+        .markers = try fb_to_serializable_markers(
+            allocator,
+            fb_track.markers(),
+        ),
     };
 }
 
@@ -1503,16 +2160,28 @@ fn fb_to_serializable_stack(
 ) !serializable.SerializableStack
 {
     var children: std.ArrayList(SerializableComposable) = .empty;
-    if (fb_stack.children()) |fb_children| {
+    if (fb_stack.children())
+        |fb_children|
+    {
         try children.ensureTotalCapacity(allocator, fb_children.len());
-        for (0..fb_children.len()) |i| {
-            children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+        for (0..fb_children.len())
+            |i|
+        {
+            children.appendAssumeCapacity(
+                try fb_to_serializable_composable(
+                    allocator,
+                    fb_children.get(i),
+                ),
+            );
         }
     }
     return .{
         .name = if (fb_stack.name()) |n| try allocator.dupe(u8, n) else "",
         .children = try children.toOwnedSlice(allocator),
-        .markers = try fb_to_serializable_markers(allocator, fb_stack.markers()),
+        .markers = try fb_to_serializable_markers(
+            allocator,
+            fb_stack.markers(),
+        ),
     };
 }
 
@@ -1523,12 +2192,14 @@ fn fb_to_serializable_warp(
 ) !serializable.SerializableWarp
 {
     const child_ptr = try allocator.create(SerializableComposable);
-    child_ptr.* = if (fb_warp.child()) |c|
+    child_ptr.* = if (fb_warp.child())
+        |c|
         try fb_to_serializable_composable(allocator, c)
     else
         .{ .gap = .{ .name = "", .bounds_s = .{ 0.0, 0.0 } } };
 
-    const transform = if (fb_warp.transform()) |t|
+    const transform = if (fb_warp.transform())
+        |t|
         try fb_to_serializable_topology(allocator, t)
     else
         serializable.SerializableTopology{ .mappings = &.{} };
@@ -1546,10 +2217,20 @@ fn fb_to_serializable_topology(
     fb_topo: tlb.Topology,
 ) !serializable.SerializableTopology
 {
-    if (fb_topo.mappings()) |fb_mappings| {
-        var mappings = try allocator.alloc(serializable.SerializableMapping, fb_mappings.len());
-        for (0..fb_mappings.len()) |i| {
-            mappings[i] = try fb_to_serializable_mapping(allocator, fb_mappings.get(i));
+    if (fb_topo.mappings())
+        |fb_mappings|
+    {
+        var mappings = try allocator.alloc(
+            serializable.SerializableMapping,
+            fb_mappings.len(),
+        );
+        for (0..fb_mappings.len())
+            |i|
+        {
+            mappings[i] = try fb_to_serializable_mapping(
+                allocator,
+                fb_mappings.get(i),
+            );
         }
         return .{ .mappings = mappings };
     }
@@ -1564,11 +2245,18 @@ fn fb_to_serializable_mapping(
 {
     return switch (fb_wrapper.mapping_type()) {
         .Affine => blk: {
-            if (fb_wrapper.affine()) |aff| {
-                if (aff.transform()) |xform| {
+            if (fb_wrapper.affine())
+                |aff|
+            {
+                if (aff.transform())
+                    |xform|
+                {
                     break :blk serializable.SerializableMapping{
                         .affine = .{
-                            .input_bounds_val = .{ aff.input_bounds_start(), aff.input_bounds_end() },
+                            .input_bounds_val = .{
+                                aff.input_bounds_start(),
+                                aff.input_bounds_end(),
+                            },
                             .input_to_output_xform = .{
                                 .offset = xform.offset,
                                 .scale = xform.scale,
@@ -1580,16 +2268,28 @@ fn fb_to_serializable_mapping(
             break :blk .empty;
         },
         .Linear => blk: {
-            if (fb_wrapper.linear()) |lin| {
-                if (lin.knots()) |fb_knots| {
-                    const knots = try allocator.alloc(serializable.SerializableControlPoint, fb_knots.len());
-                    for (0..fb_knots.len()) |i| {
+            if (fb_wrapper.linear())
+                |lin|
+            {
+                if (lin.knots())
+                    |fb_knots|
+                {
+                    const knots = try allocator.alloc(
+                        serializable.SerializableControlPoint,
+                        fb_knots.len(),
+                    );
+                    for (0..fb_knots.len())
+                        |i|
+                    {
                         const k = fb_knots.get(i);
                         knots[i] = .{ k.in_val, k.out_val };
                     }
                     break :blk serializable.SerializableMapping{
                         .linear = .{
-                            .input_bounds_val = .{ lin.input_bounds_start(), lin.input_bounds_end() },
+                            .input_bounds_val = .{
+                                lin.input_bounds_start(),
+                                lin.input_bounds_end(),
+                            },
                             .knots = knots,
                         },
                     };
@@ -1608,7 +2308,8 @@ fn fb_to_serializable_transition(
 ) !serializable.SerializableTransition
 {
     // Deserialize container children if present
-    const container = if (fb_trans.container()) |c|
+    const container = if (fb_trans.container())
+        |c|
         try fb_to_serializable_stack(allocator, c)
     else
         serializable.SerializableStack{ .name = "", .children = &.{} };
@@ -1617,32 +2318,45 @@ fn fb_to_serializable_transition(
         .name = if (fb_trans.name()) |n| try allocator.dupe(u8, n) else "",
         .container = container,
         .kind = try allocator.dupe(u8, fb_trans.kind()),
-        .bounds_s = if (fb_trans.has_bounds())
-            .{ fb_trans.bounds_start(), fb_trans.bounds_end() }
-        else
-            null,
+        .bounds_s = if (fb_trans.has_bounds()) .{
+            fb_trans.bounds_start(),
+            fb_trans.bounds_end(),
+        }
+        else null,
     };
 }
 
-/// Convert FlatBuffers SampleIndexGenerator to SerializableSampleIndexGenerator
+/// Convert FlatBuffers SampleIndexGenerator to
+/// SerializableSampleIndexGenerator
 fn fb_to_serializable_sig(
     fb_sig: tlb.SampleIndexGenerator,
 ) serializable.SerializableSampleIndexGenerator
 {
     return .{
-        .sample_rate_hz = fb_to_serializable_rate(fb_sig.sample_rate_hz_type()),
+        .sample_rate_hz = fb_to_serializable_rate(
+            fb_sig.sample_rate_hz_type(),
+        ),
         .start_index = fb_sig.start_index(),
     };
 }
 
-/// Convert FlatBuffers DiscretePartitionDomainMap to SerializableDiscretePartitionDomainMap
+/// Convert FlatBuffers DiscretePartitionDomainMap to
+/// SerializableDiscretePartitionDomainMap
 fn fb_to_serializable_discrete_partitions(
     fb_partitions: tlb.DiscretePartitionDomainMap,
 ) serializable.SerializableDiscretePartitionDomainMap
 {
     return .{
-        .picture = if (fb_partitions.picture()) |p| fb_to_serializable_sig(p) else null,
-        .audio = if (fb_partitions.audio()) |a| fb_to_serializable_sig(a) else null,
+        .picture = if (fb_partitions.picture())
+            |p|
+            fb_to_serializable_sig(p)
+        else
+            null,
+        .audio = if (fb_partitions.audio())
+            |a|
+            fb_to_serializable_sig(a)
+        else
+            null,
     };
 }
 
@@ -1653,35 +2367,82 @@ fn fb_to_serializable_composable(
 ) anyerror!SerializableComposable
 {
     return switch (fb_wrapper.comp_type()) {
-        .Clip => .{ .clip = if (fb_wrapper.clip()) |c| try fb_to_serializable_clip(allocator, c) else .{
-            .name = "",
-            .bounds_s = null,
-            .media = .{ .data_reference = .null, .bounds_s = null, .domain = .time, .discrete_partition = null },
-            .metadata_hash = null,
-        } },
-        .Gap => .{ .gap = if (fb_wrapper.gap()) |g| try fb_to_serializable_gap(allocator, g) else .{
-            .name = "",
-            .bounds_s = .{ 0.0, 0.0 },
-        } },
-        .Track => .{ .track = if (fb_wrapper.track()) |t| try fb_to_serializable_track(allocator, t) else .{
-            .name = "",
-            .children = &.{},
-        } },
-        .Stack => .{ .stack = if (fb_wrapper.stack()) |s| try fb_to_serializable_stack(allocator, s) else .{
-            .name = "",
-            .children = &.{},
-        } },
-        .Warp => .{ .warp = if (fb_wrapper.warp()) |w| try fb_to_serializable_warp(allocator, w) else .{
-            .name = "",
-            .child = undefined,
-            .transform = .{ .mappings = &.{} },
-        } },
-        .Transition => .{ .transition = if (fb_wrapper.transition()) |t| try fb_to_serializable_transition(allocator, t) else .{
-            .name = "",
-            .container = .{ .name = "", .children = &.{} },
-            .kind = "",
-            .bounds_s = null,
-        } },
+        .Clip =>
+            .{
+                .clip = if (fb_wrapper.clip())
+                    |c|
+                    try fb_to_serializable_clip(allocator, c)
+                else
+                    .{
+                        .name = "",
+                        .bounds_s = null,
+                        .media = .{
+                            .data_reference = .null,
+                            .bounds_s = null,
+                            .domain = .time,
+                            .discrete_partition = null,
+                        },
+                        .metadata_hash = null,
+                    },
+            },
+        .Gap =>
+            .{
+                .gap = if (fb_wrapper.gap())
+                    |g|
+                    try fb_to_serializable_gap(allocator, g)
+                else
+                    .{
+                        .name = "",
+                        .bounds_s = .{ 0.0, 0.0 },
+                    },
+            },
+        .Track =>
+            .{
+                .track = if (fb_wrapper.track())
+                    |t|
+                    try fb_to_serializable_track(allocator, t)
+                else
+                    .{
+                        .name = "",
+                        .children = &.{},
+                    },
+            },
+        .Stack =>
+            .{
+                .stack = if (fb_wrapper.stack())
+                    |s|
+                    try fb_to_serializable_stack(allocator, s)
+                else
+                    .{
+                        .name = "",
+                        .children = &.{},
+                    },
+            },
+        .Warp =>
+            .{
+                .warp = if (fb_wrapper.warp())
+                    |w|
+                    try fb_to_serializable_warp(allocator, w)
+                else
+                    .{
+                        .name = "",
+                        .child = undefined,
+                        .transform = .{ .mappings = &.{} },
+                    },
+            },
+        .Transition =>
+            .{
+                .transition = if (fb_wrapper.transition())
+                    |t|
+                    try fb_to_serializable_transition(allocator, t)
+                else
+                    .{
+                        .name = "",
+                        .container = .{ .name = "", .children = &.{} },
+                        .kind = "",
+                        .bounds_s = null,
+                    },
+            },
     };
 }
 
@@ -1689,7 +2450,8 @@ fn fb_to_serializable_composable(
 // Timeline Serialization (SerializableTimeline -> FlatBuffers)
 // ----------------------------------------------------------------------------
 
-/// Serialize a SerializableTimeline to FlatBuffers format, preserving metadata.
+/// Serialize a SerializableTimeline to FlatBuffers format, preserving
+/// metadata.
 /// This is the preferred method when you need to preserve metadata through
 /// the binary format.
 pub fn serialize_from_serializable_timeline(
@@ -1709,30 +2471,48 @@ pub fn serialize_from_serializable_timeline(
     const arena_alloc = arena.allocator();
 
     // Check if we have non-empty metadata
-    const has_metadata = if (ser_timeline.metadata_map) |mm| mm.fields.count() > 0 else false;
+    const has_metadata = if (ser_timeline.metadata_map)
+        |mm|
+        mm.fields.count() > 0
+    else
+        false;
 
     // ========================================================================
     // Phase 1: Build timeline structure FlatBuffer (without metadata_map)
     // ========================================================================
     var timeline_builder = try flatbuffers.Builder.init(arena_alloc);
 
-    if (enable_timing) {
+    if (enable_timing)
+    {
         std.debug.print("  [TLB] Builder init: {d:.3}ms\n", .{lap(&last_ts)});
     }
 
     // Convert children - pre-allocate exact capacity
-    const children: ?[]tlb.ComposableWrapper = if (ser_timeline.children.len > 0) blk: {
-        const c = try arena_alloc.alloc(tlb.ComposableWrapper, ser_timeline.children.len);
+    const children: ?[]tlb.ComposableWrapper = if (ser_timeline.children.len
+    > 0) blk: {
+        const c = try arena_alloc.alloc(
+            tlb.ComposableWrapper,
+            ser_timeline.children.len,
+        );
         for (ser_timeline.children, 0..)
             |child, i|
         {
-            c[i] = try serializable_composable_to_fb(&timeline_builder, arena_alloc, child);
+            c[i] = try serializable_composable_to_fb(
+                &timeline_builder,
+                arena_alloc,
+                child,
+            );
         }
         break :blk c;
-    } else null;
+    }
+    else null;
 
-    if (enable_timing) {
-        std.debug.print("  [TLB] Children conversion: {d:.3}ms\n", .{lap(&last_ts)});
+    if (enable_timing)
+    {
+        std.debug.print(
+            "  [TLB] Children conversion: {d:.3}ms\n",
+            .{lap(&last_ts)},
+        );
     }
 
     // Convert discrete partitions
@@ -1742,28 +2522,41 @@ pub fn serialize_from_serializable_timeline(
     );
 
     // Build Timeline root WITHOUT metadata_map (it will be stored separately)
-    const timeline_ref = try timeline_builder.writeTable(tlb.Timeline, .{
-        .schema_version = doc.schema_version,
-        .name = ser_timeline.name,
-        .children = children,
-        .presentation_space_discrete_partitions = discrete_partitions,
-        .metadata_map = null, // Metadata stored separately for efficient skipping
-    });
+    const timeline_ref = try timeline_builder.writeTable(
+        tlb.Timeline,
+        .{
+            .schema_version = doc.schema_version,
+            .name = ser_timeline.name,
+            .children = children,
+            .presentation_space_discrete_partitions = discrete_partitions,
+            // Metadata stored separately for efficient skipping
+            .metadata_map = null,
+        },
+    );
 
     try timeline_builder.writeRoot(tlb.Timeline, timeline_ref);
     const timeline_bytes = try timeline_builder.writeAlloc(arena_alloc);
 
-    if (enable_timing) {
-        std.debug.print("  [TLB] Timeline build: {d:.3}ms\n", .{lap(&last_ts)});
+    if (enable_timing)
+    {
+        std.debug.print(
+            "  [TLB] Timeline build: {d:.3}ms\n",
+            .{lap(&last_ts)},
+        );
     }
 
     // ========================================================================
     // Phase 2: Build metadata FlatBuffer separately (if present)
     // ========================================================================
     var metadata_bytes: ?[]const u8 = null;
-    if (has_metadata) {
+    if (has_metadata)
+    {
         var metadata_builder = try flatbuffers.Builder.init(arena_alloc);
-        const metadata_fb = try metadata_map_to_fb(&metadata_builder, arena_alloc, ser_timeline.metadata_map.?);
+        const metadata_fb = try metadata_map_to_fb(
+            &metadata_builder,
+            arena_alloc,
+            ser_timeline.metadata_map.?,
+        );
         if (metadata_fb)
             |mfb|
         {
@@ -1772,19 +2565,25 @@ pub fn serialize_from_serializable_timeline(
         }
     }
 
-    if (enable_timing) {
-        std.debug.print("  [TLB] Metadata conversion: {d:.3}ms\n", .{lap(&last_ts)});
+    if (enable_timing)
+    {
+        std.debug.print(
+            "  [TLB] Metadata conversion: {d:.3}ms\n",
+            .{lap(&last_ts)},
+        );
     }
 
     // ========================================================================
     // Phase 3: Write header + timeline data + metadata data
     // ========================================================================
-    // Calculate metadata_offset: position where metadata starts (after header + timeline)
-    const metadata_offset: u64 = if (metadata_bytes != null)
-        TLB_HEADER_SIZE + timeline_bytes.len
-    else
-        0; // No metadata
-
+    // Calculate metadata_offset: position where metadata starts (after header
+    // + timeline)
+    // No metadata
+    const metadata_offset: u64 = if (metadata_bytes != null) (
+        TLB_HEADER_SIZE
+        + timeline_bytes.len
+    )
+    else 0;
     // Write header with correct metadata_offset
     try write_header(writer, metadata_offset);
 
@@ -1828,77 +2627,130 @@ pub fn deserialize_to_serializable_timeline(
 
     // Determine timeline data range based on metadata_offset
     // If metadata_offset > TLB_HEADER_SIZE, metadata is stored separately
-    const has_separate_metadata = header.metadata_offset > TLB_HEADER_SIZE and
-        header.metadata_offset < data.len;
+    const has_separate_metadata = (
+        header.metadata_offset > TLB_HEADER_SIZE
+        and header.metadata_offset < data.len
+    );
 
     // Timeline data: from header end to metadata start (or end of file)
-    const timeline_end: usize = if (has_separate_metadata)
-        @intCast(header.metadata_offset)
-    else
-        data.len;
+    const timeline_end: usize = if (has_separate_metadata) @intCast(
+        header.metadata_offset,
+    )
+    else data.len;
 
     const fb_data = data[TLB_HEADER_SIZE..timeline_end];
 
-    // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if needed.
+    // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if
+    // needed.
     const needs_timeline_copy = @intFromPtr(fb_data.ptr) % 8 != 0;
-    const aligned_data: []align(8) const u8 = if (!needs_timeline_copy)
-        @alignCast(fb_data)
-    else blk: {
-        const aligned_copy = try allocator.alignedAlloc(u8, .@"8", fb_data.len);
-        @memcpy(aligned_copy, fb_data);
-        break :blk aligned_copy;
+    const aligned_data: []align(8) const u8 = (
+        if (!needs_timeline_copy) @alignCast(fb_data)
+        else
+        blk: {
+            const aligned_copy = try allocator.alignedAlloc(
+                u8,
+                .@"8",
+                fb_data.len,
+            );
+            @memcpy(aligned_copy, fb_data);
+            break :blk aligned_copy;
+        }
+    );
+    defer if (needs_timeline_copy)
+    {
+        allocator.free(@constCast(aligned_data));
     };
-    defer if (needs_timeline_copy) allocator.free(@constCast(aligned_data));
 
     // Decode root Timeline
-    const fb_timeline = try flatbuffers.decodeRoot(tlb.Timeline, aligned_data);
+    const fb_timeline = (
+        try flatbuffers.decodeRoot(tlb.Timeline, aligned_data)
+    );
 
     // Convert children to SerializableComposable
     var children: std.ArrayList(SerializableComposable) = .empty;
-    if (fb_timeline.children()) |fb_children| {
+    if (fb_timeline.children())
+        |fb_children|
+    {
         try children.ensureTotalCapacity(allocator, fb_children.len());
-        for (0..fb_children.len()) |i| {
-            children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+        for (0..fb_children.len())
+            |i|
+        {
+            children.appendAssumeCapacity(
+                try fb_to_serializable_composable(
+                    allocator,
+                    fb_children.get(i),
+                ),
+            );
         }
     }
 
     // Convert metadata if present and requested
     var metadata_map: ?MetadataMap = null;
-    if (!skip_metadata) {
-        // First check if metadata is embedded in timeline (legacy/inline format)
-        if (fb_timeline.metadata_map()) |fb_metadata| {
-            metadata_map = try fb_to_metadata_map_single_table(allocator, fb_metadata);
+    if (!skip_metadata)
+    {
+        // First check if metadata is embedded in timeline (legacy/inline
+        // format)
+        if (fb_timeline.metadata_map())
+            |fb_metadata|
+        {
+            metadata_map = try fb_to_metadata_map_single_table(
+                allocator,
+                fb_metadata,
+            );
         }
         // Then check for separated metadata
-        else if (has_separate_metadata) {
+        else if (has_separate_metadata)
+        {
             const metadata_data = data[@intCast(header.metadata_offset)..];
 
             // FlatBuffers requires 8-byte alignment
             const needs_copy = @intFromPtr(metadata_data.ptr) % 8 != 0;
-            const aligned_metadata: []align(8) const u8 = if (!needs_copy)
-                @alignCast(metadata_data)
-            else blk: {
-                const aligned_copy = try allocator.alignedAlloc(u8, .@"8", metadata_data.len);
-                @memcpy(aligned_copy, metadata_data);
-                break :blk aligned_copy;
+            const aligned_metadata: []align(8) const u8 = (
+                if (!needs_copy) @alignCast(metadata_data)
+                else
+                blk: {
+                    const aligned_copy = try allocator.alignedAlloc(
+                        u8,
+                        .@"8",
+                        metadata_data.len,
+                    );
+                    @memcpy(aligned_copy, metadata_data);
+                    break :blk aligned_copy;
+                }
+            );
+            defer if (needs_copy)
+            {
+                allocator.free(@constCast(aligned_metadata));
             };
-            defer if (needs_copy) allocator.free(@constCast(aligned_metadata));
 
-            const fb_metadata = try flatbuffers.decodeRoot(tlb.MetadataMap, aligned_metadata);
-            metadata_map = try fb_to_metadata_map_single_table(allocator, fb_metadata);
+            const fb_metadata = try flatbuffers.decodeRoot(
+                tlb.MetadataMap,
+                aligned_metadata,
+            );
+            metadata_map = try fb_to_metadata_map_single_table(
+                allocator,
+                fb_metadata,
+            );
         }
     }
 
     // Convert discrete partitions if present
-    const discrete_partitions = if (fb_timeline.presentation_space_discrete_partitions()) |p|
-        fb_to_serializable_discrete_partitions(p)
-    else
-        serializable.SerializableDiscretePartitionDomainMap{};
+    const discrete_partitions = (
+        if (fb_timeline.presentation_space_discrete_partitions())
+            |p|
+            fb_to_serializable_discrete_partitions(p)
+        else
+            serializable.SerializableDiscretePartitionDomainMap{}
+    );
 
     return .{
         .schema_version = fb_timeline.schema_version(),
         .content = .{
-            .name = if (fb_timeline.name()) |n| try allocator.dupe(u8, n) else "",
+            .name = if (fb_timeline.name())
+                |n|
+                try allocator.dupe(u8, n)
+            else
+                "",
             .children = try children.toOwnedSlice(allocator),
             .presentation_space_discrete_partitions = discrete_partitions,
             .metadata_map = metadata_map,
@@ -1910,7 +2762,8 @@ pub fn deserialize_to_serializable_timeline(
 // Collection Serialization/Deserialization
 // ----------------------------------------------------------------------------
 
-/// Collection file format constants - uses "TLCB" magic to distinguish from Timeline files
+/// Collection file format constants - uses "TLCB" magic to distinguish from
+/// Timeline files
 pub const TLCB_MAGIC: [4]u8 = .{ 'T', 'L', 'C', 'B' };
 
 /// Write TLCB header (Collection binary format)
@@ -1952,15 +2805,25 @@ fn serializable_collection_item_to_fb(
     return switch (item) {
         .timeline => |tl| blk: {
             // Convert children
-            const children: ?[]tlb.ComposableWrapper = if (tl.children.len > 0) child_blk: {
-                const c = try arena_alloc.alloc(tlb.ComposableWrapper, tl.children.len);
-                for (tl.children, 0..)
-                    |child, i|
-                {
-                    c[i] = try serializable_composable_to_fb(builder, arena_alloc, child);
+            const children: ?[]tlb.ComposableWrapper = (
+                if (tl.children.len > 0) child_blk: {
+                    const c = try arena_alloc.alloc(
+                        tlb.ComposableWrapper,
+                        tl.children.len,
+                    );
+                    for (tl.children, 0..)
+                        |child, i|
+                    {
+                        c[i] = try serializable_composable_to_fb(
+                            builder,
+                            arena_alloc,
+                            child,
+                        );
+                    }
+                    break :child_blk c;
                 }
-                break :child_blk c;
-            } else null;
+                else null
+            );
 
             // Convert metadata
             var metadata_fb: ?tlb.MetadataMap = null;
@@ -1971,169 +2834,293 @@ fn serializable_collection_item_to_fb(
             }
 
             // Convert discrete partitions
-            const discrete_partitions = try serializable_discrete_partitions_to_fb(
-                builder,
-                tl.presentation_space_discrete_partitions,
+            const discrete_partitions = (
+                try serializable_discrete_partitions_to_fb(
+                    builder,
+                    tl.presentation_space_discrete_partitions,
+                )
             );
 
             // Convert markers
-            const markers_fb = try serializable_markers_to_fb(builder, tl.markers);
+            const markers_fb = try serializable_markers_to_fb(
+                builder,
+                tl.markers,
+            );
 
             // The version lives on the document root only.
-            const timeline_ref = try builder.writeTable(tlb.Timeline, .{
-                .name = tl.name,
-                .children = children,
-                .presentation_space_discrete_partitions = discrete_partitions,
-                .metadata_map = metadata_fb,
-                .markers = markers_fb,
-            });
+            const timeline_ref = (
+                try builder.writeTable(
+                    tlb.Timeline,
+                    .{
+                        .name = tl.name,
+                        .children = children,
+                        .presentation_space_discrete_partitions = discrete_partitions,
+                        .metadata_map = metadata_fb,
+                        .markers = markers_fb,
+                    },
+                )
+            );
 
-            break :blk try builder.writeTable(tlb.CollectionItemWrapper, .{
-                .item_type = .TimelineItem,
-                .timeline = timeline_ref,
-            });
+            break :blk try builder.writeTable(
+                tlb.CollectionItemWrapper,
+                .{
+                    .item_type = .TimelineItem,
+                    .timeline = timeline_ref,
+                },
+            );
         },
         .track => |track| blk: {
-            const children: ?[]tlb.ComposableWrapper = if (track.children.len > 0) child_blk: {
-                const c = try arena_alloc.alloc(tlb.ComposableWrapper, track.children.len);
+            const children: ?[]tlb.ComposableWrapper = if (track.children.len
+            > 0) child_blk: {
+                const c = try arena_alloc.alloc(
+                    tlb.ComposableWrapper,
+                    track.children.len,
+                );
                 for (track.children, 0..)
                     |child, i|
                 {
-                    c[i] = try serializable_composable_to_fb(builder, arena_alloc, child);
+                    c[i] = try serializable_composable_to_fb(
+                        builder,
+                        arena_alloc,
+                        child,
+                    );
                 }
                 break :child_blk c;
-            } else null;
+            }
+            else null;
 
-            const markers_fb = try serializable_markers_to_fb(builder, track.markers);
-            const bounds_fb = if (track.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null;
+            const markers_fb = try serializable_markers_to_fb(
+                builder,
+                track.markers,
+            );
+            const bounds_fb = if (track.bounds_s)
+                |b|
+                try serializable_bounds_to_fb(builder, b)
+            else
+                null;
 
-            const track_ref = try builder.writeTable(tlb.Track, .{
-                .name = track.name,
-                .bounds = bounds_fb,
-                .children = children,
-                .markers = markers_fb,
-            });
+            const track_ref = try builder.writeTable(
+                tlb.Track,
+                .{
+                    .name = track.name,
+                    .bounds = bounds_fb,
+                    .children = children,
+                    .markers = markers_fb,
+                },
+            );
 
-            break :blk try builder.writeTable(tlb.CollectionItemWrapper, .{
-                .item_type = .TrackItem,
-                .track = track_ref,
-            });
+            break :blk try builder.writeTable(
+                tlb.CollectionItemWrapper,
+                .{
+                    .item_type = .TrackItem,
+                    .track = track_ref,
+                },
+            );
         },
         .stack => |stack| blk: {
-            const children: ?[]tlb.ComposableWrapper = if (stack.children.len > 0) child_blk: {
-                const c = try arena_alloc.alloc(tlb.ComposableWrapper, stack.children.len);
+            const children: ?[]tlb.ComposableWrapper = if (stack.children.len
+            > 0) child_blk: {
+                const c = try arena_alloc.alloc(
+                    tlb.ComposableWrapper,
+                    stack.children.len,
+                );
                 for (stack.children, 0..)
                     |child, i|
                 {
-                    c[i] = try serializable_composable_to_fb(builder, arena_alloc, child);
+                    c[i] = try serializable_composable_to_fb(
+                        builder,
+                        arena_alloc,
+                        child,
+                    );
                 }
                 break :child_blk c;
-            } else null;
+            }
+            else null;
 
-            const markers_fb = try serializable_markers_to_fb(builder, stack.markers);
-            const bounds_fb = if (stack.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null;
+            const markers_fb = try serializable_markers_to_fb(
+                builder,
+                stack.markers,
+            );
+            const bounds_fb = if (stack.bounds_s)
+                |b|
+                try serializable_bounds_to_fb(builder, b)
+            else
+                null;
 
-            const stack_ref = try builder.writeTable(tlb.Stack, .{
-                .name = stack.name,
-                .bounds = bounds_fb,
-                .children = children,
-                .markers = markers_fb,
-            });
+            const stack_ref = try builder.writeTable(
+                tlb.Stack,
+                .{
+                    .name = stack.name,
+                    .bounds = bounds_fb,
+                    .children = children,
+                    .markers = markers_fb,
+                },
+            );
 
-            break :blk try builder.writeTable(tlb.CollectionItemWrapper, .{
-                .item_type = .StackItem,
-                .stack = stack_ref,
-            });
+            break :blk try builder.writeTable(
+                tlb.CollectionItemWrapper,
+                .{
+                    .item_type = .StackItem,
+                    .stack = stack_ref,
+                },
+            );
         },
         .clip => |clip| blk: {
-            const media_fb = try serializable_media_ref_to_fb(builder, arena_alloc, clip.media);
-            const bounds_fb = if (clip.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null;
-            const markers_fb = try serializable_markers_to_fb(builder, clip.markers);
+            const media_fb = try serializable_media_ref_to_fb(
+                builder,
+                arena_alloc,
+                clip.media,
+            );
+            const bounds_fb = if (clip.bounds_s)
+                |b|
+                try serializable_bounds_to_fb(builder, b)
+            else
+                null;
+            const markers_fb = try serializable_markers_to_fb(
+                builder,
+                clip.markers,
+            );
 
             // Convert hex string to u64 for binary storage
-            const hash_val: u64 = if (clip.metadata_hash) |h|
+            const hash_val: u64 = if (clip.metadata_hash)
+                |h|
                 serializable.hex_string_to_hash(h) orelse 0
             else
                 0;
 
-            const clip_ref = try builder.writeTable(tlb.Clip, .{
-                .name = clip.name,
-                .bounds = bounds_fb,
-                .media = media_fb,
-                .metadata_hash = hash_val,
-                .markers = markers_fb,
-            });
+            const clip_ref = try builder.writeTable(
+                tlb.Clip,
+                .{
+                    .name = clip.name,
+                    .bounds = bounds_fb,
+                    .media = media_fb,
+                    .metadata_hash = hash_val,
+                    .markers = markers_fb,
+                },
+            );
 
-            break :blk try builder.writeTable(tlb.CollectionItemWrapper, .{
-                .item_type = .ClipItem,
-                .clip = clip_ref,
-            });
+            break :blk try builder.writeTable(
+                tlb.CollectionItemWrapper,
+                .{
+                    .item_type = .ClipItem,
+                    .clip = clip_ref,
+                },
+            );
         },
         .gap => |gap| blk: {
-            const markers_fb = try serializable_markers_to_fb(builder, gap.markers);
+            const markers_fb = try serializable_markers_to_fb(
+                builder,
+                gap.markers,
+            );
 
-            const gap_ref = try builder.writeTable(tlb.Gap, .{
-                .name = gap.name,
-                .bounds_start = gap.bounds_s[0],
-                .bounds_end = gap.bounds_s[1],
-                .markers = markers_fb,
-            });
+            const gap_ref = try builder.writeTable(
+                tlb.Gap,
+                .{
+                    .name = gap.name,
+                    .bounds_start = gap.bounds_s[0],
+                    .bounds_end = gap.bounds_s[1],
+                    .markers = markers_fb,
+                },
+            );
 
-            break :blk try builder.writeTable(tlb.CollectionItemWrapper, .{
-                .item_type = .GapItem,
-                .gap = gap_ref,
-            });
+            break :blk try builder.writeTable(
+                tlb.CollectionItemWrapper,
+                .{
+                    .item_type = .GapItem,
+                    .gap = gap_ref,
+                },
+            );
         },
         .warp => |warp| blk: {
-            const child_wrapper = try serializable_composable_to_fb(builder, arena_alloc, warp.child.*);
-            const topology_fb = try serializable_topology_to_fb(builder, arena_alloc, warp.transform);
+            const child_wrapper = try serializable_composable_to_fb(
+                builder,
+                arena_alloc,
+                warp.child.*,
+            );
+            const topology_fb = try serializable_topology_to_fb(
+                builder,
+                arena_alloc,
+                warp.transform,
+            );
 
-            const warp_ref = try builder.writeTable(tlb.Warp, .{
-                .name = warp.name,
-                .child = child_wrapper,
-                .transform = topology_fb,
-            });
+            const warp_ref = try builder.writeTable(
+                tlb.Warp,
+                .{
+                    .name = warp.name,
+                    .child = child_wrapper,
+                    .transform = topology_fb,
+                },
+            );
 
-            break :blk try builder.writeTable(tlb.CollectionItemWrapper, .{
-                .item_type = .WarpItem,
-                .warp = warp_ref,
-            });
+            break :blk try builder.writeTable(
+                tlb.CollectionItemWrapper,
+                .{
+                    .item_type = .WarpItem,
+                    .warp = warp_ref,
+                },
+            );
         },
         .transition => |trans| blk: {
             // Convert container stack
-            const container_children: ?[]tlb.ComposableWrapper = if (trans.container.children.len > 0) child_blk: {
-                const c = try arena_alloc.alloc(tlb.ComposableWrapper, trans.container.children.len);
-                for (trans.container.children, 0..)
-                    |child, i|
-                {
-                    c[i] = try serializable_composable_to_fb(builder, arena_alloc, child);
+            const container_children: ?[]tlb.ComposableWrapper = (
+                if (trans.container.children.len > 0) child_blk: {
+                    const c = try arena_alloc.alloc(
+                        tlb.ComposableWrapper,
+                        trans.container.children.len,
+                    );
+                    for (trans.container.children, 0..)
+                        |child, i|
+                    {
+                        c[i] = try serializable_composable_to_fb(
+                            builder,
+                            arena_alloc,
+                            child,
+                        );
+                    }
+                    break :child_blk c;
                 }
-                break :child_blk c;
-            } else null;
+                else null
+            );
 
-            const container_bounds_fb = if (trans.container.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null;
-            const container_markers_fb = try serializable_markers_to_fb(builder, trans.container.markers);
+            const container_bounds_fb = if (trans.container.bounds_s)
+                |b|
+                try serializable_bounds_to_fb(builder, b)
+            else
+                null;
+            const container_markers_fb = try serializable_markers_to_fb(
+                builder,
+                trans.container.markers,
+            );
 
-            const container_ref = try builder.writeTable(tlb.Stack, .{
-                .name = trans.container.name,
-                .bounds = container_bounds_fb,
-                .children = container_children,
-                .markers = container_markers_fb,
-            });
+            const container_ref = try builder.writeTable(
+                tlb.Stack,
+                .{
+                    .name = trans.container.name,
+                    .bounds = container_bounds_fb,
+                    .children = container_children,
+                    .markers = container_markers_fb,
+                },
+            );
 
-            const trans_ref = try builder.writeTable(tlb.Transition, .{
-                .name = trans.name,
-                .container = container_ref,
-                .kind = trans.kind,
-                .bounds_start = if (trans.bounds_s) |b| b[0] else 0.0,
-                .bounds_end = if (trans.bounds_s) |b| b[1] else 0.0,
-                .has_bounds = trans.bounds_s != null,
-            });
+            const trans_ref = try builder.writeTable(
+                tlb.Transition,
+                .{
+                    .name = trans.name,
+                    .container = container_ref,
+                    .kind = trans.kind,
+                    .bounds_start = if (trans.bounds_s) |b| b[0] else 0.0,
+                    .bounds_end = if (trans.bounds_s) |b| b[1] else 0.0,
+                    .has_bounds = trans.bounds_s != null,
+                },
+            );
 
-            break :blk try builder.writeTable(tlb.CollectionItemWrapper, .{
-                .item_type = .TransitionItem,
-                .transition = trans_ref,
-            });
+            break :blk try builder.writeTable(
+                tlb.CollectionItemWrapper,
+                .{
+                    .item_type = .TransitionItem,
+                    .transition = trans_ref,
+                },
+            );
         },
     };
 }
@@ -2149,33 +3136,59 @@ fn fb_to_serializable_collection_item(
             const fb_tl = wrapper.timeline() orelse return error.InvalidData;
 
             // Convert children
-            var children: std.ArrayList(serializable.SerializableComposable) = .empty;
-            if (fb_tl.children()) |fb_children| {
+            var children: std.ArrayList(serializable.SerializableComposable) = (
+                .empty
+            );
+            if (fb_tl.children())
+                |fb_children|
+            {
                 try children.ensureTotalCapacity(allocator, fb_children.len());
-                for (0..fb_children.len()) |i| {
-                    children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+                for (0..fb_children.len())
+                    |i|
+                {
+                    children.appendAssumeCapacity(
+                        try fb_to_serializable_composable(
+                            allocator,
+                            fb_children.get(i),
+                        ),
+                    );
                 }
             }
 
             // Convert metadata
             var metadata_map: ?MetadataMap = null;
-            if (fb_tl.metadata_map()) |fb_metadata| {
-                metadata_map = try fb_to_metadata_map_single_table(allocator, fb_metadata);
+            if (fb_tl.metadata_map())
+                |fb_metadata|
+            {
+                metadata_map = try fb_to_metadata_map_single_table(
+                    allocator,
+                    fb_metadata,
+                );
             }
 
             // Convert discrete partitions
-            const discrete_partitions = if (fb_tl.presentation_space_discrete_partitions()) |p|
-                fb_to_serializable_discrete_partitions(p)
-            else
-                serializable.SerializableDiscretePartitionDomainMap{};
+            const discrete_partitions = (
+                if (fb_tl.presentation_space_discrete_partitions())
+                    |p|
+                    fb_to_serializable_discrete_partitions(p)
+                else
+                    serializable.SerializableDiscretePartitionDomainMap{}
+            );
 
             // Convert markers
-            const markers = try fb_to_serializable_markers(allocator, fb_tl.markers());
+            const markers = try fb_to_serializable_markers(
+                allocator,
+                fb_tl.markers(),
+            );
 
             break :blk .{
                 // Any version on a nested timeline is ignored.
                 .timeline = .{
-                    .name = if (fb_tl.name()) |n| try allocator.dupe(u8, n) else "",
+                    .name = if (fb_tl.name())
+                        |n|
+                        try allocator.dupe(u8, n)
+                    else
+                        "",
                     .children = try children.toOwnedSlice(allocator),
                     .presentation_space_discrete_partitions = discrete_partitions,
                     .metadata_map = metadata_map,
@@ -2186,20 +3199,42 @@ fn fb_to_serializable_collection_item(
         .TrackItem => blk: {
             const fb_track = wrapper.track() orelse return error.InvalidData;
 
-            var children: std.ArrayList(serializable.SerializableComposable) = .empty;
-            if (fb_track.children()) |fb_children| {
+            var children: std.ArrayList(serializable.SerializableComposable) = (
+                .empty
+            );
+            if (fb_track.children())
+                |fb_children|
+            {
                 try children.ensureTotalCapacity(allocator, fb_children.len());
-                for (0..fb_children.len()) |i| {
-                    children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+                for (0..fb_children.len())
+                    |i|
+                {
+                    children.appendAssumeCapacity(
+                        try fb_to_serializable_composable(
+                            allocator,
+                            fb_children.get(i),
+                        ),
+                    );
                 }
             }
 
-            const markers = try fb_to_serializable_markers(allocator, fb_track.markers());
+            const markers = try fb_to_serializable_markers(
+                allocator,
+                fb_track.markers(),
+            );
 
             break :blk .{
                 .track = .{
-                    .name = if (fb_track.name()) |n| try allocator.dupe(u8, n) else "",
-                    .bounds_s = if (fb_track.bounds()) |b| fb_to_serializable_bounds(b) else null,
+                    .name = if (fb_track.name())
+                        |n|
+                        try allocator.dupe(u8, n)
+                    else
+                        "",
+                    .bounds_s = if (fb_track.bounds())
+                        |b|
+                        fb_to_serializable_bounds(b)
+                    else
+                        null,
                     .children = try children.toOwnedSlice(allocator),
                     .markers = markers,
                 },
@@ -2208,20 +3243,42 @@ fn fb_to_serializable_collection_item(
         .StackItem => blk: {
             const fb_stack = wrapper.stack() orelse return error.InvalidData;
 
-            var children: std.ArrayList(serializable.SerializableComposable) = .empty;
-            if (fb_stack.children()) |fb_children| {
+            var children: std.ArrayList(serializable.SerializableComposable) = (
+                .empty
+            );
+            if (fb_stack.children())
+                |fb_children|
+            {
                 try children.ensureTotalCapacity(allocator, fb_children.len());
-                for (0..fb_children.len()) |i| {
-                    children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+                for (0..fb_children.len())
+                    |i|
+                {
+                    children.appendAssumeCapacity(
+                        try fb_to_serializable_composable(
+                            allocator,
+                            fb_children.get(i),
+                        ),
+                    );
                 }
             }
 
-            const markers = try fb_to_serializable_markers(allocator, fb_stack.markers());
+            const markers = try fb_to_serializable_markers(
+                allocator,
+                fb_stack.markers(),
+            );
 
             break :blk .{
                 .stack = .{
-                    .name = if (fb_stack.name()) |n| try allocator.dupe(u8, n) else "",
-                    .bounds_s = if (fb_stack.bounds()) |b| fb_to_serializable_bounds(b) else null,
+                    .name = if (fb_stack.name())
+                        |n|
+                        try allocator.dupe(u8, n)
+                    else
+                        "",
+                    .bounds_s = if (fb_stack.bounds())
+                        |b|
+                        fb_to_serializable_bounds(b)
+                    else
+                        null,
                     .children = try children.toOwnedSlice(allocator),
                     .markers = markers,
                 },
@@ -2229,20 +3286,34 @@ fn fb_to_serializable_collection_item(
         },
         .ClipItem => blk: {
             const fb_clip = wrapper.clip() orelse return error.InvalidData;
-            const markers = try fb_to_serializable_markers(allocator, fb_clip.markers());
+            const markers = try fb_to_serializable_markers(
+                allocator,
+                fb_clip.markers(),
+            );
             const fb_media = fb_clip.media() orelse return error.InvalidData;
             const hash_val = fb_clip.metadata_hash();
             // Convert u64 back to hex string
-            const hash_str: ?[]const u8 = if (hash_val != 0)
+            const hash_str: ?[]const u8 = if (hash_val != 0) (
                 try serializable.hash_to_hex_string(allocator, hash_val)
-            else
-                null;
+            )
+            else null;
 
             break :blk .{
                 .clip = .{
-                    .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else "",
-                    .bounds_s = if (fb_clip.bounds()) |b| fb_to_serializable_bounds(b) else null,
-                    .media = try fb_to_serializable_media_ref(allocator, fb_media),
+                    .name = if (fb_clip.name())
+                        |n|
+                        try allocator.dupe(u8, n)
+                    else
+                        "",
+                    .bounds_s = if (fb_clip.bounds())
+                        |b|
+                        fb_to_serializable_bounds(b)
+                    else
+                        null,
+                    .media = try fb_to_serializable_media_ref(
+                        allocator,
+                        fb_media,
+                    ),
                     .metadata_hash = hash_str,
                     .markers = markers,
                 },
@@ -2250,12 +3321,22 @@ fn fb_to_serializable_collection_item(
         },
         .GapItem => blk: {
             const fb_gap = wrapper.gap() orelse return error.InvalidData;
-            const markers = try fb_to_serializable_markers(allocator, fb_gap.markers());
+            const markers = try fb_to_serializable_markers(
+                allocator,
+                fb_gap.markers(),
+            );
 
             break :blk .{
                 .gap = .{
-                    .name = if (fb_gap.name()) |n| try allocator.dupe(u8, n) else "",
-                    .bounds_s = .{ fb_gap.bounds_start(), fb_gap.bounds_end() },
+                    .name = if (fb_gap.name())
+                        |n|
+                        try allocator.dupe(u8, n)
+                    else
+                        "",
+                    .bounds_s = .{
+                        fb_gap.bounds_start(),
+                        fb_gap.bounds_end(),
+                    },
                     .markers = markers,
                 },
             };
@@ -2264,51 +3345,103 @@ fn fb_to_serializable_collection_item(
             const fb_warp = wrapper.warp() orelse return error.InvalidData;
 
             // Convert child composable
-            const child_wrapper = fb_warp.child() orelse return error.InvalidData;
-            const child_composable = try allocator.create(serializable.SerializableComposable);
-            child_composable.* = try fb_to_serializable_composable(allocator, child_wrapper);
+            const child_wrapper = fb_warp.child() orelse return (
+                error.InvalidData
+            );
+            const child_composable = try allocator.create(
+                serializable.SerializableComposable,
+            );
+            child_composable.* = try fb_to_serializable_composable(
+                allocator,
+                child_wrapper,
+            );
 
             // Convert topology
-            const fb_topo = fb_warp.transform() orelse return error.InvalidData;
+            const fb_topo = fb_warp.transform() orelse return (
+                error.InvalidData
+            );
 
             break :blk .{
                 .warp = .{
-                    .name = if (fb_warp.name()) |n| try allocator.dupe(u8, n) else "",
+                    .name = if (fb_warp.name())
+                        |n|
+                        try allocator.dupe(u8, n)
+                    else
+                        "",
                     .child = child_composable,
-                    .transform = try fb_to_serializable_topology(allocator, fb_topo),
+                    .transform = try fb_to_serializable_topology(
+                        allocator,
+                        fb_topo,
+                    ),
                 },
             };
         },
         .TransitionItem => blk: {
-            const fb_trans = wrapper.transition() orelse return error.InvalidData;
+            const fb_trans = wrapper.transition() orelse return (
+                error.InvalidData
+            );
 
             // Convert container
-            const fb_container = fb_trans.container() orelse return error.InvalidData;
+            const fb_container = fb_trans.container() orelse return (
+                error.InvalidData
+            );
 
-            var container_children: std.ArrayList(serializable.SerializableComposable) = .empty;
-            if (fb_container.children()) |fb_children| {
-                try container_children.ensureTotalCapacity(allocator, fb_children.len());
-                for (0..fb_children.len()) |i| {
-                    container_children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+            var container_children: std.ArrayList(
+                serializable.SerializableComposable,
+            ) = .empty;
+            if (fb_container.children())
+                |fb_children|
+            {
+                try container_children.ensureTotalCapacity(
+                    allocator,
+                    fb_children.len(),
+                );
+                for (0..fb_children.len())
+                    |i|
+                {
+                    container_children.appendAssumeCapacity(
+                        try fb_to_serializable_composable(
+                            allocator,
+                            fb_children.get(i),
+                        ),
+                    );
                 }
             }
 
-            const container_markers = try fb_to_serializable_markers(allocator, fb_container.markers());
+            const container_markers = try fb_to_serializable_markers(
+                allocator,
+                fb_container.markers(),
+            );
 
             break :blk .{
                 .transition = .{
-                    .name = if (fb_trans.name()) |n| try allocator.dupe(u8, n) else "",
+                    .name = if (fb_trans.name())
+                        |n|
+                        try allocator.dupe(u8, n)
+                    else
+                        "",
                     .container = .{
-                        .name = if (fb_container.name()) |n| try allocator.dupe(u8, n) else "",
-                        .bounds_s = if (fb_container.bounds()) |b| fb_to_serializable_bounds(b) else null,
-                        .children = try container_children.toOwnedSlice(allocator),
+                        .name = if (fb_container.name())
+                            |n|
+                            try allocator.dupe(u8, n)
+                        else
+                            "",
+                        .bounds_s = if (fb_container.bounds())
+                            |b|
+                            fb_to_serializable_bounds(b)
+                        else
+                            null,
+                        .children = try container_children.toOwnedSlice(
+                            allocator,
+                        ),
                         .markers = container_markers,
                     },
                     .kind = try allocator.dupe(u8, fb_trans.kind()),
-                    .bounds_s = if (fb_trans.has_bounds())
-                        .{ fb_trans.bounds_start(), fb_trans.bounds_end() }
-                    else
-                        null,
+                    .bounds_s = if (fb_trans.has_bounds()) .{
+                        fb_trans.bounds_start(),
+                        fb_trans.bounds_end(),
+                    }
+                    else null,
                 },
             };
         },
@@ -2331,15 +3464,24 @@ pub fn serialize_collection(
     var builder = try flatbuffers.Builder.init(arena_alloc);
 
     // Convert children
-    const children: ?[]tlb.CollectionItemWrapper = if (collection.children.len > 0) blk: {
-        const c = try arena_alloc.alloc(tlb.CollectionItemWrapper, collection.children.len);
+    const children: ?[]tlb.CollectionItemWrapper = if (collection.children.len
+    > 0) blk: {
+        const c = try arena_alloc.alloc(
+            tlb.CollectionItemWrapper,
+            collection.children.len,
+        );
         for (collection.children, 0..)
             |child, i|
         {
-            c[i] = try serializable_collection_item_to_fb(&builder, arena_alloc, child);
+            c[i] = try serializable_collection_item_to_fb(
+                &builder,
+                arena_alloc,
+                child,
+            );
         }
         break :blk c;
-    } else null;
+    }
+    else null;
 
     // Convert metadata if present
     var metadata_fb: ?tlb.MetadataMap = null;
@@ -2350,13 +3492,16 @@ pub fn serialize_collection(
     }
 
     // Build Collection root
-    const collection_ref = try builder.writeTable(tlb.Collection, .{
-        .schema_version = doc.schema_version,
-        .name = collection.name,
-        .description = collection.description,
-        .children = children,
-        .metadata_map = metadata_fb,
-    });
+    const collection_ref = try builder.writeTable(
+        tlb.Collection,
+        .{
+            .schema_version = doc.schema_version,
+            .name = collection.name,
+            .description = collection.description,
+            .children = children,
+            .metadata_map = metadata_fb,
+        },
+    );
 
     try builder.writeRoot(tlb.Collection, collection_ref);
 
@@ -2379,40 +3524,77 @@ pub fn deserialize_collection(
     // Get FlatBuffers data after header
     const fb_data = data[TLB_HEADER_SIZE..];
 
-    // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if needed.
+    // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if
+    // needed.
     const needs_copy = @intFromPtr(fb_data.ptr) % 8 != 0;
-    const aligned_data: []align(8) const u8 = if (!needs_copy)
-        @alignCast(fb_data)
-    else blk: {
-        const aligned_copy = try allocator.alignedAlloc(u8, .@"8", fb_data.len);
+    const aligned_data: []align(8) const u8 = if (!needs_copy) @alignCast(
+        fb_data,
+    )
+    else
+    blk: {
+        const aligned_copy = try allocator.alignedAlloc(
+            u8,
+            .@"8",
+            fb_data.len,
+        );
         @memcpy(aligned_copy, fb_data);
         break :blk aligned_copy;
     };
-    defer if (needs_copy) allocator.free(@constCast(aligned_data));
+    defer if (needs_copy)
+    {
+        allocator.free(@constCast(aligned_data));
+    };
 
     // Decode root Collection
-    const fb_collection = try flatbuffers.decodeRoot(tlb.Collection, aligned_data);
+    const fb_collection = try flatbuffers.decodeRoot(
+        tlb.Collection,
+        aligned_data,
+    );
 
     // Convert children to SerializableCollectionItem
-    var children: std.ArrayList(serializable.SerializableCollectionItem) = .empty;
-    if (fb_collection.children()) |fb_children| {
+    var children: std.ArrayList(serializable.SerializableCollectionItem) = (
+        .empty
+    );
+    if (fb_collection.children())
+        |fb_children|
+    {
         try children.ensureTotalCapacity(allocator, fb_children.len());
-        for (0..fb_children.len()) |i| {
-            children.appendAssumeCapacity(try fb_to_serializable_collection_item(allocator, fb_children.get(i)));
+        for (0..fb_children.len())
+            |i|
+        {
+            children.appendAssumeCapacity(
+                try fb_to_serializable_collection_item(
+                    allocator,
+                    fb_children.get(i),
+                ),
+            );
         }
     }
 
     // Convert metadata if present
     var metadata_map: ?MetadataMap = null;
-    if (fb_collection.metadata_map()) |fb_metadata| {
-        metadata_map = try fb_to_metadata_map_single_table(allocator, fb_metadata);
+    if (fb_collection.metadata_map())
+        |fb_metadata|
+    {
+        metadata_map = try fb_to_metadata_map_single_table(
+            allocator,
+            fb_metadata,
+        );
     }
 
     return .{
         .schema_version = fb_collection.schema_version(),
         .content = .{
-            .name = if (fb_collection.name()) |n| try allocator.dupe(u8, n) else "",
-            .description = if (fb_collection.description()) |d| try allocator.dupe(u8, d) else "",
+            .name = if (fb_collection.name())
+                |n|
+                try allocator.dupe(u8, n)
+            else
+                "",
+            .description = if (fb_collection.description())
+                |d|
+                try allocator.dupe(u8, d)
+            else
+                "",
             .children = try children.toOwnedSlice(allocator),
             .metadata_map = metadata_map,
         },
@@ -2436,7 +3618,24 @@ test "header: write and read round-trip"
 
 test "header: invalid magic number"
 {
-    const bad_data = [_]u8{ 'B', 'A', 'D', '!', 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
+    const bad_data = [_]u8{
+        'B',
+        'A',
+        'D',
+        '!',
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    };
     try std.testing.expectError(error.InvalidData, read_header(&bad_data));
 }
 
@@ -2449,23 +3648,32 @@ test "flatbufs: direct flatbuffers roundtrip"
     defer builder.deinit();
 
     // Create a gap wrapper
-    const gap_ref = try builder.writeTable(tlb.Gap, .{
-        .name = "Test Gap",
-        .bounds_start = 0.0,
-        .bounds_end = 5.0,
-    });
+    const gap_ref = try builder.writeTable(
+        tlb.Gap,
+        .{
+            .name = "Test Gap",
+            .bounds_start = 0.0,
+            .bounds_end = 5.0,
+        },
+    );
 
-    const gap_wrapper = try builder.writeTable(tlb.ComposableWrapper, .{
-        .comp_type = .Gap,
-        .gap = gap_ref,
-    });
+    const gap_wrapper = try builder.writeTable(
+        tlb.ComposableWrapper,
+        .{
+            .comp_type = .Gap,
+            .gap = gap_ref,
+        },
+    );
 
     // Create timeline with the gap as a child
-    const timeline_ref = try builder.writeTable(tlb.Timeline, .{
-        .schema_version = 1,
-        .name = "Test Timeline",
-        .children = &[_]tlb.ComposableWrapper{gap_wrapper},
-    });
+    const timeline_ref = try builder.writeTable(
+        tlb.Timeline,
+        .{
+            .schema_version = 1,
+            .name = "Test Timeline",
+            .children = &[_]tlb.ComposableWrapper{gap_wrapper},
+        },
+    );
 
     try builder.writeRoot(tlb.Timeline, timeline_ref);
 
@@ -2486,7 +3694,9 @@ test "flatbufs: direct flatbuffers roundtrip"
     // Decode
     const fb_data = buffer.written()[TLB_HEADER_SIZE..];
     const aligned_data: []align(8) const u8 = @alignCast(fb_data);
-    const fb_timeline = try flatbuffers.decodeRoot(tlb.Timeline, aligned_data);
+    const fb_timeline = (
+        try flatbuffers.decodeRoot(tlb.Timeline, aligned_data)
+    );
 
     // Verify timeline
     try std.testing.expectEqualStrings("Test Timeline", fb_timeline.name().?);
@@ -2501,8 +3711,16 @@ test "flatbufs: direct flatbuffers roundtrip"
     try std.testing.expectEqual(tlb.ComposableType.Gap, child.comp_type());
     const gap_val = child.gap().?;
     try std.testing.expectEqualStrings("Test Gap", gap_val.name().?);
-    try std.testing.expectApproxEqAbs(@as(f64, 0.0), gap_val.bounds_start(), 0.001);
-    try std.testing.expectApproxEqAbs(@as(f64, 5.0), gap_val.bounds_end(), 0.001);
+    try std.testing.expectApproxEqAbs(
+        @as(f64, 0.0),
+        gap_val.bounds_start(),
+        0.001,
+    );
+    try std.testing.expectApproxEqAbs(
+        @as(f64, 5.0),
+        gap_val.bounds_end(),
+        0.001,
+    );
 }
 
 // ============================================================================
@@ -2533,7 +3751,11 @@ test "tlb: metadata_offset written correctly when metadata present"
     // Serialize
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(
+        .{ .schema_version = 1, .content = timeline },
+        allocator,
+        &buffer.writer,
+    );
 
     // Read header and verify metadata_offset is non-zero
     const header = try read_header(buffer.written());
@@ -2556,7 +3778,11 @@ test "tlb: metadata_offset is 0 when no metadata"
     // Serialize
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(
+        .{ .schema_version = 1, .content = timeline },
+        allocator,
+        &buffer.writer,
+    );
 
     // Read header and verify metadata_offset is 0
     const header = try read_header(buffer.written());
@@ -2589,7 +3815,11 @@ test "tlb: round-trip with metadata preserved"
     // Serialize
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(
+        .{ .schema_version = 1, .content = timeline },
+        allocator,
+        &buffer.writer,
+    );
 
     // Deserialize with metadata
     var deserialized = try test_decode_tlb(
@@ -2605,9 +3835,19 @@ test "tlb: round-trip with metadata preserved"
     const result_hash = result_meta.fields.get("test_hash").?;
     try std.testing.expect(result_hash == .kv);
     const result_kv = result_hash.kv;
-    try std.testing.expectEqualStrings("test string", result_kv.fields.get("string_val").?.bytes);
-    try std.testing.expectEqual(@as(i64, 42), result_kv.fields.get("int_val").?.integer);
-    try std.testing.expectApproxEqAbs(@as(f64, 3.14159), result_kv.fields.get("float_val").?.float, 0.00001);
+    try std.testing.expectEqualStrings(
+        "test string",
+        result_kv.fields.get("string_val").?.bytes,
+    );
+    try std.testing.expectEqual(
+        @as(i64, 42),
+        result_kv.fields.get("int_val").?.integer,
+    );
+    try std.testing.expectApproxEqAbs(
+        @as(f64, 3.14159),
+        result_kv.fields.get("float_val").?.float,
+        0.00001,
+    );
     try std.testing.expectEqual(true, result_kv.fields.get("bool_val").?.bool);
 }
 
@@ -2634,7 +3874,11 @@ test "tlb: round-trip without metadata (skip on read)"
     // Serialize with metadata
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(
+        .{ .schema_version = 1, .content = timeline },
+        allocator,
+        &buffer.writer,
+    );
 
     // Deserialize WITHOUT metadata
     var deserialized = try test_decode_tlb(
@@ -2667,9 +3911,14 @@ test "tlb: empty metadata_map serialization"
     // Serialize
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(
+        .{ .schema_version = 1, .content = timeline },
+        allocator,
+        &buffer.writer,
+    );
 
-    // Empty metadata map should result in metadata_offset = 0 (treated as no metadata)
+    // Empty metadata map should result in metadata_offset = 0 (treated as no
+    // metadata)
     const header = try read_header(buffer.written());
     try std.testing.expectEqual(@as(u64, 0), header.metadata_offset);
 }
@@ -2682,10 +3931,13 @@ test "tlb: large metadata handling"
     var metadata: MetadataMap = .empty;
     defer metadata.fields.deinit(allocator);
     var inner: MetadataMap = .empty;
-    // Note: We need to free the dynamically allocated keys as well as the hashmap
+    // Note: We need to free the dynamically allocated keys as well as the
+    // hashmap
     defer {
         var iter = inner.fields.iterator();
-        while (iter.next()) |entry| {
+        while (iter.next())
+            |entry|
+        {
             allocator.free(entry.key_ptr.*);
         }
         inner.fields.deinit(allocator);
@@ -2693,9 +3945,12 @@ test "tlb: large metadata handling"
 
     // Add 100 entries
     var i: usize = 0;
-    while (i < 100) : (i += 1) {
+    while (i < 100)
+        : (i += 1)
+    {
         var key_buf: [32]u8 = undefined;
-        const key_slice = std.fmt.bufPrint(&key_buf, "key_{d}", .{i}) catch unreachable;
+        const key_slice = std.fmt.bufPrint(&key_buf, "key_{d}", .{i})
+        catch unreachable;
         const key = try allocator.dupe(u8, key_slice);
         try inner.fields.put(allocator, key, .{ .integer = @intCast(i) });
     }
@@ -2711,7 +3966,11 @@ test "tlb: large metadata handling"
     // Serialize
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(
+        .{ .schema_version = 1, .content = timeline },
+        allocator,
+        &buffer.writer,
+    );
 
     // Round-trip verification
     var result = try test_decode_tlb(allocator, buffer.written(), .all);
@@ -2719,7 +3978,10 @@ test "tlb: large metadata handling"
 
     try std.testing.expect(result.metadata_map != null);
     const result_hash = result.metadata_map.?.fields.get("large_hash").?;
-    try std.testing.expectEqual(@as(usize, 100), result_hash.kv.fields.count());
+    try std.testing.expectEqual(
+        @as(usize, 100),
+        result_hash.kv.fields.count(),
+    );
 }
 
 test "tlb: complex nested metadata round-trip"
@@ -2735,7 +3997,11 @@ test "tlb: complex nested metadata round-trip"
     // Add nested KV
     var nested_kv: MetadataMap = .empty;
     defer nested_kv.fields.deinit(allocator);
-    try nested_kv.fields.put(allocator, "inner_key", .{ .bytes = "inner_value" });
+    try nested_kv.fields.put(
+        allocator,
+        "inner_key",
+        .{ .bytes = "inner_value" },
+    );
     try inner.fields.put(allocator, "nested_val", .{ .kv = nested_kv });
 
     // Add array
@@ -2758,7 +4024,11 @@ test "tlb: complex nested metadata round-trip"
     // Serialize and round-trip
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(
+        .{ .schema_version = 1, .content = timeline },
+        allocator,
+        &buffer.writer,
+    );
 
     var result = try test_decode_tlb(allocator, buffer.written(), .all);
     defer result.deinit(allocator);
@@ -2769,7 +4039,10 @@ test "tlb: complex nested metadata round-trip"
 
     // Check nested KV
     const nested = result_hash.fields.get("nested_val").?.kv;
-    try std.testing.expectEqualStrings("inner_value", nested.fields.get("inner_key").?.bytes);
+    try std.testing.expectEqualStrings(
+        "inner_value",
+        nested.fields.get("inner_key").?.bytes,
+    );
 
     // Check array
     const arr = result_hash.fields.get("array_val").?.array;
@@ -2801,29 +4074,48 @@ test "tlb: metadata offset points to correct boundary"
     // Serialize
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
-    try serialize_from_serializable_timeline(.{ .schema_version = 1, .content = timeline }, allocator, &buffer.writer);
+    try serialize_from_serializable_timeline(
+        .{ .schema_version = 1, .content = timeline },
+        allocator,
+        &buffer.writer,
+    );
 
     const header = try read_header(buffer.written());
 
     // Verify: timeline data ends at metadata_offset, metadata starts there
-    // metadata_offset should be > TLB_HEADER_SIZE (16) and < total buffer length
+    // metadata_offset should be > TLB_HEADER_SIZE (16) and < total buffer
+    // length
     try std.testing.expect(header.metadata_offset > TLB_HEADER_SIZE);
     try std.testing.expect(header.metadata_offset < buffer.written().len);
 
     // The data at metadata_offset should be valid FlatBuffers metadata
     // We can verify by attempting to decode the timeline portion only
-    const timeline_data = buffer.written()[TLB_HEADER_SIZE..header.metadata_offset];
-    const aligned_timeline: []align(8) const u8 = if (@intFromPtr(timeline_data.ptr) % 8 == 0)
-        @alignCast(timeline_data)
-    else blk: {
-        const aligned_copy = try allocator.alignedAlloc(u8, .@"8", timeline_data.len);
+    const timeline_data = (
+        buffer.written()[TLB_HEADER_SIZE..header.metadata_offset]
+    );
+    const aligned_timeline: []align(8) const u8 = if (@intFromPtr(
+        timeline_data.ptr,
+    ) % 8 == 0) @alignCast(timeline_data)
+    else
+    blk: {
+        const aligned_copy = try allocator.alignedAlloc(
+            u8,
+            .@"8",
+            timeline_data.len,
+        );
         @memcpy(aligned_copy, timeline_data);
         break :blk aligned_copy;
     };
-    defer if (@intFromPtr(timeline_data.ptr) % 8 != 0) allocator.free(@constCast(aligned_timeline));
+    defer if (@intFromPtr(timeline_data.ptr) % 8 != 0)
+    {
+        allocator.free(@constCast(aligned_timeline));
+    };
 
     // Should be able to decode timeline without metadata
-    const fb_timeline = try flatbuffers.decodeRoot(tlb.Timeline, aligned_timeline);
+    const fb_timeline = try flatbuffers.decodeRoot(
+        tlb.Timeline,
+        aligned_timeline,
+    );
     try std.testing.expectEqualStrings("Test", fb_timeline.name().?);
     // Timeline portion should have null metadata_map (it's stored separately)
     try std.testing.expect(fb_timeline.metadata_map() == null);
@@ -2913,7 +4205,8 @@ fn run_roundtrip_test_from_paths(
         tlb_path,
         allocator,
         .unlimited,
-    ) catch |err| {
+    )
+    catch |err| {
         test_print("Failed to read {s}: {}\n", .{ tlb_path, err });
         return err;
     };
@@ -2950,8 +4243,8 @@ fn run_roundtrip_tests_from_dir(
         std.testing.io,
         dir_path,
         .{ .iterate = true },
-    ) catch |err|
-    {
+    )
+    catch |err| {
         if (err == error.FileNotFound)
         {
             test_print("  Directory not found: {s}\n", .{dir_path});
@@ -2964,7 +4257,11 @@ fn run_roundtrip_tests_from_dir(
     // Collect .tla files
     var tla_files: std.ArrayList([]const u8) = .empty;
     defer {
-        for (tla_files.items) |f| allocator.free(f);
+        for (tla_files.items)
+            |f|
+        {
+            allocator.free(f);
+        }
         tla_files.deinit(allocator);
     }
 
@@ -2972,12 +4269,12 @@ fn run_roundtrip_tests_from_dir(
     while (try iter.next(std.testing.io))
         |entry|
     {
-        if (entry.kind != .file) 
+        if (entry.kind != .file)
         {
             continue;
         }
 
-        if (std.mem.endsWith(u8, entry.name, ".tla")) 
+        if (std.mem.endsWith(u8, entry.name, ".tla"))
         {
             try tla_files.append(
                 allocator,
@@ -3004,11 +4301,11 @@ fn run_roundtrip_tests_from_dir(
     );
 
     // Run tests
-    for (tla_files.items) 
-        |tla_name| 
+    for (tla_files.items)
+        |tla_name|
     {
         errdefer std.log.err("Error with file: {s}", .{tla_name});
-        const basename = tla_name[0 .. tla_name.len - 4];
+        const basename = tla_name[0..tla_name.len - 4];
         const tlb_name = try std.fmt.allocPrint(
             allocator,
             "{s}.tlb",
@@ -3037,16 +4334,20 @@ fn run_roundtrip_tests_from_dir(
             io,
             tla_path,
             tlb_path,
-        ) catch |err| {
+        )
+        catch |err| {
             test_print("  {s}... ERROR: {}\n", .{ basename, err });
             failed.* += 1;
             continue;
         };
 
-        if (test_passed) {
+        if (test_passed)
+        {
             test_print("  {s}... OK\n", .{basename});
             passed.* += 1;
-        } else {
+        }
+        else
+        {
             test_print("  {s}... MISMATCH\n", .{basename});
             failed.* += 1;
         }
@@ -3058,12 +4359,14 @@ test "ascii: parse just_clip.tla and deinit (leak test)"
     const io = std.testing.io;
 
     // Skip if file doesn't exist
-    std.Io.Dir.cwd().access(std.testing.io, "test_files/just_clip.tla", .{}) catch {
+    std.Io.Dir.cwd().access(std.testing.io, "test_files/just_clip.tla", .{})
+    catch {
         test_print("Skipping: test_files/just_clip.tla not found\n", .{});
         return;
     };
 
-    // Use arena because ziggy.deserializeLeaky returns data referencing the source buffer
+    // Use arena because ziggy.deserializeLeaky returns data referencing the
+    // source buffer
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
@@ -3083,7 +4386,8 @@ test "binary: deserialize just_warp.tlb and deinit (leak test)"
     const allocator = std.testing.allocator;
 
     // Skip if file doesn't exist
-    std.Io.Dir.cwd().access(std.testing.io, "test_files/just_warp.tlb", .{}) catch {
+    std.Io.Dir.cwd().access(std.testing.io, "test_files/just_warp.tlb", .{})
+    catch {
         test_print("Skipping: test_files/just_warp.tlb not found\n", .{});
         return;
     };
@@ -3115,11 +4419,13 @@ test "roundtrip: warp with affine transform"
     const io = std.testing.io;
 
     // Skip if files don't exist
-    std.Io.Dir.cwd().access(std.testing.io, "test_files/just_warp.tla", .{}) catch {
+    std.Io.Dir.cwd().access(std.testing.io, "test_files/just_warp.tla", .{})
+    catch {
         test_print("Skipping: test_files/just_warp.tla not found\n", .{});
         return;
     };
-    std.Io.Dir.cwd().access(std.testing.io, "test_files/just_warp.tlb", .{}) catch {
+    std.Io.Dir.cwd().access(std.testing.io, "test_files/just_warp.tlb", .{})
+    catch {
         test_print("Skipping: test_files/just_warp.tlb not found\n", .{});
         return;
     };
@@ -3139,11 +4445,13 @@ test "roundtrip: warp with bezier transform (linearized)"
     const io = std.testing.io;
 
     // Skip if files don't exist
-    std.Io.Dir.cwd().access(io, "test_files/just_warp_bez.tla", .{}) catch {
+    std.Io.Dir.cwd().access(io, "test_files/just_warp_bez.tla", .{})
+    catch {
         test_print("Skipping: test_files/just_warp_bez.tla not found\n", .{});
         return;
     };
-    std.Io.Dir.cwd().access(io, "test_files/just_warp_bez.tlb", .{}) catch {
+    std.Io.Dir.cwd().access(io, "test_files/just_warp_bez.tlb", .{})
+    catch {
         test_print("Skipping: test_files/just_warp_bez.tlb not found\n", .{});
         return;
     };
@@ -3163,12 +4471,20 @@ test "roundtrip: transition with container children"
     const io = std.testing.io;
 
     // Skip if files don't exist
-    std.Io.Dir.cwd().access(io, "test_files/just_transition.tla", .{}) catch {
-        test_print("Skipping: test_files/just_transition.tla not found\n", .{});
+    std.Io.Dir.cwd().access(io, "test_files/just_transition.tla", .{})
+    catch {
+        test_print(
+            "Skipping: test_files/just_transition.tla not found\n",
+            .{},
+        );
         return;
     };
-    std.Io.Dir.cwd().access(io, "test_files/just_transition.tlb", .{}) catch {
-        test_print("Skipping: test_files/just_transition.tlb not found\n", .{});
+    std.Io.Dir.cwd().access(io, "test_files/just_transition.tlb", .{})
+    catch {
+        test_print(
+            "Skipping: test_files/just_transition.tlb not found\n",
+            .{},
+        );
         return;
     };
 
@@ -3191,7 +4507,13 @@ test "roundtrip: all test_files"
     var passed: usize = 0;
     var failed: usize = 0;
 
-    try run_roundtrip_tests_from_dir(allocator, io, "test_files", &passed, &failed);
+    try run_roundtrip_tests_from_dir(
+        allocator,
+        io,
+        "test_files",
+        &passed,
+        &failed,
+    );
 
     test_print("test_files: {d} passed, {d} failed\n", .{ passed, failed });
     try std.testing.expect(failed == 0);
@@ -3215,7 +4537,10 @@ test "roundtrip: all otio_sample_data"
         &failed,
     );
 
-    test_print("otio_sample_data: {d} passed, {d} failed\n", .{ passed, failed });
+    test_print(
+        "otio_sample_data: {d} passed, {d} failed\n",
+        .{ passed, failed },
+    );
     try std.testing.expect(failed == 0);
 }
 
@@ -3225,25 +4550,40 @@ test "roundtrip: production_test_files (optional)"
     const io = std.testing.io;
 
     // Only run if build option is enabled
-    if (!build_options.include_production_tests) {
+    if (!build_options.include_production_tests)
+    {
         test_print(
-            "\nSkipping production_test_files (use -Dinclude_production_tests=true to enable)\n",
+            (
+                "\nSkipping production_test_files (use "
+                ++ "-Dinclude_production_tests=true to enable)\n"
+            ),
             .{},
         );
         return error.SkipZigTest;
     }
 
-    test_print("\nRunning roundtrip tests from production_test_files/...\n", .{});
+    test_print(
+        "\nRunning roundtrip tests from production_test_files/...\n",
+        .{},
+    );
 
     var passed: usize = 0;
     var failed: usize = 0;
 
-    try run_roundtrip_tests_from_dir(allocator, io, "production_test_files", &passed, &failed);
+    try run_roundtrip_tests_from_dir(
+        allocator,
+        io,
+        "production_test_files",
+        &passed,
+        &failed,
+    );
 
-    test_print("production_test_files: {d} passed, {d} failed\n", .{ passed, failed });
+    test_print(
+        "production_test_files: {d} passed, {d} failed\n",
+        .{ passed, failed },
+    );
     try std.testing.expect(failed == 0);
 }
-
 
 // ----------------------------------------------------------------------------
 // Codec interface (see adapter.zig)

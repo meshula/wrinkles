@@ -16,7 +16,7 @@ pub const MappingEmpty = struct {
 
     /// build a generic mapping from this empty mapping
     pub fn mapping(
-        self:@This(),
+        self: @This(),
     ) mapping_mod.Mapping
     {
         return .{
@@ -26,7 +26,7 @@ pub const MappingEmpty = struct {
 
     pub fn project_instantaneous_cc(
         _: @This(),
-        _: opentime.Ordinate
+        _: opentime.Ordinate,
     ) opentime.ProjectionResult
     {
         return .out_of_bounds;
@@ -38,29 +38,29 @@ pub const MappingEmpty = struct {
 
     pub fn project_instantaneous_cc_inv(
         _: @This(),
-        _: opentime.Ordinate
+        _: opentime.Ordinate,
     ) opentime.ProjectionResult
     {
         return .out_of_bounds;
     }
 
     pub fn inverted(
-        _: @This()
-    ) !MappingEmpty 
+        _: @This(),
+    ) !MappingEmpty
     {
         return .empty_infinite;
     }
 
     pub fn input_bounds(
         self: @This(),
-    ) opentime.ContinuousInterval 
+    ) opentime.ContinuousInterval
     {
         return self.defined_range;
     }
 
     pub fn output_bounds(
         self: @This(),
-    ) opentime.ContinuousInterval 
+    ) opentime.ContinuousInterval
     {
         return self.input_bounds();
     }
@@ -119,7 +119,7 @@ pub const MappingEmpty = struct {
         pt: opentime.Ordinate,
     ) ![2]mapping_mod.Mapping
     {
-        return .{ 
+        return .{
             .{
                 .empty = .{
                     .defined_range = .{
@@ -150,7 +150,7 @@ test "MappingEmpty: Project"
     {
         try std.testing.expectError(
             error.OutOfBounds,
-            me.project_instantaneous_cc(v).ordinate()
+            me.project_instantaneous_cc(v).ordinate(),
         );
     }
 }
@@ -167,23 +167,11 @@ test "MappingEmpty: Bounds"
     ).mapping();
 
     const i_b = me.input_bounds().?;
-    try opentime.expectOrdinateEqual(
-        -2,
-        i_b.start
-    );
-    try opentime.expectOrdinateEqual(
-        2,
-        i_b.end
-    );
+    try opentime.expectOrdinateEqual(-2, i_b.start);
+    try opentime.expectOrdinateEqual(2, i_b.end);
 
     // returns an infinite output bounds
     const o_b = me.output_bounds().?;
-    try opentime.expectOrdinateEqual(
-        -2,
-        o_b.start
-    );
-    try opentime.expectOrdinateEqual(
-        2,
-        o_b.end
-    );
+    try opentime.expectOrdinateEqual(-2, o_b.start);
+    try opentime.expectOrdinateEqual(2, o_b.end);
 }

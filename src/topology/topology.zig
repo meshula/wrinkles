@@ -20,7 +20,9 @@ pub const Topology = struct {
 
     /// A Topology with a single, infinite identity mapping.
     pub const identity_infinite = Topology{
-        .mappings = &.{ .identity_infinite, }
+        .mappings = &.{
+            .identity_infinite,
+        },
     };
 
     /// Initializes a Topology from a `curve.Linear`. Will split the curve on
@@ -32,9 +34,7 @@ pub const Topology = struct {
         crv: curve.Linear,
     ) !Topology
     {
-        const mono_crvs = (
-            try crv.split_at_critical_points(allocator)
-        );
+        const mono_crvs = (try crv.split_at_critical_points(allocator));
         defer {
             for (mono_crvs)
                 |mc|
@@ -53,10 +53,10 @@ pub const Topology = struct {
             try result_mappings.append(
                 allocator,
                 (
-                 mapping.MappingCurveLinearMonotonic{
-                     .input_to_output_curve = try mc.clone(allocator),
-                 }
-                ).mapping()
+                    mapping.MappingCurveLinearMonotonic{
+                        .input_to_output_curve = try mc.clone(allocator),
+                    }
+                ).mapping(),
             );
         }
 
@@ -69,7 +69,8 @@ pub const Topology = struct {
 
     /// Initialize a Topology from a list of knots that form a linear curve.
     ///
-    /// Will turn the knots into a linear curve and split on critical points to
+    /// Will turn the knots into a linear curve and split on critical points
+    /// to
     /// form mappings.
     ///
     /// Caller owns the returned memory.
@@ -95,9 +96,7 @@ pub const Topology = struct {
         const lin = try crv.linearized(allocator);
         defer lin.deinit(allocator);
 
-        const lin_split = try lin.split_at_critical_points(
-            allocator
-        );
+        const lin_split = try lin.split_at_critical_points(allocator);
         // Free the outer slice, not the inner mappings.
         defer allocator.free(lin_split);
 
@@ -110,16 +109,19 @@ pub const Topology = struct {
             |mono_lin, *dst_mapping|
         {
             dst_mapping.* = (
-                mapping.MappingCurveLinearMonotonic {
+                mapping.MappingCurveLinearMonotonic{
                     .input_to_output_curve = mono_lin,
                 }
             ).mapping();
         }
 
-        return .{ .mappings = new_mappings, };
+        return .{
+            .mappings = new_mappings,
+        };
     }
 
-    /// initialize an affine with a single affine transformation in its mapping
+    /// initialize an affine with a single affine transformation in its
+    /// mapping
     /// slice.  Requires an allocator because still requires that the mapping
     /// slice be allocated.
     pub fn init_affine(
@@ -128,10 +130,7 @@ pub const Topology = struct {
     ) !Topology
     {
         return Topology{
-            .mappings = try allocator.dupe(
-                mapping.Mapping,
-                &.{ aff.mapping() }
-            ),
+            .mappings = try allocator.dupe(mapping.Mapping, &.{aff.mapping()}),
         };
     }
 
@@ -147,13 +146,13 @@ pub const Topology = struct {
                 mapping.Mapping,
                 &.{
                     (
-                     mapping.MappingAffine{
-                         .input_bounds_val = range,
-                         .input_to_output_xform = .identity,
-                     }
+                        mapping.MappingAffine{
+                            .input_bounds_val = range,
+                            .input_to_output_xform = .identity,
+                        }
                     ).mapping(),
                 },
-            )
+            ),
         };
     }
 
@@ -161,12 +160,9 @@ pub const Topology = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
-        try writer.print(
-            "Topology{{ mappings ({d}): [",
-            .{self.mappings.len}
-        );
+        try writer.print("Topology{{ mappings ({d}): [", .{self.mappings.len});
 
         for (self.mappings, 0..)
             |m, ind|
@@ -184,13 +180,15 @@ pub const Topology = struct {
             );
         }
 
-        if (self.mappings.len > 0) {
+        if (self.mappings.len > 0)
+        {
             try writer.print(
                 "] -> output space: {?f} }}",
-                .{ self.output_bounds() }
+                .{self.output_bounds()},
             );
         }
-        else {
+        else
+        {
             try writer.print("] -> output space: (null) }}", .{});
         }
     }
@@ -202,7 +200,7 @@ pub const Topology = struct {
     {
         const dst_mappigns = try allocator.alloc(
             mapping.Mapping,
-            self.mappings.len
+            self.mappings.len,
         );
 
         for (self.mappings, dst_mappigns)
@@ -226,7 +224,7 @@ pub const Topology = struct {
         {
             m.deinit(allocator);
         }
-        if (self.mappings.len > 0) 
+        if (self.mappings.len > 0)
         {
             allocator.free(self.mappings);
         }
@@ -242,14 +240,11 @@ pub const Topology = struct {
         }
 
         return .{
-            .start = (
-                self.mappings[0].input_bounds() 
-                orelse return null
-            ).start,
+            .start = (self.mappings[0].input_bounds() orelse return null).start,
             .end = (
                 (
-                 self.mappings[self.mappings.len - 1].input_bounds() 
-                 orelse return null
+                    self.mappings[self.mappings.len - 1].input_bounds()
+                    orelse return null
                 ).end
             ),
         };
@@ -260,11 +255,12 @@ pub const Topology = struct {
         self: @This(),
     ) ?opentime.ContinuousInterval
     {
-        if (self.mappings.len == 0) {
+        if (self.mappings.len == 0)
+        {
             return null;
         }
 
-        var maybe_bounds:?opentime.ContinuousInterval = null;
+        var maybe_bounds: ?opentime.ContinuousInterval = null;
 
         for (self.mappings)
             |m|
@@ -277,14 +273,14 @@ pub const Topology = struct {
                     {
                         maybe_bounds = opentime.interval.extend(
                             b,
-                            m.output_bounds()
-                            orelse return null,
+                            m.output_bounds() orelse return null,
                         );
                     }
-                    else {
+                    else
+                    {
                         maybe_bounds = m.output_bounds() orelse return null;
                     }
-                }
+                },
             }
         }
 
@@ -310,8 +306,8 @@ pub const Topology = struct {
 
         result.appendAssumeCapacity(
             (
-             self.mappings[0].input_bounds()
-             orelse return error.InvalidMapping
+                self.mappings[0].input_bounds()
+                orelse return error.InvalidMapping
             ).start,
         );
 
@@ -319,7 +315,8 @@ pub const Topology = struct {
             |m|
         {
             const m_input_bounds = (
-                m.input_bounds() orelse return error.InvalidMapping
+                m.input_bounds()
+                orelse return error.InvalidMapping
             );
             result.appendAssumeCapacity(m_input_bounds.end);
         }
@@ -333,10 +330,7 @@ pub const Topology = struct {
         new_input_bounds: opentime.ContinuousInterval,
     ) !Topology
     {
-        const ib = (
-            self.input_bounds()
-            orelse return .empty
-        );
+        const ib = (self.input_bounds() orelse return .empty);
 
         var new_bounds = opentime.interval.intersect(
             new_input_bounds,
@@ -346,7 +340,7 @@ pub const Topology = struct {
         if (
             new_bounds.start.lteq(ib.start)
             and new_bounds.end.gteq(ib.end)
-        ) 
+        )
         {
             return self.clone(allocator);
         }
@@ -369,12 +363,8 @@ pub const Topology = struct {
         const n_pts = end_points.len;
 
         // find the segments that need to be trimmed
-        for (
-            end_points[0..n_pts-1],
-            end_points[1..],
-            0..n_pts-1,
-        )
-            |left_pt, right_pt, left_ind |
+        for (end_points[0..n_pts - 1], end_points[1..], 0..n_pts - 1)
+            |left_pt, right_pt, left_ind|
         {
             if (
                 left_pt.lt(new_bounds.start)
@@ -395,8 +385,8 @@ pub const Topology = struct {
 
         // trim the same mapping, toss the rest
         if (
-            maybe_left_map_ind != null 
-            and maybe_right_map_ind != null 
+            maybe_left_map_ind != null
+            and maybe_right_map_ind != null
             and maybe_left_map_ind.? == maybe_right_map_ind.?
         )
         {
@@ -423,7 +413,7 @@ pub const Topology = struct {
             return .{
                 .mappings = try allocator.dupe(
                     mapping.Mapping,
-                    &.{ right_splits[0] }
+                    &.{right_splits[0]},
                 ),
             };
         }
@@ -433,8 +423,8 @@ pub const Topology = struct {
         var trimmed_mappings: std.ArrayList(mapping.Mapping) = .empty;
         defer trimmed_mappings.deinit(allocator);
 
-        var middle_start:usize = 0;
-        var middle_end:usize = self.mappings.len;
+        var middle_start: usize = 0;
+        var middle_end: usize = self.mappings.len;
 
         if (maybe_left_map_ind)
             |left_ind|
@@ -471,29 +461,27 @@ pub const Topology = struct {
             );
         }
 
-         if (maybe_right_map_ind)
-             |right_ind|
-         {
-             const split_mapping_right = (
-                 try self.mappings[right_ind].split_at_input_ord(
-                     allocator,
-                     new_bounds.end,
-                 )
-             );
-             try trimmed_mappings.append(
-                 allocator,
-                 split_mapping_right[0],
-             );
-             defer {
-                 split_mapping_right[1].deinit(allocator);
-             }
-         }
+        if (maybe_right_map_ind)
+            |right_ind|
+        {
+            const split_mapping_right = (
+                try self.mappings[right_ind].split_at_input_ord(
+                    allocator,
+                    new_bounds.end,
+                )
+            );
+            try trimmed_mappings.append(
+                allocator,
+                split_mapping_right[0],
+            );
+            defer {
+                split_mapping_right[1].deinit(allocator);
+            }
+        }
 
-         return .{
-             .mappings = (
-                 try trimmed_mappings.toOwnedSlice(allocator)
-             ),
-         };
+        return .{
+            .mappings = (try trimmed_mappings.toOwnedSlice(allocator)),
+        };
     }
 
     /// trims the mappings, inserting empty mappings where child mappings have
@@ -511,14 +499,12 @@ pub const Topology = struct {
             self.mappings.len * 3,
         );
 
-        const ob = (
-            self.output_bounds()
-            orelse return .empty
-        );
+        const ob = (self.output_bounds() orelse return .empty);
         if (
             target_output_range.start.lteq(ob.start)
             and target_output_range.end.gteq(ob.end)
-        ) {
+        )
+        {
             return try self.clone(allocator);
         }
 
@@ -526,12 +512,12 @@ pub const Topology = struct {
             |m, m_ind|
         {
             const m_in_range = (
-                m.input_bounds() 
+                m.input_bounds()
                 orelse return error.InvalidMapping
             );
             const m_out_range = (
-                 m.output_bounds() 
-                 orelse return error.InvalidMapping
+                m.output_bounds()
+                orelse return error.InvalidMapping
             );
 
             const maybe_overlap = (
@@ -561,32 +547,28 @@ pub const Topology = struct {
                 defer shrunk_m.deinit(allocator);
 
                 // mapping should be correct, bounds should exist
-                const shrunk_input_bounds = (
-                    shrunk_m.input_bounds().?
-                );
+                const shrunk_input_bounds = (shrunk_m.input_bounds().?);
 
                 if (
                     shrunk_input_bounds.start.gt(m_in_range.start)
                     and m_ind > 0
-
-                ) 
+                )
                 {
+
                     // empty left
                     new_mappings.appendAssumeCapacity(
                         (
-                         mapping.MappingEmpty{
-                             .defined_range = .{
-                                 .start = m_in_range.start,
-                                 .end = shrunk_input_bounds.start,
-                             },
-                         }
+                            mapping.MappingEmpty{
+                                .defined_range = .{
+                                    .start = m_in_range.start,
+                                    .end = shrunk_input_bounds.start,
+                                },
+                            }
                         ).mapping(),
                     );
                 }
 
-                if (
-                    shrunk_input_bounds.start.lt(shrunk_input_bounds.end)
-                )
+                if (shrunk_input_bounds.start.lt(shrunk_input_bounds.end))
                 {
                     // trimmed mapping
                     new_mappings.appendAssumeCapacity(
@@ -596,39 +578,37 @@ pub const Topology = struct {
 
                 if (
                     shrunk_input_bounds.end.lt(m_in_range.end)
-                    and m_ind < self.mappings.len-1
+                    and (m_ind < self.mappings.len - 1)
                 )
                 {
                     // empty right
                     new_mappings.appendAssumeCapacity(
                         (
-                         mapping.MappingEmpty{
-                             .defined_range = .{
-                                 .start = shrunk_input_bounds.end,
-                                 .end = m_in_range.end,
-                             },
-                         }
-                        ).mapping()
+                            mapping.MappingEmpty{
+                                .defined_range = .{
+                                    .start = shrunk_input_bounds.end,
+                                    .end = m_in_range.end,
+                                },
+                            }
+                        ).mapping(),
                     );
                 }
             }
-            else 
+            else
             {
                 // no intersection
                 new_mappings.appendAssumeCapacity(
                     (
-                     mapping.MappingEmpty{
-                         .defined_range = m_in_range,
-                     }
+                        mapping.MappingEmpty{
+                            .defined_range = m_in_range,
+                        }
                     ).mapping(),
                 );
             }
         }
 
         return .{
-            .mappings = (
-                try new_mappings.toOwnedSlice(allocator)
-            ),
+            .mappings = (try new_mappings.toOwnedSlice(allocator)),
         };
     }
 
@@ -641,16 +621,13 @@ pub const Topology = struct {
         input_points: []const opentime.Ordinate,
     ) !Topology
     {
-        const ib = (
-            self.input_bounds()
-            orelse return .empty
-        );
+        const ib = (self.input_bounds() orelse return .empty);
 
         if (
             input_points.len == 0
             or (input_points[0].gteq(ib.end))
-            or (input_points[input_points.len-1].lteq(ib.start))
-        ) 
+            or (input_points[input_points.len - 1].lteq(ib.start))
+        )
         {
             return self.clone(allocator);
         }
@@ -676,14 +653,12 @@ pub const Topology = struct {
         }
 
         const result = Topology{
-            .mappings = (
-                try result_mappings.toOwnedSlice(allocator)
-            ),
+            .mappings = (try result_mappings.toOwnedSlice(allocator)),
         };
 
         return result;
     }
-    
+
     /// return a unique list of points in the output space, ascending sort
     pub fn end_points_output(
         self: @This(),
@@ -696,7 +671,7 @@ pub const Topology = struct {
             std.HashMap(
                 opentime.Ordinate,
                 void,
-                struct{
+                struct {
                     pub fn hash(
                         _: @This(),
                         key: opentime.Ordinate,
@@ -717,23 +692,20 @@ pub const Topology = struct {
                 std.hash_map.default_max_load_percentage,
             ).init(allocator)
         );
-        try set.ensureTotalCapacity(@intCast(self.mappings.len*2));
+        try set.ensureTotalCapacity(@intCast(self.mappings.len * 2));
         defer set.deinit();
 
         for (self.mappings)
             |m|
         {
-            const b = (
-                m.output_bounds() 
-                orelse return error.InvalidMapping
-            );
+            const b = (m.output_bounds() orelse return error.InvalidMapping);
 
             for (&[_]opentime.Ordinate{ b.start, b.end })
                 |new_point|
             {
-                if (set.contains(new_point)) 
+                if (set.contains(new_point))
                 {
-                    try result.append(allocator,new_point);
+                    try result.append(allocator, new_point);
                     try set.put(new_point, {});
                 }
             }
@@ -743,7 +715,7 @@ pub const Topology = struct {
             opentime.Ordinate,
             result.items,
             {},
-            opentime.sort.asc(opentime.Ordinate)
+            opentime.sort.asc(opentime.Ordinate),
         );
 
         return try result.toOwnedSlice(allocator);
@@ -757,7 +729,8 @@ pub const Topology = struct {
         output_points: []const opentime.Ordinate,
     ) !Topology
     {
-        if (output_points.len == 0) {
+        if (output_points.len == 0)
+        {
             return self.clone(allocator);
         }
 
@@ -770,7 +743,7 @@ pub const Topology = struct {
         var input_points_in_bounds: std.ArrayList(opentime.Ordinate) = .empty;
         try input_points_in_bounds.ensureTotalCapacity(
             allocator,
-            output_points.len
+            output_points.len,
         );
         defer input_points_in_bounds.deinit(allocator);
 
@@ -778,11 +751,11 @@ pub const Topology = struct {
             |m|
         {
             const m_bounds_in = (
-                m.input_bounds() 
+                m.input_bounds()
                 orelse return error.InvalidMapping
             );
             const m_bounds_out = (
-                m.output_bounds() 
+                m.output_bounds()
                 orelse return error.InvalidMapping
             );
 
@@ -806,13 +779,11 @@ pub const Topology = struct {
                         )
                         {
                             const in_pt = (
-                                try m.project_instantaneous_cc_inv(
-                                    out_pt
-                                ).ordinate()
+                                try m.project_instantaneous_cc_inv(out_pt).ordinate()
                             );
 
                             if (
-                                in_pt.gt(m_bounds_in.start) 
+                                in_pt.gt(m_bounds_in.start)
                                 and in_pt.lt(m_bounds_in.end)
                             )
                             {
@@ -857,26 +828,24 @@ pub const Topology = struct {
 
                         try result_mappings.append(
                             allocator,
-                            try new_mappings[0].clone(allocator)
+                            try new_mappings[0].clone(allocator),
                         );
-                        
+
                         m_clone.deinit(allocator);
                         m_clone = try new_mappings[1].clone(allocator);
                     }
 
-                    try result_mappings.append(allocator,m_clone);
+                    try result_mappings.append(allocator, m_clone);
                     try result_endpoints.appendSlice(
                         allocator,
-                        input_points_in_bounds.items
+                        input_points_in_bounds.items,
                     );
                 },
             }
         }
 
         return .{
-            .mappings = (
-                try result_mappings.toOwnedSlice(allocator)
-            ),
+            .mappings = (try result_mappings.toOwnedSlice(allocator)),
         };
     }
 
@@ -885,14 +854,12 @@ pub const Topology = struct {
         input_ord: opentime.Ordinate,
     ) opentime.ProjectionResult
     {
-        const ib = (
-            self.input_bounds()
-            orelse return .out_of_bounds
-        );
-        if (ib.is_instant()) 
+        const ib = (self.input_bounds() orelse return .out_of_bounds);
+        if (ib.is_instant())
         {
-            if (ib.start.eql(input_ord)) {
-                return .{ 
+            if (ib.start.eql(input_ord))
+            {
+                return .{
                     // already checked that input bounds are valid, so can
                     // access output bounds directly
                     .success_interval = self.output_bounds().?,
@@ -915,10 +882,9 @@ pub const Topology = struct {
             |m|
         {
             if (
-                (
-                 m.input_bounds() 
-                 orelse return .out_of_bounds
-                ).overlaps(input_ord)
+                (m.input_bounds() orelse return .out_of_bounds).overlaps(
+                    input_ord,
+                )
             )
             {
                 return m.project_instantaneous_cc_assume_in_bounds(input_ord);
@@ -929,12 +895,13 @@ pub const Topology = struct {
     }
 
     /// project the output space ordinate into the input space.  Because
-    /// monotonicity is only guaranteed in the forward direction, projects to a
+    /// monotonicity is only guaranteed in the forward direction, projects to
+    /// a
     /// slice.
     pub fn project_instantaneous_cc_inv(
         self: @This(),
         allocator: std.mem.Allocator,
-        output_ord: opentime.Ordinate
+        output_ord: opentime.Ordinate,
     ) ![]const opentime.Ordinate
     {
         var input_ordinates: std.ArrayList(opentime.Ordinate) = .empty;
@@ -955,7 +922,7 @@ pub const Topology = struct {
             {
                 try input_ordinates.append(
                     allocator,
-                    try m.project_instantaneous_cc_inv(output_ord).ordinate()
+                    try m.project_instantaneous_cc_inv(output_ord).ordinate(),
                 );
             }
         }
@@ -971,13 +938,14 @@ pub const Topology = struct {
         allocator: std.mem.Allocator,
     ) ![]const Topology
     {
-        if (self.mappings.len == 0) {
-            return try allocator.dupe(Topology, &.{ .empty });
+        if (self.mappings.len == 0)
+        {
+            return try allocator.dupe(Topology, &.{.empty});
         }
 
         var result: std.ArrayList(Topology) = .empty;
 
-        var current_mappings:std.ArrayList(mapping.Mapping) = .empty;
+        var current_mappings: std.ArrayList(mapping.Mapping) = .empty;
         defer current_mappings.deinit(allocator);
 
         var maybe_input_range: ?opentime.ContinuousInterval = null;
@@ -995,8 +963,8 @@ pub const Topology = struct {
                     opentime.interval.intersect(
                         current_range,
                         (
-                              m_inverted.input_bounds() 
-                              orelse return error.InvalidMapping
+                            m_inverted.input_bounds()
+                            orelse return error.InvalidMapping
                         ),
                     ) != null
                     and current_mappings.items.len > 0
@@ -1011,21 +979,22 @@ pub const Topology = struct {
                         },
                     );
                 }
-                else 
+                else
                 {
                     // continue the current topology
                     maybe_input_range = opentime.interval.extend(
                         current_range,
                         (
-                         m_inverted.input_bounds()
-                         orelse return error.InvalidMapping
+                            m_inverted.input_bounds()
+                            orelse return error.InvalidMapping
                         ),
                     );
-                    try current_mappings.append(allocator,m_inverted);
+                    try current_mappings.append(allocator, m_inverted);
                 }
             }
-            else {
-                try current_mappings.append(allocator,m_inverted);
+            else
+            {
+                try current_mappings.append(allocator, m_inverted);
                 maybe_input_range = m_inverted.input_bounds();
             }
         }
@@ -1033,9 +1002,7 @@ pub const Topology = struct {
         try result.append(
             allocator,
             .{
-                .mappings = (
-                    try current_mappings.toOwnedSlice(allocator)
-                ),
+                .mappings = (try current_mappings.toOwnedSlice(allocator)),
             },
         );
 
@@ -1047,10 +1014,10 @@ test "Topology.split_at_input_points"
 {
     const m_split = try MIDDLE.AFF_TOPO.split_at_input_points(
         std.testing.allocator,
-        &.{ 
-            opentime.Ordinate.init(0), 
-            opentime.Ordinate.init(2), 
-            opentime.Ordinate.init(3), 
+        &.{
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(2),
+            opentime.Ordinate.init(3),
             opentime.Ordinate.init(15),
         },
     );
@@ -1064,10 +1031,10 @@ test "Topology trim_in_input_space"
     const allocator = std.testing.allocator;
 
     const TopoTypes = struct {
-        name : []const u8,
+        name: []const u8,
         topo: Topology,
     };
-    const topos= [_]TopoTypes{
+    const topos = [_]TopoTypes{
         .{
             .name = "linear",
             .topo = MIDDLE.LIN_TOPO,
@@ -1139,9 +1106,10 @@ test "Topology trim_in_input_space"
     for (topos)
         |tp|
     {
-        errdefer opentime.dbg_print(@src(), 
+        errdefer opentime.dbg_print(
+            @src(),
             "over topology: {s}",
-            .{ tp.name },
+            .{tp.name},
         );
 
         for (tests)
@@ -1154,35 +1122,27 @@ test "Topology trim_in_input_space"
             );
             defer tm.deinit(allocator);
 
-            errdefer opentime.dbg_print(@src(), 
+            errdefer opentime.dbg_print(
+                @src(),
                 "error with test name: {s}",
-                .{ t.name },
+                .{t.name},
             );
 
             try opentime.expectOrdinateEqual(
                 t.expected.start,
-                (
-                          tm.input_bounds() 
-                          orelse return error.InvalidBounds
-                ).start,
+                (tm.input_bounds() orelse return error.InvalidBounds).start,
             );
             try opentime.expectOrdinateEqual(
                 t.expected.end,
-                (
-                  tm.input_bounds() 
-                  orelse return error.InvalidBounds
-                ).end,
+                (tm.input_bounds() orelse return error.InvalidBounds).end,
             );
 
             try opentime.expectOrdinateEqual(
                 (
-                      tm.mappings[0].input_bounds()
-                      orelse return error.InvalidBounds
-                ).duration(), 
-                (
-                 tm.input_bounds() 
-                 orelse return error.InvalidBounds
+                    tm.mappings[0].input_bounds()
+                    orelse return error.InvalidBounds
                 ).duration(),
+                (tm.input_bounds() orelse return error.InvalidBounds).duration(),
             );
 
             try std.testing.expectEqual(
@@ -1195,7 +1155,10 @@ test "Topology trim_in_input_space"
         const tm = try tp.topo.trim_in_input_space(
             allocator,
             opentime.ContinuousInterval.init(
-                .{ .start = 11, .end = 13, },
+                .{
+                    .start = 11,
+                    .end = 13,
+                },
             ),
         );
         defer tm.deinit(allocator);
@@ -1211,7 +1174,7 @@ test "Topology trim_in_input_space"
 /// build a topological mapping from a to c
 pub fn join(
     parent_allocator: std.mem.Allocator,
-    topologies: struct{
+    topologies: struct {
         a2b: Topology, // split on output
         b2c: Topology, // split in input
     },
@@ -1225,22 +1188,19 @@ pub fn join(
     const a2b = topologies.a2b;
     const b2c = topologies.b2c;
 
-    const a2b_output_bounds = (
-        a2b.output_bounds() 
-        orelse return .empty
-    );
+    const a2b_output_bounds = (a2b.output_bounds() orelse return .empty);
 
     if (a2b_output_bounds.is_instant())
     {
         // compute the projected flat value
         const maybe_output_value = (
-            b2c.project_instantaneous_cc(
-                a2b_output_bounds.start
-            )
+            b2c.project_instantaneous_cc(a2b_output_bounds.start)
         );
 
         const output_value = switch (maybe_output_value) {
-            .out_of_bounds,  => { return .empty; },
+            .out_of_bounds => {
+                return .empty;
+            },
             .success_interval => unreachable,
             .success_ordinate => |val| val,
         };
@@ -1251,20 +1211,20 @@ pub fn join(
             Topology{
                 .mappings = &.{
                     (
-                     mapping.MappingCurveLinearMonotonic{
-                         .input_to_output_curve = .{
-                             .knots = &.{
-                                 .{
-                                     .in = input_range.start,
-                                     .out = output_value,
-                                 },
-                                 .{
-                                     .in = input_range.end,
-                                     .out = output_value,
-                                 },
-                             },
-                         },
-                     }
+                        mapping.MappingCurveLinearMonotonic{
+                            .input_to_output_curve = .{
+                                .knots = &.{
+                                    .{
+                                        .in = input_range.start,
+                                        .out = output_value,
+                                    },
+                                    .{
+                                        .in = input_range.end,
+                                        .out = output_value,
+                                    },
+                                },
+                            },
+                        }
                     ).mapping(),
                 },
             }
@@ -1275,7 +1235,6 @@ pub fn join(
     const b_range = opentime.interval.intersect(
         a2b_output_bounds,
         b2c.input_bounds() orelse return .empty,
-        // or return an empty topology
     ) orelse return .empty;
 
     const a2b_trimmed_in_b = try a2b.trim_in_output_space(
@@ -1297,10 +1256,8 @@ pub fn join(
             b2c_split_pts_b,
         )
     );
-    const a2b_split_endpoints_b = try a2b_split.end_points_output(
-        allocator
-    );
-    
+    const a2b_split_endpoints_b = try a2b_split.end_points_output(allocator);
+
     std.mem.sort(
         opentime.Ordinate,
         a2b_split_endpoints_b,
@@ -1348,11 +1305,11 @@ pub fn join(
                     and b2c_m_ib.start.lteq(a2b_m_ob.start)
                     and b2c_m_ib.end.gteq(a2b_m_ob.end)
                 )
-            ) 
+            )
             {
                 const a2c_m = try mapping.join(
                     parent_allocator,
-                    .{ 
+                    .{
                         .a2b = a2b_m,
                         .b2c = b2c_m,
                     },
@@ -1364,7 +1321,7 @@ pub fn join(
         }
     }
 
-    const result= Topology{
+    const result = Topology{
         .mappings = try a2c_mappings.toOwnedSlice(
             parent_allocator,
         ),
@@ -1372,7 +1329,7 @@ pub fn join(
     return result;
 }
 
-const TestToposFromSlides = struct{
+const TestToposFromSlides = struct {
     a2b: Topology,
     b2c: Topology,
 
@@ -1402,7 +1359,7 @@ fn build_test_topo_from_slides(
                         .p3 = .init(.{ .in = 5, .out = 1 }),
                     },
                 },
-            }
+            },
         )
     );
 
@@ -1411,10 +1368,21 @@ fn build_test_topo_from_slides(
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = .{
                 .knots = &.{
-                    .init(.{ .in = 0, .out = 0, }),
-                    .init(.{ .in = 2, .out = 4, }),
+                    .init(
+                        .{
+                            .in = 0,
+                            .out = 0,
+                        },
+                    ),
+                    .init(
+                        .{
+                            .in = 2,
+                            .out = 4,
+                        },
+                    ),
                 },
-            }
+            },
+
         }
     ).mapping();
 
@@ -1422,10 +1390,21 @@ fn build_test_topo_from_slides(
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = .{
                 .knots = &.{
-                    .init(.{ .in = 2, .out = 2, }),
-                    .init(.{ .in = 4, .out = 2, }),
+                    .init(
+                        .{
+                            .in = 2,
+                            .out = 2,
+                        },
+                    ),
+                    .init(
+                        .{
+                            .in = 4,
+                            .out = 2,
+                        },
+                    ),
                 },
-            }
+            },
+
         }
     ).mapping();
 
@@ -1433,10 +1412,21 @@ fn build_test_topo_from_slides(
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = .{
                 .knots = &.{
-                    .init(.{ .in = 4, .out = 2, }),
-                    .init(.{ .in = 6, .out = 0, }),
+                    .init(
+                        .{
+                            .in = 4,
+                            .out = 2,
+                        },
+                    ),
+                    .init(
+                        .{
+                            .in = 6,
+                            .out = 0,
+                        },
+                    ),
                 },
-            }
+            },
+
         }
     ).mapping();
 
@@ -1445,7 +1435,7 @@ fn build_test_topo_from_slides(
             .mappings = &.{
                 m_b2c_left,
                 m_b2c_middle,
-                m_b2c_right, 
+                m_b2c_right,
             },
         }
     ).clone(allocator);
@@ -1456,13 +1446,11 @@ fn build_test_topo_from_slides(
     };
 }
 
-test "Topology: join (slides)" 
+test "Topology: join (slides)"
 {
     const allocator = std.testing.allocator;
 
-    const slides_test_data = (
-        try build_test_topo_from_slides(allocator)
-    );
+    const slides_test_data = (try build_test_topo_from_slides(allocator));
     defer slides_test_data.deinit(allocator);
 
     const a2c = try join(
@@ -1478,10 +1466,8 @@ test "Topology: join (slides)"
     defer allocator.free(ep);
 
     try std.testing.expect(ep.len > 0);
-    
-    const a2c_ib = (
-        a2c.input_bounds() orelse return error.InvalidBounds
-    );
+
+    const a2c_ib = (a2c.input_bounds() orelse return error.InvalidBounds);
     try opentime.expectOrdinateEqual(
         1,
         a2c_ib.start,
@@ -1491,10 +1477,7 @@ test "Topology: join (slides)"
         a2c_ib.end,
     );
 
-    const a2c_ob = (
-        a2c.output_bounds()
-        orelse return error.InvalidBounds
-    );
+    const a2c_ob = (a2c.output_bounds() orelse return error.InvalidBounds);
     try opentime.expectOrdinateEqual(
         // 0.123208,
         0,
@@ -1510,27 +1493,24 @@ test "Topology: LEFT/RIGHT -> EMPTY"
 {
     const allocator = std.testing.allocator;
 
-    const tm_left = Topology {
-        .mappings = &.{ mapping.LEFT.AFF.mapping()},
+    const tm_left = Topology{
+        .mappings = &.{mapping.LEFT.AFF.mapping()},
     };
 
-    const tm_right = Topology {
-        .mappings = &.{ mapping.RIGHT.AFF.mapping()},
+    const tm_right = Topology{
+        .mappings = &.{mapping.RIGHT.AFF.mapping()},
     };
 
     const should_be_empty = try join(
         allocator,
         .{
-            .a2b =  tm_left,
+            .a2b = tm_left,
             .b2c = tm_right,
-        }
+        },
     );
     defer should_be_empty.deinit(allocator);
 
-    try std.testing.expectEqual(
-        0,
-        should_be_empty.mappings.len
-    );
+    try std.testing.expectEqual(0, should_be_empty.mappings.len);
 }
 
 /// stitch topology test structures onto mapping ones
@@ -1541,52 +1521,52 @@ fn test_structs(
     return struct {
         const MAPPINGS = mapping.test_structs(int_in);
 
-        pub const AFF_TOPO = Topology {
-            .mappings = &.{ MAPPINGS.AFF.mapping() },
+        pub const AFF_TOPO = Topology{
+            .mappings = &.{MAPPINGS.AFF.mapping()},
         };
-        pub const LIN_TOPO = Topology {
-            .mappings = &.{ MAPPINGS.LIN.mapping() },
+        pub const LIN_TOPO = Topology{
+            .mappings = &.{MAPPINGS.LIN.mapping()},
         };
-        pub const LIN_V_TOPO = Topology {
+        pub const LIN_V_TOPO = Topology{
             .mappings = &.{
                 (
-                 mapping.MappingCurveLinearMonotonic{
-                     .input_to_output_curve = .{
-                         .knots = &.{
-                             MAPPINGS.START_PT,
-                             .{
-                                 .in = MAPPINGS.CENTER_PT.in,
-                                 .out = MAPPINGS.END_PT.out,
-                             },
-                         },
-                     },
-                 }
+                    mapping.MappingCurveLinearMonotonic{
+                        .input_to_output_curve = .{
+                            .knots = &.{
+                                MAPPINGS.START_PT,
+                                .{
+                                    .in = MAPPINGS.CENTER_PT.in,
+                                    .out = MAPPINGS.END_PT.out,
+                                },
+                            },
+                        },
+                    }
                 ).mapping(),
                 (
-                 mapping.MappingCurveLinearMonotonic{
-                     .input_to_output_curve = .{
-                         .knots = (
-                             &.{
-                                 .{
-                                     .in = MAPPINGS.CENTER_PT.in,
-                                     .out = MAPPINGS.END_PT.out,
-                                 },
-                                 .{
-                                     .in = MAPPINGS.END_PT.in,
-                                     .out = MAPPINGS.START_PT.in,  
-                                 },
-                             }
-                         ),
-                     },
-                 }
-                ).mapping()
+                    mapping.MappingCurveLinearMonotonic{
+                        .input_to_output_curve = .{
+                            .knots = (
+                                &.{
+                                    .{
+                                        .in = MAPPINGS.CENTER_PT.in,
+                                        .out = MAPPINGS.END_PT.out,
+                                    },
+                                    .{
+                                        .in = MAPPINGS.END_PT.in,
+                                        .out = MAPPINGS.START_PT.in,
+                                    },
+                                }
+                            ),
+                        },
+                    }
+                ).mapping(),
             },
         };
-        pub const BEZ_TOPO = Topology {
-            .mappings = &.{ MAPPINGS.BEZ.mapping() },
+        pub const BEZ_TOPO = Topology{
+            .mappings = &.{MAPPINGS.BEZ.mapping()},
         };
-        pub const BEZ_U_TOPO = Topology {
-            .mappings = &.{ MAPPINGS.BEZ_U.mapping() },
+        pub const BEZ_U_TOPO = Topology{
+            .mappings = &.{MAPPINGS.BEZ_U.mapping()},
         };
     };
 }
@@ -1601,8 +1581,9 @@ const MIDDLE = test_structs(
     .{
         .start = 0,
         .end = 10,
-    }
+    },
 );
+
 // const RIGHT = test_structs(
 //     .{
 //         .start = 8,
@@ -1622,10 +1603,7 @@ test "Topology: trim_in_output_space"
     const tests = [_]TestCase{
         .{
             .name = "no trim",
-            .target = .{
-                .start = -1,
-                .end = 41 
-            },
+            .target = .{ .start = -1, .end = 41 },
             .expected = .{
                 .start = 0,
                 .end = 40,
@@ -1633,10 +1611,7 @@ test "Topology: trim_in_output_space"
         },
         .{
             .name = "left trim",
-            .target = .{
-                .start = 3,
-                .end = 41 
-            },
+            .target = .{ .start = 3, .end = 41 },
             .expected = .{
                 .start = 3,
                 .end = 40,
@@ -1644,10 +1619,7 @@ test "Topology: trim_in_output_space"
         },
         .{
             .name = "right trim",
-            .target = .{
-                .start = -1,
-                .end = 7 
-            },
+            .target = .{ .start = -1, .end = 7 },
             .expected = .{
                 .start = 0,
                 .end = 7,
@@ -1655,29 +1627,20 @@ test "Topology: trim_in_output_space"
         },
         .{
             .name = "both trim",
-            .target = .{
-                .start = 3,
-                .end = 7 
-            },
+            .target = .{ .start = 3, .end = 7 },
             .expected = .{
                 .start = 3,
                 .end = 7,
             },
         },
-        // all trimmed
     };
+    // all trimmed
 
     const INPUT_TOPO = MIDDLE.LIN_TOPO;
     try std.testing.expect(
-        (
-         INPUT_TOPO.output_bounds() 
-         orelse return error.ShouldHaveBounds
-        ).start.is_finite()
+        (INPUT_TOPO.output_bounds() orelse return error.ShouldHaveBounds).start.is_finite(),
     );
-    try std.testing.expect(
-        // already checked that output_bounds is not null
-        INPUT_TOPO.output_bounds().?.end.is_finite()
-    );
+    try std.testing.expect(INPUT_TOPO.output_bounds().?.end.is_finite());
 
     for (tests)
         |t|
@@ -1691,23 +1654,24 @@ test "Topology: trim_in_output_space"
         defer trimmed.deinit(allocator);
 
         errdefer {
-            opentime.dbg_print(@src(), 
+            opentime.dbg_print(
+                @src(),
                 (
-                      "error with test: {s}\n"
-                      ++ " input: {f} / output range: {f}\n"
-                      ++ " target range: {f}\n"
-                      ++ " trimmed: {f} / output range: {f}\n"
-                      ++ " expected: {f}"
+                    "error with test: {s}\n"
+                    ++ " input: {f} / output range: {f}\n"
+                    ++ " target range: {f}\n"
+                    ++ " trimmed: {f} / output range: {f}\n"
+                    ++ " expected: {f}"
                 ),
-               .{
-                   t.name,
-                   INPUT_TOPO,
-                   INPUT_TOPO.output_bounds(),
-                   opentime.ContinuousInterval.init(t.target),
-                   trimmed,
-                   trimmed.output_bounds(),
-                   opentime.ContinuousInterval.init(t.expected),
-               }
+                .{
+                    t.name,
+                    INPUT_TOPO,
+                    INPUT_TOPO.output_bounds(),
+                    opentime.ContinuousInterval.init(t.target),
+                    trimmed,
+                    trimmed.output_bounds(),
+                    opentime.ContinuousInterval.init(t.expected),
+                },
             );
         }
 
@@ -1732,20 +1696,40 @@ test "Topology: trim_in_output_space"
 
     const rising = (
         mapping.MappingCurveLinearMonotonic{
-            .input_to_output_curve = curve.Linear.Monotonic {
+            .input_to_output_curve = curve.Linear.Monotonic{
                 .knots = &.{
-                    curve.ControlPoint.init(.{ .in = 0, .out = 0, }),
-                    curve.ControlPoint.init(.{ .in =10, .out = 10, }),
+                    curve.ControlPoint.init(
+                        .{
+                            .in = 0,
+                            .out = 0,
+                        },
+                    ),
+                    curve.ControlPoint.init(
+                        .{
+                            .in = 10,
+                            .out = 10,
+                        },
+                    ),
                 },
             },
         }
     ).mapping();
     const falling = (
         mapping.MappingCurveLinearMonotonic{
-            .input_to_output_curve = curve.Linear.Monotonic {
+            .input_to_output_curve = curve.Linear.Monotonic{
                 .knots = &.{
-                    curve.ControlPoint.init(.{ .in =10, .out = 10, }),
-                    curve.ControlPoint.init(.{ .in = 20, .out = 0, }),
+                    curve.ControlPoint.init(
+                        .{
+                            .in = 10,
+                            .out = 10,
+                        },
+                    ),
+                    curve.ControlPoint.init(
+                        .{
+                            .in = 20,
+                            .out = 0,
+                        },
+                    ),
                 },
             },
         }
@@ -1758,7 +1742,10 @@ test "Topology: trim_in_output_space"
     const rf_topo_trimmed = try rf_topo.trim_in_output_space(
         allocator,
         opentime.ContinuousInterval.init(
-            .{ .start = 1, .end = 8, }
+            .{
+                .start = 1,
+                .end = 8,
+            },
         ),
     );
     defer rf_topo_trimmed.deinit(allocator);
@@ -1782,12 +1769,9 @@ test "Topology: trim_in_output_space"
 
 test "Topology: trim_in_output_space (slides)"
 {
-
     const allocator = std.testing.allocator;
 
-    const slides_test_data = (
-        try build_test_topo_from_slides(allocator)
-    );
+    const slides_test_data = (try build_test_topo_from_slides(allocator));
     defer slides_test_data.deinit(allocator);
     const a2b = slides_test_data.a2b;
     const b2c = slides_test_data.b2c;
@@ -1823,37 +1807,36 @@ test "Topology: trim_in_output_space (trim to multiple split bug)"
 {
     const allocator = std.testing.allocator;
 
-    const a2b = Topology {
+    const a2b = Topology{
         .mappings = &.{
             (
-             mapping.MappingCurveLinearMonotonic {
-                 .input_to_output_curve = .{
-                     .knots = &.{
-                         curve.ControlPoint.init(.{ .in = 0, .out = 0}),
-                         curve.ControlPoint.init(.{ .in = 2, .out = 2}),
-                     }
-                 }
-             }
-            ).mapping()
-        }
+                mapping.MappingCurveLinearMonotonic{
+                    .input_to_output_curve = .{
+                        .knots = &.{
+                            curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+                            curve.ControlPoint.init(.{ .in = 2, .out = 2 }),
+                        },
+
+                    },
+
+                }
+            ).mapping(),
+        },
     };
 
     const a2b_trimmed = try a2b.trim_in_output_space(
-        allocator, 
+        allocator,
         opentime.ContinuousInterval.init(.{ .start = 0.5, .end = 1 }),
     );
     defer a2b_trimmed.deinit(allocator);
 
-    try std.testing.expectEqual(
-        1,
-        a2b_trimmed.mappings.len
-    );
+    try std.testing.expectEqual(1, a2b_trimmed.mappings.len);
     try std.testing.expectEqual(
         .linear,
-        std.meta.activeTag(a2b_trimmed.mappings[0])
+        std.meta.activeTag(a2b_trimmed.mappings[0]),
     );
     const ib = (
-        a2b_trimmed.mappings[0].input_bounds() 
+        a2b_trimmed.mappings[0].input_bounds()
         orelse return error.InvalidBounds
     );
     try opentime.expectOrdinateEqual(
@@ -1869,10 +1852,10 @@ test "Topology: trim_in_output_space (trim to multiple split bug)"
 test "Topology: Bezier construction/leak"
 {
     const allocator = std.testing.allocator;
-    
+
     const tm_a2b = (
         try Topology.init_bezier(
-            allocator, 
+            allocator,
             .{
                 .segments = &.{
                     .{
@@ -1882,7 +1865,7 @@ test "Topology: Bezier construction/leak"
                         .p3 = .init(.{ .in = 5, .out = 1 }),
                     },
                 },
-            }
+            },
         )
     );
     defer tm_a2b.deinit(allocator);
@@ -1894,40 +1877,60 @@ test "Topology: split_at_output_points"
 
     const rising = (
         mapping.MappingCurveLinearMonotonic{
-            .input_to_output_curve = curve.Linear.Monotonic {
+            .input_to_output_curve = curve.Linear.Monotonic{
                 .knots = &.{
-                    .init(.{ .in = 0, .out = 0, }),
-                    .init(.{ .in =10, .out = 10, }),
+                    .init(
+                        .{
+                            .in = 0,
+                            .out = 0,
+                        },
+                    ),
+                    .init(
+                        .{
+                            .in = 10,
+                            .out = 10,
+                        },
+                    ),
                 },
             },
         }
     ).mapping();
     const falling = (
         mapping.MappingCurveLinearMonotonic{
-            .input_to_output_curve = curve.Linear.Monotonic {
+            .input_to_output_curve = curve.Linear.Monotonic{
                 .knots = &.{
-                    .init(.{ .in = 10, .out = 10, }),
-                    .init(.{ .in = 20, .out = 0, }),
+                    .init(
+                        .{
+                            .in = 10,
+                            .out = 10,
+                        },
+                    ),
+                    .init(
+                        .{
+                            .in = 20,
+                            .out = 0,
+                        },
+                    ),
                 },
             },
         }
     ).mapping();
 
-    const rf_topo = Topology {
-        .mappings = &.{ 
+    const rf_topo = Topology{
+        .mappings = &.{
             rising,
             falling,
-        }
+        },
     };
 
     const split_topo = try rf_topo.split_at_output_points(
         allocator,
-        &.{ 
-            .init(0), 
-            .init(3), 
-            .init(7), 
+        &.{
+            .init(0),
+            .init(3),
+            .init(7),
             .init(11),
-        }
+        },
     );
     defer split_topo.deinit(allocator);
 
@@ -1939,15 +1942,18 @@ test "Topology: output_bounds w/ empty"
     const tm = Topology{
         .mappings = &.{
             (
-             mapping.MappingEmpty{
-                 .defined_range = (
-                     opentime.ContinuousInterval.init(
-                         .{ .start = -2, .end = 0, }
-                     )
-                 ),
-             }
+                mapping.MappingEmpty{
+                    .defined_range = (
+                        opentime.ContinuousInterval.init(
+                            .{
+                                .start = -2,
+                                .end = 0,
+                            },
+                        )
+                    ),
+                }
             ).mapping(),
-            .{ .linear = MIDDLE.MAPPINGS.LIN},
+            .{ .linear = MIDDLE.MAPPINGS.LIN },
         },
     };
     const expected = MIDDLE.MAPPINGS.LIN.output_bounds().?;
@@ -1975,7 +1981,7 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
         out_of_bounds_pts: []const opentime.Ordinate,
     };
 
-    const tests = [_]TestFixture {
+    const tests = [_]TestFixture{
         .{
             .name = "v",
             .input_to_output_topo = MIDDLE.LIN_V_TOPO,
@@ -1988,15 +1994,15 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
                 curve.ControlPoint.init(.{ .in = 8, .out = 16 }),
             },
             .test_pts_inv = &.{
-                .{ 
-                    opentime.Ordinate.init(32), 
+                .{
+                    opentime.Ordinate.init(32),
                     opentime.Ordinate.init(4),
-                    opentime.Ordinate.init(6), 
+                    opentime.Ordinate.init(6),
                 },
-                .{ 
-                    opentime.Ordinate.init(16), 
-                    opentime.Ordinate.init(2), 
-                    opentime.Ordinate.init(8), 
+                .{
+                    opentime.Ordinate.init(16),
+                    opentime.Ordinate.init(2),
+                    opentime.Ordinate.init(8),
                 },
             },
             .out_of_bounds_pts = &.{
@@ -2009,20 +2015,22 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
     for (tests)
         |t|
     {
-        errdefer opentime.dbg_print(@src(), 
+        errdefer opentime.dbg_print(
+            @src(),
             "topo: {f}",
-            .{ t.input_to_output_topo }
+            .{t.input_to_output_topo},
         );
         for (t.test_pts_fwd)
             |pt|
         {
             errdefer {
-                opentime.dbg_print(@src(), 
+                opentime.dbg_print(
+                    @src(),
                     "error with test: {s} pt: {f}",
                     .{
                         t.name,
                         pt,
-                    }
+                    },
                 );
             }
 
@@ -2067,7 +2075,10 @@ test "Topology: init_affine"
         .{
             .input_bounds_val = (
                 opentime.ContinuousInterval.init(
-                    .{ .start = 0, .end = 10, }
+                    .{
+                        .start = 0,
+                        .end = 10,
+                    },
                 )
             ),
             .input_to_output_xform = .{
@@ -2080,9 +2091,7 @@ test "Topology: init_affine"
 
     try opentime.expectOrdinateEqual(
         20,
-        t_aff.project_instantaneous_cc(
-            opentime.Ordinate.init(4)
-        ).ordinate(),
+        t_aff.project_instantaneous_cc(opentime.Ordinate.init(4)).ordinate(),
     );
 }
 
@@ -2095,7 +2104,10 @@ test "Topology: join affine with ident"
         .{
             .input_bounds_val = (
                 opentime.ContinuousInterval.init(
-                    .{ .start = 0, .end = 8, }
+                    .{
+                        .start = 0,
+                        .end = 8,
+                    },
                 )
             ),
             .input_to_output_xform = .{
@@ -2122,9 +2134,9 @@ test "Topology: join affine with ident"
     );
     try opentime.expectOrdinateEqual(
         4,
-        try result.project_instantaneous_cc(
-            opentime.Ordinate.init(3)
-        ).ordinate(),
+        (
+            try result.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate()
+        ),
     );
 }
 
@@ -2138,7 +2150,12 @@ test "Topology output_bounds are sorted after negative scale"
             allocator,
             .{
                 .input_bounds_val = (
-                    .init( .{ .start = 0, .end = 8, })
+                    .init(
+                        .{
+                            .start = 0,
+                            .end = 8,
+                        },
+                    )
                 ),
                 .input_to_output_xform = .{
                     .offset = .zero,
@@ -2154,7 +2171,7 @@ test "Topology output_bounds are sorted after negative scale"
             opentime.ContinuousInterval{
                 .start = .init(-8),
                 .end = .zero,
-            }, 
+            },
             output_bounds,
         );
     }
@@ -2165,7 +2182,12 @@ test "Topology output_bounds are sorted after negative scale"
             allocator,
             .{
                 .input_bounds_val = (
-                    .init( .{ .start = 0, .end = 8, })
+                    .init(
+                        .{
+                            .start = 0,
+                            .end = 8,
+                        },
+                    )
                 ),
                 .input_to_output_xform = .{
                     .offset = .init(1),
@@ -2181,7 +2203,7 @@ test "Topology output_bounds are sorted after negative scale"
             opentime.ContinuousInterval{
                 .start = opentime.Ordinate.init(-7),
                 .end = .one,
-            }, 
+            },
             output_bounds,
         );
     }
@@ -2192,12 +2214,12 @@ test "Topology: init_bezier"
     const allocator = std.testing.allocator;
 
     const bez = curve.Bezier{
-        .segments = &.{ 
+        .segments = &.{
             .init_from_start_end(
                 .init(.{ .in = 0, .out = 0 }),
                 .init(.{ .in = 10, .out = 20 }),
             ),
-        }
+        },
     };
 
     const topo_bez = try Topology.init_bezier(

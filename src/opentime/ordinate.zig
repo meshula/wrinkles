@@ -14,11 +14,11 @@ fn OrdinateOf(
 {
     return struct {
         /// Value of the ordinate.
-        v : inner_type,
+        v: inner_type,
 
         /// Inner type of the ordinate.
         pub const InnerType = inner_type;
-        
+
         /// This Ordinate type.
         pub const OrdinateType = @This();
 
@@ -27,7 +27,7 @@ fn OrdinateOf(
         pub const inf = OrdinateType.init(std.math.inf(inner_type));
         pub const inf_neg = OrdinateType.init(-std.math.inf(inner_type));
         pub const nan = OrdinateType.init(std.math.nan(inner_type));
-        
+
         /// Epsilon for approximate comparisons.
         pub const epsilon = OrdinateType.init(util.EPSILON_F);
 
@@ -39,10 +39,12 @@ fn OrdinateOf(
             return switch (@typeInfo(@TypeOf(value))) {
                 .float, .comptime_float => .{ .v = @floatCast(value) },
                 .int, .comptime_int => .{ .v = @floatFromInt(value) },
-                else => @compileError(
-                    "Can only be constructed from a float or an int, not"
-                    ++ " a " ++ @typeName(@TypeOf(value))
-                ),
+                else =>
+                    @compileError(
+                        "Can only be constructed from a float or an int, not"
+                        ++ " a "
+                        ++ @typeName(@TypeOf(value)),
+                    ),
             };
         }
 
@@ -50,20 +52,19 @@ fn OrdinateOf(
         pub fn format(
             self: @This(),
             writer: *std.Io.Writer,
-        ) !void 
+        ) !void
         {
-            try writer.print( "Ord{{ {d} }}", .{ self.v });
+            try writer.print("Ord{{ {d} }}", .{self.v});
         }
 
         /// Number formatter function for `std.Io.Writer` {d}.
         pub fn formatNumber(
             self: @This(),
             writer: *std.Io.Writer,
-            // options
             _: std.fmt.Number,
         ) !void
         {
-            try writer.print("{d}", .{ self.v });
+            try writer.print("{d}", .{self.v});
         }
 
         /// Internal type error for type detection code
@@ -72,29 +73,32 @@ fn OrdinateOf(
         ) void
         {
             @compileError(
-                @typeName(@This()) ++ " can only do math over floats,"
-                ++ " ints and other " ++ @typeName(@This()) ++ ", not: " 
-                ++ @typeName(@TypeOf(thing))
+                @typeName(@This())
+                ++ " can only do math over floats,"
+                ++ " ints and other "
+                ++ @typeName(@This())
+                ++ ", not: "
+                ++ @typeName(@TypeOf(thing)),
             );
         }
 
         /// Unbox and cast to the target type.
-         pub inline fn as(
-             self: @This(),
-             comptime TargetType: type,
-         ) TargetType
-         {
-             return switch (@typeInfo(TargetType)) {
-                .float => (
-                    @floatCast(self.v) 
-                ),
+        pub inline fn as(
+            self: @This(),
+            comptime TargetType: type,
+        ) TargetType
+        {
+            return switch (@typeInfo(TargetType)) {
+                .float => (@floatCast(self.v)),
                 .int => @intFromFloat(self.v),
-                else => @compileError(
-                    "Ordinate can be retrieved as a float or int type,"
-                    ++ " not: " ++ @typeName(TargetType)
-                ),
-             };
-         }
+                else =>
+                    @compileError(
+                        "Ordinate can be retrieved as a float or int type,"
+                        ++ " not: "
+                        ++ @typeName(TargetType),
+                    ),
+            };
+        }
 
         // unary operators
 
@@ -104,7 +108,7 @@ fn OrdinateOf(
         ) OrdinateType
         {
             return .{
-                .v = - self.v,
+                .v = -self.v,
             };
         }
 
@@ -139,15 +143,23 @@ fn OrdinateOf(
         {
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = self.v + rhs.v },
-                else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .float, .comptime_float, => .{
-                        .v = self.v + @as(InnerType, @floatCast(rhs)),
+                else =>
+                    switch (@typeInfo(@TypeOf(rhs))) {
+                        .float,
+                        .comptime_float,
+                        => 
+                            .{
+                                .v = self.v + @as(InnerType, @floatCast(rhs)),
+                            },
+                        .int,
+                        .comptime_int,
+                        => 
+                            .{
+                                .v = self.v
+                                + @as(InnerType, @floatFromInt(rhs)),
+                            },
+                        else => type_error(rhs),
                     },
-                    .int, .comptime_int => .{ 
-                        .v = self.v + @as(InnerType, @floatFromInt(rhs)),
-                    },
-                    else => type_error(rhs),
-                },
             };
         }
 
@@ -160,15 +172,23 @@ fn OrdinateOf(
         {
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = self.v - rhs.v },
-                else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .float, .comptime_float, => .{
-                        .v = self.v - @as(InnerType, @floatCast(rhs)),
+                else =>
+                    switch (@typeInfo(@TypeOf(rhs))) {
+                        .float,
+                        .comptime_float,
+                        => 
+                            .{
+                                .v = self.v - @as(InnerType, @floatCast(rhs)),
+                            },
+                        .int,
+                        .comptime_int,
+                        => 
+                            .{
+                                .v = self.v
+                                - @as(InnerType, @floatFromInt(rhs)),
+                            },
+                        else => type_error(rhs),
                     },
-                    .int, .comptime_int => .{ 
-                        .v = self.v - @as(InnerType, @floatFromInt(rhs)),
-                    },
-                    else => type_error(rhs),
-                },
             };
         }
 
@@ -181,15 +201,23 @@ fn OrdinateOf(
         {
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = self.v * rhs.v },
-                else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .float, .comptime_float, => .{
-                        .v = self.v * @as(InnerType, @floatCast(rhs)),
+                else =>
+                    switch (@typeInfo(@TypeOf(rhs))) {
+                        .float,
+                        .comptime_float,
+                        => 
+                            .{
+                                .v = self.v * @as(InnerType, @floatCast(rhs)),
+                            },
+                        .int,
+                        .comptime_int,
+                        => 
+                            .{
+                                .v = self.v
+                                * @as(InnerType, @floatFromInt(rhs)),
+                            },
+                        else => type_error(rhs),
                     },
-                    .int, .comptime_int => .{ 
-                        .v = self.v * @as(InnerType, @floatFromInt(rhs)),
-                    },
-                    else => type_error(rhs),
-                },
             };
         }
 
@@ -202,15 +230,23 @@ fn OrdinateOf(
         {
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = self.v / rhs.v },
-                else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .float, .comptime_float, => .{
-                        .v = self.v / @as(InnerType, @floatCast(rhs)),
+                else =>
+                    switch (@typeInfo(@TypeOf(rhs))) {
+                        .float,
+                        .comptime_float,
+                        => 
+                            .{
+                                .v = self.v / @as(InnerType, @floatCast(rhs)),
+                            },
+                        .int,
+                        .comptime_int,
+                        => 
+                            .{
+                                .v = self.v
+                                / @as(InnerType, @floatFromInt(rhs)),
+                            },
+                        else => type_error(rhs),
                     },
-                    .int, .comptime_int => .{ 
-                        .v = self.v / @as(InnerType, @floatFromInt(rhs)),
-                    },
-                    else => type_error(rhs),
-                },
             };
         }
 
@@ -232,13 +268,16 @@ fn OrdinateOf(
         ) OrdinateType
         {
             return switch (@TypeOf(rhs)) {
-                OrdinateType => .{ .v = @min(self.v,rhs.v) },
-                else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .float, .comptime_float, .int, .comptime_int => .{ 
-                        .v = @min(self.v,rhs)
+                OrdinateType => .{ .v = @min(self.v, rhs.v) },
+                else =>
+                    switch (@typeInfo(@TypeOf(rhs))) {
+                        .float,
+                        .comptime_float,
+                        .int,
+                        .comptime_int,
+                        => .{ .v = @min(self.v, rhs) },
+                        else => type_error(rhs),
                     },
-                    else => type_error(rhs),
-                },
             };
         }
 
@@ -249,13 +288,16 @@ fn OrdinateOf(
         ) OrdinateType
         {
             return switch (@TypeOf(rhs)) {
-                OrdinateType => .{ .v = @max(self.v,rhs.v) },
-                else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .float, .comptime_float, .int, .comptime_int => .{ 
-                        .v = @max(self.v,rhs)
+                OrdinateType => .{ .v = @max(self.v, rhs.v) },
+                else =>
+                    switch (@typeInfo(@TypeOf(rhs))) {
+                        .float,
+                        .comptime_float,
+                        .int,
+                        .comptime_int,
+                        => .{ .v = @max(self.v, rhs) },
+                        else => type_error(rhs),
                     },
-                    else => type_error(rhs),
-                },
             };
         }
 
@@ -269,10 +311,15 @@ fn OrdinateOf(
         {
             return switch (@TypeOf(rhs)) {
                 OrdinateType => self.v == rhs.v,
-                else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .float, .comptime_float, .int, .comptime_int => self.v == rhs,
-                    else => type_error(rhs),
-                },
+                else =>
+                    switch (@typeInfo(@TypeOf(rhs))) {
+                        .float,
+                        .comptime_float,
+                        .int,
+                        .comptime_int,
+                        => self.v == rhs,
+                        else => type_error(rhs),
+                    },
             };
         }
 
@@ -283,16 +330,24 @@ fn OrdinateOf(
         ) bool
         {
             return switch (@TypeOf(rhs)) {
-                OrdinateType => (
-                    self.v < rhs.v + epsilon.v 
-                    and self.v > rhs.v - epsilon.v
-                ),
-                else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .float, .comptime_float, .int, .comptime_int => (
-                        self.v < rhs.v + epsilon.v and self.v > rhs.v - epsilon.v
+                OrdinateType =>
+                    (
+                        (self.v < rhs.v + epsilon.v)
+                        and (self.v > rhs.v - epsilon.v)
                     ),
-                    else => type_error(rhs),
-                },
+                else =>
+                    switch (@typeInfo(@TypeOf(rhs))) {
+                        .float,
+                        .comptime_float,
+                        .int,
+                        .comptime_int,
+                        => 
+                            (
+                                (self.v < rhs.v + epsilon.v)
+                                and (self.v > rhs.v - epsilon.v)
+                            ),
+                        else => type_error(rhs),
+                    },
             };
         }
 
@@ -304,10 +359,15 @@ fn OrdinateOf(
         {
             return switch (@TypeOf(rhs)) {
                 OrdinateType => self.v < rhs.v,
-                else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .float, .comptime_float, .int, .comptime_int => self.v < rhs,
-                    else => type_error(rhs),
-                },
+                else =>
+                    switch (@typeInfo(@TypeOf(rhs))) {
+                        .float,
+                        .comptime_float,
+                        .int,
+                        .comptime_int,
+                        => self.v < rhs,
+                        else => type_error(rhs),
+                    },
             };
         }
 
@@ -319,10 +379,15 @@ fn OrdinateOf(
         {
             return switch (@TypeOf(rhs)) {
                 OrdinateType => self.v <= rhs.v,
-                else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .float, .comptime_float, .int, .comptime_int => self.v <= rhs,
-                    else => type_error(rhs),
-                },
+                else =>
+                    switch (@typeInfo(@TypeOf(rhs))) {
+                        .float,
+                        .comptime_float,
+                        .int,
+                        .comptime_int,
+                        => self.v <= rhs,
+                        else => type_error(rhs),
+                    },
             };
         }
 
@@ -334,10 +399,15 @@ fn OrdinateOf(
         {
             return switch (@TypeOf(rhs)) {
                 OrdinateType => self.v > rhs.v,
-                else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .float, .comptime_float, .int, .comptime_int => self.v > rhs,
-                    else => type_error(rhs),
-                },
+                else =>
+                    switch (@typeInfo(@TypeOf(rhs))) {
+                        .float,
+                        .comptime_float,
+                        .int,
+                        .comptime_int,
+                        => self.v > rhs,
+                        else => type_error(rhs),
+                    },
             };
         }
 
@@ -349,10 +419,15 @@ fn OrdinateOf(
         {
             return switch (@TypeOf(rhs)) {
                 OrdinateType => self.v >= rhs.v,
-                else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .float, .comptime_float, .int, .comptime_int => self.v >= rhs,
-                    else => type_error(rhs),
-                },
+                else =>
+                    switch (@typeInfo(@TypeOf(rhs))) {
+                        .float,
+                        .comptime_float,
+                        .int,
+                        .comptime_int,
+                        => self.v >= rhs,
+                        else => type_error(rhs),
+                    },
             };
         }
 
@@ -385,29 +460,42 @@ fn OrdinateOf(
 /// Ordinate type for wrinkles.
 pub const Ordinate = OrdinateOf(f64);
 
-/// Unit test comparison for two ordinates, including type conversion if either
+/// Unit test comparison for two ordinates, including type conversion if
+/// either
 /// expected or measured is not already an `Ordinate`. NaN == NaN is true.
 pub fn expectOrdinateEqual(
     expected_in: anytype,
     measured_in: anyerror!Ordinate,
 ) !void
 {
-    const expected = switch(@TypeOf(expected_in)) {
+    const expected = switch (@TypeOf(expected_in)) {
         Ordinate => expected_in,
-        else => switch(@typeInfo(@TypeOf(expected_in))) {
-            .comptime_int, .int, .comptime_float, .float => (
-                Ordinate.init(expected_in)
-            ),
-            else => @compileError(
-                "Error: can only compare an Ordinate to a float, int, or "
-                ++ "other Ordinate.  Got a: " ++ @typeName(@TypeOf(expected_in))
-            ),
-        },
+        else =>
+            switch (@typeInfo(@TypeOf(expected_in))) {
+                .comptime_int,
+                .int,
+                .comptime_float,
+                .float,
+                => (Ordinate.init(expected_in)),
+                else =>
+                    @compileError(
+                        (
+                            "Error: can only compare an Ordinate to a float, "
+                            ++ "int, or "
+                        )
+                        ++ "other Ordinate.  Got a: "
+                        ++ @typeName(@TypeOf(expected_in)),
+                    ),
+            },
     };
 
     const measured = try measured_in;
 
-    if (expected.is_nan() and measured.is_nan()) {
+    if (
+        expected.is_nan()
+        and measured.is_nan()
+    )
+    {
         return;
     }
 
@@ -415,24 +503,28 @@ pub fn expectOrdinateEqual(
     inline for (ord_ti.field_names, ord_ti.field_types)
         |f_name, f_type|
     {
-        errdefer std.log.err(
-            "field: " ++ f_name ++ " did not match.",
-            .{}
-        );
+        errdefer std.log.err("field: " ++ f_name ++ " did not match.", .{});
         switch (@typeInfo(f_type)) {
-            .int, .comptime_int => try std.testing.expectEqual(
-                @field(expected, f_name),
-                @field(measured, f_name),
-            ),
-            .float, .comptime_float => try std.testing.expectApproxEqAbs(
-                @field(expected, f_name),
-                @field(measured, f_name),
-                // util.EPSILON_F,
-                1e-3,
-            ),
-            inline else => @compileError(
-                "Do not know how to handle fields of type: " ++ f_type
-            ),
+            .int,
+            .comptime_int,
+            => 
+                try std.testing.expectEqual(
+                    @field(expected, f_name),
+                    @field(measured, f_name),
+                ),
+            .float,
+            .comptime_float,
+            => 
+                try std.testing.expectApproxEqAbs(
+                    @field(expected, f_name),
+                    @field(measured, f_name),
+                    // util.EPSILON_F,
+                    1e-3,
+                ),
+            inline else =>
+                @compileError(
+                    "Do not know how to handle fields of type: " ++ f_type,
+                ),
         }
     }
 }
@@ -440,28 +532,137 @@ pub fn expectOrdinateEqual(
 /// Wrapper harness around math functions for unit tests.
 const basic_math = struct {
     // unary
-    pub inline fn neg(in: anytype) @TypeOf(in) { return 0-in; }
-    pub inline fn sqrt(in: anytype) @TypeOf(in) { return std.math.sqrt(in); }
-    pub inline fn abs(in: anytype) @TypeOf(in) { return @abs(in); }
-    pub inline fn normalized(in: anytype) @TypeOf(in) { return in; }
+    pub inline fn neg(
+        in: anytype,
+    ) @TypeOf(in)
+    {
+        return 0 - in;
+    }
+
+    pub inline fn sqrt(
+        in: anytype,
+    ) @TypeOf(in)
+    {
+        return std.math.sqrt(in);
+    }
+
+    pub inline fn abs(
+        in: anytype,
+    ) @TypeOf(in)
+    {
+        return @abs(in);
+    }
+
+    pub inline fn normalized(
+        in: anytype,
+    ) @TypeOf(in)
+    {
+        return in;
+    }
 
     // binary
-    pub inline fn add(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs + rhs; }
-    pub inline fn sub(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs - rhs; }
-    pub inline fn mul(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs * rhs; }
-    pub inline fn div(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs / rhs; }
+    pub inline fn add(
+        lhs: anytype,
+        rhs: anytype,
+    ) @TypeOf(lhs)
+    {
+        return lhs + rhs;
+    }
+
+    pub inline fn sub(
+        lhs: anytype,
+        rhs: anytype,
+    ) @TypeOf(lhs)
+    {
+        return lhs - rhs;
+    }
+
+    pub inline fn mul(
+        lhs: anytype,
+        rhs: anytype,
+    ) @TypeOf(lhs)
+    {
+        return lhs * rhs;
+    }
+
+    pub inline fn div(
+        lhs: anytype,
+        rhs: anytype,
+    ) @TypeOf(lhs)
+    {
+        return lhs / rhs;
+    }
 
     // binary macros
-    pub inline fn min(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return @min(lhs, rhs); }
-    pub inline fn max(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return @max(lhs, rhs); }
+    pub inline fn min(
+        lhs: anytype,
+        rhs: anytype,
+    ) @TypeOf(lhs)
+    {
+        return @min(lhs, rhs);
+    }
+
+    pub inline fn max(
+        lhs: anytype,
+        rhs: anytype,
+    ) @TypeOf(lhs)
+    {
+        return @max(lhs, rhs);
+    }
 
     // binline fnary tests
-    pub inline fn eql(lhs: anytype, rhs: anytype) bool { return lhs == rhs; }
-    pub inline fn eql_approx(lhs: anytype, rhs: anytype) bool { return std.math.approxEqAbs(Ordinate.InnerType, lhs, rhs, util.EPSILON_F); }
-    pub inline fn gt(lhs: anytype, rhs: anytype) bool { return lhs > rhs; }
-    pub inline fn gteq(lhs: anytype, rhs: anytype) bool { return lhs >= rhs; }
-    pub inline fn lt(lhs: anytype, rhs: anytype) bool { return lhs < rhs; }
-    pub inline fn lteq(lhs: anytype, rhs: anytype) bool { return lhs <= rhs; }
+    pub inline fn eql(
+        lhs: anytype,
+        rhs: anytype,
+    ) bool
+    {
+        return lhs == rhs;
+    }
+
+    pub inline fn eql_approx(
+        lhs: anytype,
+        rhs: anytype,
+    ) bool
+    {
+        return std.math.approxEqAbs(
+            Ordinate.InnerType,
+            lhs,
+            rhs,
+            util.EPSILON_F,
+        );
+    }
+
+    pub inline fn gt(
+        lhs: anytype,
+        rhs: anytype,
+    ) bool
+    {
+        return lhs > rhs;
+    }
+
+    pub inline fn gteq(
+        lhs: anytype,
+        rhs: anytype,
+    ) bool
+    {
+        return lhs >= rhs;
+    }
+
+    pub inline fn lt(
+        lhs: anytype,
+        rhs: anytype,
+    ) bool
+    {
+        return lhs < rhs;
+    }
+
+    pub inline fn lteq(
+        lhs: anytype,
+        rhs: anytype,
+    ) bool
+    {
+        return lhs <= rhs;
+    }
 };
 
 test "Base Ordinate: Unary Operator Tests"
@@ -470,21 +671,26 @@ test "Base Ordinate: Unary Operator Tests"
         in: Ordinate.InnerType,
     };
     const tests = &[_]TestCase{
-        .{ .in =  1 },
-        .{ .in =  -1 },
+        .{ .in = 1 },
+        .{ .in = -1 },
         .{ .in = 25 },
         .{ .in = 64.34 },
-        .{ .in =  5.345 },
-        .{ .in =  -5.345 },
-        .{ .in =  0 },
-        .{ .in =  -0.0 },
-        .{ .in =  std.math.inf(Ordinate.InnerType) },
-        .{ .in =  -std.math.inf(Ordinate.InnerType) },
-        .{ .in =  std.math.nan(Ordinate.InnerType) },
+        .{ .in = 5.345 },
+        .{ .in = -5.345 },
+        .{ .in = 0 },
+        .{ .in = -0.0 },
+        .{ .in = std.math.inf(Ordinate.InnerType) },
+        .{ .in = -std.math.inf(Ordinate.InnerType) },
+        .{ .in = std.math.nan(Ordinate.InnerType) },
     };
 
-    inline for (&.{ "neg", "sqrt", "abs",})
-        |op|
+    inline for (
+        &.{
+            "neg",
+            "sqrt",
+            "abs",
+        },
+    ) |op|
     {
         for (tests)
             |t|
@@ -496,7 +702,10 @@ test "Base Ordinate: Unary Operator Tests"
             const measured = @field(Ordinate, op)(in);
 
             errdefer std.debug.print(
-                "Error with test: \n" ++ @typeName(Ordinate) ++ "." ++ op 
+                "Error with test: \n"
+                ++ @typeName(Ordinate)
+                ++ "."
+                ++ op
                 ++ ":\n iteration: {any}\nin: {d}\nexpected_in: {d}\n"
                 ++ "expected: {d}\nmeasured_in: {f}\nmeasured: {f}\n",
                 .{ t, t.in, expected_in, expected, in, measured },
@@ -524,8 +733,14 @@ test "Base Ordinate: Binary Operator Tests"
 
     const signs = [_]Ordinate.InnerType{ -1, 1 };
 
-    inline for (&.{ "add", "sub", "mul", "div", })
-        |op|
+    inline for (
+        &.{
+            "add",
+            "sub",
+            "mul",
+            "div",
+        },
+    ) |op|
     {
         for (values)
             |lhs_v|
@@ -536,61 +751,73 @@ test "Base Ordinate: Binary Operator Tests"
                 for (values)
                     |rhs_v|
                 {
-                    for (signs) 
+                    for (signs)
                         |s_rhs|
                     {
                         const lhs_sv = s_lhs * lhs_v;
                         const rhs_sv = s_rhs * rhs_v;
 
                         const expected = Ordinate.init(
-                           @field(basic_math, op)(
-                               lhs_sv,
-                               rhs_sv
-                            ) 
+                            @field(basic_math, op)(lhs_sv, rhs_sv),
                         );
 
                         const lhs_o = Ordinate.init(lhs_sv);
                         const rhs_o = Ordinate.init(rhs_sv);
 
-                        const measured = (
-                            @field(Ordinate, op)(lhs_o, rhs_o)
-                        );
+                        const measured = (@field(Ordinate, op)(lhs_o, rhs_o));
 
                         errdefer std.debug.print(
-                            "Error with test: " ++ @typeName(Ordinate) 
-                            ++ "." ++ op ++ ": \nlhs: {d} * {d} rhs: {d} * {d}\n"
+                            "Error with test: "
+                            ++ @typeName(Ordinate)
+                            ++ "."
+                            ++ op
+                            ++ ": \nlhs: {d} * {d} rhs: {d} * {d}\n"
                             ++ "lhs_sv: {d} rhs_sv: {d}\n"
-                            ++ "{f} " ++ op ++ " {f}\n"
+                            ++ "{f} "
+                            ++ op
+                            ++ " {f}\n"
                             ++ "expected: {d}\nmeasured: {f}\n",
                             .{
-                                s_lhs, lhs_v,
-                                s_rhs, rhs_v,
-                                lhs_sv, rhs_sv,
-                                lhs_o, rhs_o,
-                                expected, measured,
+                                s_lhs,
+                                lhs_v,
+                                s_rhs,
+                                rhs_v,
+                                lhs_sv,
+                                rhs_sv,
+                                lhs_o,
+                                rhs_o,
+                                expected,
+                                measured,
                             },
                         );
 
-                        if ((std.math.isNan(lhs_sv) and lhs_o.is_nan()) == false)
+                        if (
+                            (
+                                std.math.isNan(lhs_sv)
+                                and lhs_o.is_nan()
+                            ) == false
+                        )
                         {
                             try std.testing.expectEqual(
                                 lhs_sv,
-                                lhs_o.as(Ordinate.InnerType)
+                                lhs_o.as(Ordinate.InnerType),
                             );
                         }
 
-                        if ((std.math.isNan(rhs_sv) and rhs_o.is_nan()) == false)
+                        if (
+                            (
+                                std.math.isNan(rhs_sv)
+                                and rhs_o.is_nan()
+                            ) == false
+                        )
                         {
                             try std.testing.expectEqual(
                                 rhs_sv,
-                                rhs_o.as(Ordinate.InnerType)
+                                rhs_o.as(Ordinate.InnerType),
                             );
                         }
 
-                        try expectOrdinateEqual(
-                            expected,
-                            measured
-                        );
+                        try expectOrdinateEqual(expected, measured);
                     }
                 }
             }
@@ -606,7 +833,7 @@ inline fn _is_inf(
     return switch (@typeInfo(@TypeOf(thing))) {
         .float => std.math.isInf(thing),
         else => false,
-   };
+    };
 }
 
 inline fn _is_nan(
@@ -616,7 +843,7 @@ inline fn _is_nan(
     return switch (@typeInfo(@TypeOf(thing))) {
         .float => std.math.isNan(thing),
         else => false,
-   };
+    };
 }
 
 /// Unary macro around the `abs` method.
@@ -678,12 +905,13 @@ pub inline fn eql_approx(
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
         .@"struct" => lhs.eql_approx(rhs),
-        else => std.math.approxEqAbs(
-            @TypeOf(lhs),
-            lhs,
-            rhs,
-            util.EPSILON_F,
-        ),
+        else =>
+            std.math.approxEqAbs(
+                @TypeOf(lhs),
+                lhs,
+                rhs,
+                util.EPSILON_F,
+            ),
     };
 }
 
@@ -700,7 +928,8 @@ pub inline fn lt(
     };
 }
 
-/// Macro around `lteq`, using `lhs.lteq(rhs)` if possible, otherwise falls back
+/// Macro around `lteq`, using `lhs.lteq(rhs)` if possible, otherwise falls
+/// back
 /// to `<=`.
 pub inline fn lteq(
     lhs: anytype,
@@ -713,7 +942,8 @@ pub inline fn lteq(
     };
 }
 
-/// Macro around `gt`, using `lhs.gt(rhs)` if possible, otherwise falls back to
+/// Macro around `gt`, using `lhs.gt(rhs)` if possible, otherwise falls back
+/// to
 /// `>`.
 pub inline fn gt(
     lhs: anytype,
@@ -726,7 +956,8 @@ pub inline fn gt(
     };
 }
 
-/// Macro around `gteq`, using `lhs.gteq(rhs)` if possible, otherwise falls back
+/// Macro around `gteq`, using `lhs.gteq(rhs)` if possible, otherwise falls
+/// back
 /// to `>=`.
 pub inline fn gteq(
     lhs: anytype,
@@ -746,16 +977,17 @@ test "Base Ordinate: Binary Function Tests"
         rhs: Ordinate.InnerType,
     };
     const tests = &[_]TestCase{
-        .{ .lhs =  1, .rhs =  1 },
-        .{ .lhs = -1, .rhs =  1 },
-        .{ .lhs =  1, .rhs = -1 },
+        .{ .lhs = 1, .rhs = 1 },
+        .{ .lhs = -1, .rhs = 1 },
+        .{ .lhs = 1, .rhs = -1 },
         .{ .lhs = -1, .rhs = -1 },
         .{ .lhs = -1.2, .rhs = -1001.45 },
-        .{ .lhs =  0, .rhs =  5.345 },
+        .{ .lhs = 0, .rhs = 5.345 },
     };
 
-    inline for (&.{ "min", "max", "eql", "lt", "lteq", "gt", "gteq", "eql_approx" })
-        |op|
+    inline for (
+        &.{ "min", "max", "eql", "lt", "lteq", "gt", "gteq", "eql_approx" },
+    ) |op|
     {
         for (tests)
             |t|
@@ -763,36 +995,47 @@ test "Base Ordinate: Binary Function Tests"
             const lhs = Ordinate.init(t.lhs);
             const rhs = Ordinate.init(t.rhs);
 
-            const expected_raw = (
-                @field(basic_math, op)(t.lhs, t.rhs) 
-            );
+            const expected_raw = (@field(basic_math, op)(t.lhs, t.rhs));
 
             const measured = @field(@This(), op)(lhs, rhs);
 
             const is_ord = @TypeOf(measured) == Ordinate;
 
-            const expected = if (is_ord) Ordinate.init(
-                expected_raw
-            ) else expected_raw;
+            const expected = if (is_ord) Ordinate.init(expected_raw)
+            else expected_raw;
 
-            if (is_ord) {
+            if (is_ord)
+            {
                 errdefer std.debug.print(
-                    "Error with test: " ++ @typeName(Ordinate) ++ "." ++ op ++ 
-                    ": iteration: {any}\nexpected: {d}\nmeasured: {f}\n",
+                    "Error with test: "
+                    ++ @typeName(Ordinate)
+                    ++ "."
+                    ++ op
+                    ++ ": iteration: {any}\nexpected: {d}\nmeasured: {f}\n",
                     .{ t, expected, measured },
                 );
-            } else {
+            }
+            else
+            {
                 errdefer std.debug.print(
-                    "Error with test: " ++ @typeName(Ordinate) ++ "." ++ op ++ 
-                    ": iteration: {any}\nexpected: {any}\nmeasured: {any}\n",
+                    "Error with test: "
+                    ++ @typeName(Ordinate)
+                    ++ "."
+                    ++ op
+                    ++ (
+                        ": iteration: {any}\nexpected: {any}\nmeasured: "
+                        ++ "{any}\n"
+                    ),
                     .{ t, expected, measured },
                 );
             }
 
-            if (is_ord) {
+            if (is_ord)
+            {
                 try expectOrdinateEqual(expected, measured);
             }
-            else {
+            else
+            {
                 try std.testing.expectEqual(expected, measured);
             }
         }
@@ -802,37 +1045,59 @@ test "Base Ordinate: Binary Function Tests"
 test "Base Ordinate: as"
 {
     const tests = &[_]Ordinate.InnerType{
-        1.0, -1.0, 3.45, -3.45, 1.0/3.0,
+        1.0,
+        -1.0,
+        3.45,
+        -3.45,
+        1.0 / 3.0,
     };
 
-    inline for (&.{ f32, f64, i32, u32, i64, })
-        |target_type|
+    inline for (
+        &.{
+            f32,
+            f64,
+            i32,
+            u32,
+            i64,
+        },
+    ) |target_type|
     {
         for (tests)
             |t|
         {
             const ord = Ordinate.init(t);
 
-            if (t < 0 and target_type == u32) {
+            if (
+                t < 0
+                and target_type == u32
+            )
+            {
                 continue;
             }
 
             errdefer std.log.err(
-                "Error with type: " ++ @typeName(target_type) 
+                "Error with type: "
+                ++ @typeName(target_type)
                 ++ " t: {d} ord: {f} ({d})",
                 .{ t, ord, ord.as(target_type) },
             );
 
             try switch (@typeInfo(target_type)) {
-                .float, .comptime_float => std.testing.expectApproxEqAbs(
-                    @as(target_type, @floatCast(t)),
-                    ord.as(target_type),
-                    util.EPSILON_F,
-                ),
-                .int, .comptime_int => std.testing.expectEqual(
-                    @as(target_type, @intFromFloat(t)),
-                    ord.as(target_type),
-                ),
+                .float,
+                .comptime_float,
+                => 
+                    std.testing.expectApproxEqAbs(
+                        @as(target_type, @floatCast(t)),
+                        ord.as(target_type),
+                        util.EPSILON_F,
+                    ),
+                .int,
+                .comptime_int,
+                => 
+                    std.testing.expectEqual(
+                        @as(target_type, @intFromFloat(t)),
+                        ord.as(target_type),
+                    ),
                 else => return error.BARF,
             };
         }
@@ -842,15 +1107,19 @@ test "Base Ordinate: as"
 /// Sort function that unpacks structs to try and call `lt`.
 pub const sort = struct {
     pub fn asc(
-        comptime T: type
-    ) fn (void, T, T) bool 
+        comptime T: type,
+    ) fn (
+        void,
+        T,
+        T,
+    ) bool
     {
         return struct {
             pub fn inner(
                 _: void,
                 a: T,
                 b: T,
-            ) bool 
+            ) bool
             {
                 return switch (@typeInfo(T)) {
                     .@"struct" => a.lt(b),
@@ -863,7 +1132,7 @@ pub const sort = struct {
 
 test "Ordinate: as float roundtrip test"
 {
-    const values = [_]Ordinate.InnerType {
+    const values = [_]Ordinate.InnerType{
         0,
         -0.0,
         1,
@@ -881,15 +1150,21 @@ test "Ordinate: as float roundtrip test"
         errdefer std.debug.print(
             "error with test: \n{d}: {f} sign: {d} {d} signbit: {any} {any}\n",
             .{
-                v, ord,
-                std.math.sign(v), std.math.sign(ord.as(Ordinate.InnerType)),
-                std.math.signbit(v), std.math.signbit(ord.as(Ordinate.InnerType)),
-            }
+                v,
+                ord,
+                std.math.sign(v),
+                std.math.sign(ord.as(Ordinate.InnerType)),
+                std.math.signbit(v),
+                std.math.signbit(ord.as(Ordinate.InnerType)),
+            },
         );
 
-        if (std.math.isNan(v)) {
+        if (std.math.isNan(v))
+        {
             try std.testing.expect(ord.is_nan());
-        } else {
+        }
+        else
+        {
             try std.testing.expectEqual(
                 std.math.sign(v),
                 std.math.sign(ord.as(Ordinate.InnerType)),
@@ -900,10 +1175,7 @@ test "Ordinate: as float roundtrip test"
                 std.math.signbit(ord.as(Ordinate.InnerType)),
             );
 
-            try std.testing.expectEqual(
-                v,
-                ord.as(Ordinate.InnerType)
-            );
+            try std.testing.expectEqual(v, ord.as(Ordinate.InnerType));
         }
     }
 }
@@ -927,12 +1199,12 @@ test "Base Ordinate: sort"
     try test_arr.appendSlice(allocator, &known);
 
     var engine = std.Random.DefaultPrng.init(0x42);
-    const rnd =  engine.random();
+    const rnd = engine.random();
 
     std.Random.shuffle(rnd, Ordinate, test_arr.items);
 
     std.mem.sort(
-        Ordinate, 
+        Ordinate,
         test_arr.items,
         {},
         sort.asc(Ordinate),
@@ -955,6 +1227,6 @@ test "ordinate / eval test"
         comath_wrapper.eval(
             "(o3 * o4) + o4 - o3 + (o3 / o3) + 1",
             .{ .o3 = o3, .o4 = o4 },
-        )
+        ),
     );
 }

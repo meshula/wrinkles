@@ -24,14 +24,12 @@ const curve = @import("curve");
 /// mappings via function composition to build new transformations via common
 /// spaces. Mappings can project ordinates and ranges from their input space
 /// to their output space.
-pub const Mapping = union (enum) {
+pub const Mapping = union(enum) {
     empty: mapping_empty.MappingEmpty,
     affine: mapping_affine.MappingAffine,
     linear: mapping_curve_linear.MappingCurveLinearMonotonic,
 
-    pub const identity_infinite = (
-        MappingAffine.identity_infinite.mapping()
-    );
+    pub const identity_infinite = (MappingAffine.identity_infinite.mapping());
 
     pub fn deinit(
         self: @This(),
@@ -50,15 +48,16 @@ pub const Mapping = union (enum) {
     pub fn project_instantaneous_cc(
         self: @This(),
         input_ord: anytype,
-    ) opentime.ProjectionResult 
+    ) opentime.ProjectionResult
     {
         return switch (self) {
-            inline else => |m| m.project_instantaneous_cc(
-                switch (@TypeOf(input_ord)) {
-                    opentime.Ordinate => input_ord,
-                    else => opentime.Ordinate.init(input_ord),
-                }
-            ),
+            inline else => |m|
+                m.project_instantaneous_cc(
+                    switch (@TypeOf(input_ord)) {
+                        opentime.Ordinate => input_ord,
+                        else => opentime.Ordinate.init(input_ord),
+                    },
+                ),
         };
     }
 
@@ -67,15 +66,16 @@ pub const Mapping = union (enum) {
     pub fn project_instantaneous_cc_assume_in_bounds(
         self: @This(),
         input_ord: anytype,
-    ) opentime.ProjectionResult 
+    ) opentime.ProjectionResult
     {
         return switch (self) {
-            inline else => |m| m.project_instantaneous_cc_assume_in_bounds(
-                switch (@TypeOf(input_ord)) {
-                    opentime.Ordinate => input_ord,
-                    else => opentime.Ordinate.init(input_ord),
-                }
-            ),
+            inline else => |m|
+                m.project_instantaneous_cc_assume_in_bounds(
+                    switch (@TypeOf(input_ord)) {
+                        opentime.Ordinate => input_ord,
+                        else => opentime.Ordinate.init(input_ord),
+                    },
+                ),
         };
     }
 
@@ -119,12 +119,9 @@ pub const Mapping = union (enum) {
     {
         return switch (self) {
             // do not need an allocator
-            inline .affine, .empty => |m| (
-                m.clone().mapping()
-            ),
-            inline else => |contained| (
-                try contained.clone(allocator)
-            ).mapping(),
+            inline .affine, .empty => |m| (m.clone().mapping()),
+            inline else => |contained|
+                (try contained.clone(allocator)).mapping(),
         };
     }
 
@@ -137,12 +134,13 @@ pub const Mapping = union (enum) {
     ) !?Mapping
     {
         return switch (self) {
-            inline else => |contained| (
-                try contained.shrink_to_input_interval(
-                    allocator,
-                    target_input_interval
-                )
-            ),
+            inline else => |contained|
+                (
+                    try contained.shrink_to_input_interval(
+                        allocator,
+                        target_input_interval,
+                    )
+                ),
         };
     }
 
@@ -155,16 +153,18 @@ pub const Mapping = union (enum) {
     ) !?Mapping
     {
         return switch (self) {
-            inline else => |contained| (
+            inline else => |contained|
                 (
-                 try (
-                     contained.shrink_to_output_interval(
-                         allocator,
-                         target_output_interval
-                     ) 
-                 )
-                ) orelse return null
-            )
+                    (
+                        try (
+                            contained.shrink_to_output_interval(
+                                allocator,
+                                target_output_interval,
+                            )
+                        )
+                    )
+                    orelse return null
+                ),
         };
     }
 
@@ -192,11 +192,12 @@ pub const Mapping = union (enum) {
     ) ![]const Mapping
     {
         return switch (self) {
-            .empty => try allocator.dupe(Mapping, &.{ self }),
-            inline else => |m| try m.split_at_each_input_ord(
-                allocator, 
-                input_ordinates,
-            ),
+            .empty => try allocator.dupe(Mapping, &.{self}),
+            inline else => |m|
+                try m.split_at_each_input_ord(
+                    allocator,
+                    input_ordinates,
+                ),
         };
     }
 
@@ -207,19 +208,16 @@ pub const Mapping = union (enum) {
         output_points: []const opentime.Ordinate,
     ) ![]const Mapping
     {
-        var result_mappings = (
-            std.ArrayList(Mapping).init(allocator)
-        );
+        var result_mappings = (std.ArrayList(Mapping).init(allocator));
 
-        if (self == .empty) {
+        if (self == .empty)
+        {
             try result_mappings.append(self);
             return result_mappings.toOwnedSlice();
         }
 
         // project all the points back to input points
-        var input_points = (
-            std.ArrayList(opentime.Ordinate).init(allocator)
-        );
+        var input_points = (std.ArrayList(opentime.Ordinate).init(allocator));
         try input_points.ensureTotalCapacity(output_points.len);
         defer input_points.deinit();
 
@@ -231,7 +229,7 @@ pub const Mapping = union (enum) {
             if (out_bounds.overlaps(o_p))
             {
                 input_points.appendAssumeCapacity(
-                    try self.project_instantaneous_cc_inv(o_p)
+                    try self.project_instantaneous_cc_inv(o_p),
                 );
             }
         }
@@ -246,7 +244,7 @@ pub const Mapping = union (enum) {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
         try writer.print(
             "Mapping {s} mapping space {?f} to {?f}",
@@ -265,36 +263,35 @@ pub const Mapping = union (enum) {
     ) !Mapping
     {
         switch (self) {
-            .empty => |empty| return (
-                empty.clone()
-            ).mapping(),
-            .affine => |aff| return .{
-                .affine = .{
-                    .input_bounds_val = (
-                        aff.output_bounds()
-                    ),
-                    .input_to_output_xform = (
-                        aff.input_to_output_xform.inverted()
-                    ),
+            .empty => |empty| return (empty.clone()).mapping(),
+            .affine => |aff|
+                return .{
+                    .affine = .{
+                        .input_bounds_val = (aff.output_bounds()),
+                        .input_to_output_xform = (
+                            aff.input_to_output_xform.inverted()
+                        ),
+                    },
                 },
-            },
-            .linear => |lin| return .{
-                .linear = .{
-                    .input_to_output_curve = (
-                        try curve.linear.inverted_linear(
-                            allocator,
-                           lin.input_to_output_curve
-                        )
-                    ),
+            .linear => |lin|
+                return .{
+                    .linear = .{
+                        .input_to_output_curve = (
+                            try curve.linear.inverted_linear(
+                                allocator,
+                                lin.input_to_output_curve,
+                            )
+                        ),
+                    },
                 },
-            },
         }
     }
 
     // @{ Errors
-    pub const ProjectionError = error { OutOfBounds };
-    // @}
+    pub const ProjectionError = error{OutOfBounds};
 };
+
+// @}
 
 /// Produce test structures at comptime
 pub fn test_structs(
@@ -303,21 +300,23 @@ pub fn test_structs(
 {
     return struct {
         pub const START_PT = curve.ControlPoint.init(
-            .{ .in = int.start, .out = int.start, }
+            .{
+                .in = int.start,
+                .out = int.start,
+            },
         );
         pub const END_PT = curve.ControlPoint.init(
-            .{ .in = int.end, .out = int.end * 4, }
+            .{
+                .in = int.end,
+                .out = int.end * 4,
+            },
         );
-        pub const CENTER_PT = (
-            opentime.lerp(0.5, START_PT, END_PT)
-        );
+        pub const CENTER_PT = (opentime.lerp(0.5, START_PT, END_PT));
 
-        pub const INT = (
-            opentime.ContinuousInterval.init(int)
-        );
+        pub const INT = (opentime.ContinuousInterval.init(int));
 
         // mappings and (simple) topologies
-        pub const AFF = mapping_affine.MappingAffine {
+        pub const AFF = mapping_affine.MappingAffine{
             .input_bounds_val = INT,
             .input_to_output_xform = .{
                 .offset = opentime.Ordinate.init(4),
@@ -325,11 +324,11 @@ pub fn test_structs(
             },
         };
 
-        pub const LIN = mapping_curve_linear.MappingCurveLinearMonotonic {
+        pub const LIN = mapping_curve_linear.MappingCurveLinearMonotonic{
             .input_to_output_curve = .{
                 .knots = &.{
                     START_PT,
-                    END_PT, 
+                    END_PT,
                 },
             },
         };
@@ -340,19 +339,19 @@ pub const LEFT = test_structs(
     .{
         .start = -2,
         .end = 2,
-    }
+    },
 );
 pub const MIDDLE = test_structs(
     .{
         .start = 0,
         .end = 10,
-    }
+    },
 );
 pub const RIGHT = test_structs(
     .{
         .start = 8,
         .end = 12,
-    }
+    },
 );
 
 // Join Functions
@@ -370,13 +369,13 @@ pub const RIGHT = test_structs(
 ///////////////////////////////////////////////////////////////////////////////
 
 pub fn join_aff_aff(
-    args: struct{
+    args: struct {
         a2b: mapping_affine.MappingAffine,
         b2c: mapping_affine.MappingAffine,
     },
 ) mapping_affine.MappingAffine
 {
-    const result= MappingAffine{
+    const result = MappingAffine{
         .input_to_output_xform = (
             args.b2c.input_to_output_xform.applied_to_transform(
                 args.a2b.input_to_output_xform,
@@ -407,7 +406,7 @@ test "Mapping: join_aff_aff"
 
 pub fn join_aff_lin(
     allocator: std.mem.Allocator,
-    args: struct{
+    args: struct {
         a2b: mapping_affine.MappingAffine,
         b2c: mapping_curve_linear.MappingCurveLinearMonotonic,
     },
@@ -419,11 +418,11 @@ pub fn join_aff_lin(
         mapping_curve_linear.MappingCurveLinearMonotonic{
             .input_to_output_curve = .{
                 .knots = &.{
-                    .{ 
+                    .{
                         .in = a2b_input_bounds.start,
                         .out = a2b_output_bounds.start,
                     },
-                    .{ 
+                    .{
                         .in = a2b_input_bounds.end,
                         .out = a2b_output_bounds.end,
                     },
@@ -443,7 +442,7 @@ pub fn join_aff_lin(
 
 pub fn join_lin_aff(
     allocator: std.mem.Allocator,
-    args: struct{
+    args: struct {
         a2b: mapping_curve_linear.MappingCurveLinearMonotonic,
         b2c: mapping_affine.MappingAffine,
     },
@@ -464,7 +463,7 @@ pub fn join_lin_aff(
     }
 
     return mapping_curve_linear.MappingCurveLinearMonotonic{
-        .input_to_output_curve =  .{
+        .input_to_output_curve = .{
             .knots = a2c_knots,
         },
     };
@@ -472,7 +471,7 @@ pub fn join_lin_aff(
 
 pub fn join_lin_lin(
     allocator: std.mem.Allocator,
-    args: struct{
+    args: struct {
         a2b: mapping_curve_linear.MappingCurveLinearMonotonic,
         b2c: mapping_curve_linear.MappingCurveLinearMonotonic,
     },
@@ -485,7 +484,7 @@ pub fn join_lin_lin(
                 .a2b = args.a2b.input_to_output_curve,
                 .b2c = args.b2c.input_to_output_curve,
             },
-        )
+        ),
     };
 }
 
@@ -495,7 +494,8 @@ pub fn join_lin_lin(
 /// mapping from space a->space c.
 ///
 /// Does not transform the mappings prior to joining, and the computation
-/// happens over the intersection of their domains within the common coordinate
+/// happens over the intersection of their domains within the common
+/// coordinate
 /// system (b).
 ///
 /// Handles the type mapping:
@@ -515,7 +515,7 @@ pub fn join_lin_lin(
 ///
 pub fn join(
     allocator: std.mem.Allocator,
-    mappings: struct{
+    mappings: struct {
         a2b: Mapping,
         b2c: Mapping,
     },
@@ -527,23 +527,25 @@ pub fn join(
     const empty_result = (
         MappingEmpty{
             .defined_range = (
-                a2b.input_bounds() 
+                a2b.input_bounds()
                 orelse return error.InvalidMapping
-            )
+            ),
+
         }
     ).mapping();
 
     // joining anything with an empty results in an empty
-    if (a2b == .empty or b2c == .empty) {
+    if (
+        a2b == .empty
+        or b2c == .empty
+    )
+    {
         return empty_result;
     }
 
     // manage the boundary conditions
     const a2b_b_bounds = a2b.output_bounds().?;
-    const b2c_b_bounds = (
-        b2c.input_bounds() 
-        orelse return empty_result
-    );
+    const b2c_b_bounds = (b2c.input_bounds() orelse return empty_result);
 
     const maybe_b_bounds_intersection = (
         opentime.interval.intersect(
@@ -554,7 +556,8 @@ pub fn join(
 
     const b_bounds_intersection = (
         // if there is no intersection, the result is empty
-        maybe_b_bounds_intersection orelse {
+        maybe_b_bounds_intersection
+        orelse {
             return empty_result;
         }
     );
@@ -565,9 +568,9 @@ pub fn join(
             a2b.shrink_to_output_interval(
                 allocator,
                 b_bounds_intersection,
-
             )
-        ) orelse return empty_result
+        )
+        orelse return empty_result
     );
     defer a2b_trimmed.deinit(allocator);
 
@@ -582,45 +585,45 @@ pub fn join(
     defer b2c_trimmed.deinit(allocator);
 
     return switch (b2c_trimmed) {
-        .affine => |b2c_aff| switch (a2b_trimmed) {
-            .affine => |a2b_aff| join_aff_aff(
-                .{
-                    .a2b = a2b_aff, 
-                    .b2c = b2c_aff, 
-                },
-            ).mapping(),
-            .linear => |a2b_lin| (
-                try join_lin_aff(
-                    allocator,
-                    .{ 
-                        .a2b = a2b_lin,
-                        .b2c = b2c_aff 
-                    }
-                )
-            ).mapping(),
-            inline else => unreachable,
-        },
-        .linear => |b2c_lin| switch (a2b_trimmed) {
-            .affine => |a2b_aff| ( 
-                try join_aff_lin(
-                    allocator,
-                    .{
-                        .a2b = a2b_aff,
-                        .b2c = b2c_lin, 
-                    },
-                )
-            ).mapping(),
-            .linear => |a2b_lin| (
-                try join_lin_lin(
-                    allocator,
-                    .{ 
-                        .a2b = a2b_lin,
-                        .b2c = b2c_lin
-                    },
-                )
-            ).mapping(),
-            inline else => unreachable,
-        },
+        .affine => |b2c_aff|
+            switch (a2b_trimmed) {
+                .affine => |a2b_aff|
+                    join_aff_aff(
+                        .{
+                            .a2b = a2b_aff,
+                            .b2c = b2c_aff,
+                        },
+                    ).mapping(),
+                .linear => |a2b_lin|
+                    (
+                        try join_lin_aff(
+                            allocator,
+                            .{ .a2b = a2b_lin, .b2c = b2c_aff },
+                        )
+                    ).mapping(),
+                inline else => unreachable,
+            },
+        .linear => |b2c_lin|
+            switch (a2b_trimmed) {
+                .affine => |a2b_aff|
+                    (
+                        try join_aff_lin(
+                            allocator,
+                            .{
+                                .a2b = a2b_aff,
+                                .b2c = b2c_lin,
+                            },
+                        )
+                    ).mapping(),
+                .linear => |a2b_lin|
+                    (
+                        try join_lin_lin(
+                            allocator,
+                            .{ .a2b = a2b_lin, .b2c = b2c_lin },
+                        )
+                    ).mapping(),
+                inline else => unreachable,
+            },
         inline else => unreachable,
     };
 }
@@ -633,7 +636,10 @@ test "Mapping: join aff/aff"
         MappingAffine{
             .input_bounds_val = (
                 opentime.ContinuousInterval.init(
-                    .{ .start = 0, .end = 8, },
+                    .{
+                        .start = 0,
+                        .end = 8,
+                    },
                 )
             ),
             .input_to_output_xform = .{
@@ -660,10 +666,7 @@ test "Mapping: join aff/aff"
         result.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate(),
     );
 
-    const ib = (
-        result.input_bounds() 
-        orelse return error.InvalidBounds
-    );
+    const ib = (result.input_bounds() orelse return error.InvalidBounds);
     try opentime.expectOrdinateEqual(
         aff.input_bounds().start,
         ib.start,
@@ -673,10 +676,7 @@ test "Mapping: join aff/aff"
         ib.end,
     );
 
-    const ob = (
-        result.output_bounds()
-        orelse return error.InvalidBounds
-    );
+    const ob = (result.output_bounds() orelse return error.InvalidBounds);
     try opentime.expectOrdinateEqual(
         aff.output_bounds().start,
         ob.start,
@@ -686,8 +686,5 @@ test "Mapping: join aff/aff"
         ob.end,
     );
 
-    try std.testing.expectEqual(
-        .affine,
-        std.meta.activeTag(result)
-    );
+    try std.testing.expectEqual(.affine, std.meta.activeTag(result));
 }

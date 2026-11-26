@@ -11,7 +11,7 @@ pub fn lerp(
     u: anytype,
     a: anytype,
     b: @TypeOf(a),
-) @TypeOf(a) 
+) @TypeOf(a)
 {
     return comath_wrapper.eval(
         "(a * ((-u) + 1.0)) + (b * u)",
@@ -19,7 +19,7 @@ pub fn lerp(
             .a = a,
             .b = b,
             .u = u,
-        }
+        },
     );
 }
 
@@ -32,7 +32,8 @@ pub fn invlerp(
     b: @TypeOf(a),
 ) @TypeOf(a)
 {
-    if (ordinate.eql(b, a)) {
+    if (ordinate.eql(b, a))
+    {
         return a;
     }
     return comath_wrapper.eval(
@@ -41,8 +42,6 @@ pub fn invlerp(
             .v = v,
             .a = a,
             .b = b,
-        }
+        },
     );
 }
-
-

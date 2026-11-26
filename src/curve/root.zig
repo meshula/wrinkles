@@ -23,7 +23,8 @@ pub const ControlPoint = control_point.ControlPoint;
 // Imported so that the hyperlink in the document functions (autodoc).
 const opentime = @import("opentime");
 
-test {
+test 
+{
     _ = linear;
     _ = bezier;
     _ = control_point;

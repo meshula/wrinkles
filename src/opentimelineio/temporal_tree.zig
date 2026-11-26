@@ -21,23 +21,21 @@ const references = @import("references.zig");
 const projection = @import("projection.zig");
 const test_data_m = @import("test_structures.zig");
 
-/// annotate the graph algorithms
 // const GRAPH_CONSTRUCTION_TRACE_MESSAGES = true;
+/// annotate the graph algorithms
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
 
-const T_ORD_10 =  opentime.Ordinate.init(10);
-const T_CTI_1_10 = opentime.ContinuousInterval {
+const T_ORD_10 = opentime.Ordinate.init(10);
+const T_CTI_1_10 = opentime.ContinuousInterval{
     .start = .one,
     .end = T_ORD_10,
 };
 
 /// Specialization of `treecode.BinaryTree` over
 /// `references.TemporalSpaceReference`.
-pub const TemporalTree = treecode.BinaryTree(
-    references.TemporalSpaceNode
-);
+pub const TemporalTree = treecode.BinaryTree(references.TemporalSpaceNode);
 
 /// End points of a path in the tree.
 pub const PathEndPoints = TemporalTree.PathEndPoints;
@@ -56,9 +54,7 @@ fn walk_child_spaces(
 ) !void
 {
     // walk through the spaces on this object
-    const children_ptrs = (
-        try parent_otio_object.children_refs(allocator)
-    );
+    const children_ptrs = (try parent_otio_object.children_refs(allocator));
     defer allocator.free(children_ptrs);
 
     var last_index = parent_index;
@@ -72,8 +68,8 @@ fn walk_child_spaces(
 
     // transforms to children
     // each child
-    for (children_ptrs, 0..) 
-        |item_ptr, index| 
+    for (children_ptrs, 0..)
+        |item_ptr, index|
     {
         const child_wrapper_space_code_ptr = (
             try sequential_child_code_leaky(
@@ -90,13 +86,13 @@ fn walk_child_spaces(
             .space = .{ .child = @intCast(index) },
         };
 
-        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES)
         {
-            if (tree.code_from_node(space_ref)) 
-                |other_code| 
+            if (tree.code_from_node(space_ref))
+                |other_code|
             {
                 opentime.dbg_print(
-                    @src(), 
+                    @src(),
                     "\n ERROR SPACE ALREADY PRESENT[{d}] code: {f} "
                     ++ "other_code: {f} "
                     ++ "adding child space: '{s}.{s}.{d}'\n",
@@ -107,16 +103,19 @@ fn walk_child_spaces(
                         @tagName(space_ref.item),
                         @tagName(space_ref.space),
                         space_ref.space.child,
-                    }
+                    },
                 );
 
                 std.debug.assert(false);
             }
             opentime.dbg_print(
-                @src(), 
+                @src(),
                 (
-                 "[{d}] code: {f} hash: {d} arrptr: {*} adding child space:"
-                 ++ " '{s}.{s}.{d}'\n"
+                    (
+                        "[{d}] code: {f} hash: {d} arrptr: {*} adding child "
+                        ++ "space:"
+                    )
+                    ++ " '{s}.{s}.{d}'\n"
                 ),
                 .{
                     index,
@@ -126,7 +125,7 @@ fn walk_child_spaces(
                     @tagName(space_ref.item),
                     @tagName(space_ref.space),
                     space_ref.space.child,
-                }
+                },
             );
         }
 
@@ -146,8 +145,8 @@ fn walk_child_spaces(
         );
 
         otio_object_stack.appendAssumeCapacity(
-            .{ 
-                .otio_object= item_ptr,
+            .{
+                .otio_object = item_ptr,
                 .path_code = child_code_ptr,
                 .parent_index = last_index,
             },
@@ -161,15 +160,15 @@ fn walk_internal_spaces(
     parent_code: treecode.Treecode,
     parent_index: ?usize,
     tree: *TemporalTree,
-) !struct{ treecode.Treecode, ?usize }
+) !struct { treecode.Treecode, ?usize }
 {
     const spaces = parent_otio_object.available_local_spaces();
 
     var last_space_code = parent_code;
     var last_index = parent_index;
 
-    for (0.., spaces) 
-        |index, space| 
+    for (0.., spaces)
+        |index, space|
     {
         const space_ref = references.TemporalSpaceNode{
             .item = parent_otio_object,
@@ -182,7 +181,8 @@ fn walk_internal_spaces(
                     last_space_code,
                     1,
                 )
-            ) else parent_code
+            )
+            else parent_code
         );
         last_index = try tree.put(
             allocator,
@@ -193,17 +193,18 @@ fn walk_internal_spaces(
             },
         );
 
-        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES)
         {
             if (tree.code_from_node(space_ref))
                 |code|
             {
                 std.debug.print(
                     "space {f} fetched code {f}\n",
-                    .{space_ref, code},
+                    .{ space_ref, code },
                 );
             }
-            else {
+            else
+            {
                 std.debug.print(
                     "space {f} has no code\n",
                     .{space_ref},
@@ -211,19 +212,22 @@ fn walk_internal_spaces(
                 return error.SpaceWasntInTree;
             }
             opentime.dbg_print(
-                @src(), 
+                @src(),
                 (
-                      "[{d}] code: {f} hash: {d} arrptr: {*} adding local space: "
-                      ++ "'{s}.{s}'"
+                    (
+                        "[{d}] code: {f} hash: {d} arrptr: {*} adding local "
+                        ++ "space: "
+                    )
+                    ++ "'{s}.{s}'"
                 ),
                 .{
                     index,
                     space_code,
-                    space_code.hash(), 
+                    space_code.hash(),
                     space_code.words.ptr,
                     @tagName(space_ref.item),
-                    @tagName(space_ref.space)
-                }
+                    @tagName(space_ref.space),
+                },
             );
         }
 
@@ -239,7 +243,7 @@ pub fn build_temporal_tree(
     parent_allocator: std.mem.Allocator,
     /// root item of the tree
     root_space: references.TemporalSpaceNode,
-) !TemporalTree 
+) !TemporalTree
 {
     var tmp_tree: TemporalTree = .empty;
     errdefer tmp_tree.deinit(parent_allocator);
@@ -262,7 +266,7 @@ pub fn build_temporal_tree(
     );
 
     try otio_object_stack.append(
-        parent_allocator, 
+        parent_allocator,
         .{
             .otio_object = root_item,
             .path_code = root_code_ptr,
@@ -270,7 +274,8 @@ pub fn build_temporal_tree(
         },
     );
 
-    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES)
+    {
         opentime.dbg_print(
             @src(),
             "\nstarting tree...\n",
@@ -278,7 +283,7 @@ pub fn build_temporal_tree(
         );
     }
 
-    while (otio_object_stack.pop()) 
+    while (otio_object_stack.pop())
         |current_stack_node|
     {
         // presentation, intrinsic, etc.
@@ -326,16 +331,13 @@ test "build_temporal_tree: leak sentinel test track w/ clip"
     defer tree.deinit(allocator);
 }
 
-test "build_temporal_tree check root node" 
+test "build_temporal_tree check root node"
 {
     const allocator = std.testing.allocator;
 
     const start = opentime.Ordinate.one;
     const end = T_ORD_10;
-    const cti = opentime.ContinuousInterval{
-        .start = start,
-        .end = end 
-    };
+    const cti = opentime.ContinuousInterval{ .start = start, .end = end };
 
     const SIZE = 11;
 
@@ -350,13 +352,10 @@ test "build_temporal_tree check root node"
         ref.* = references.CompositionItemHandle.init(cl_p);
     }
 
-    var tr: schema.Track = .{.children = &refs };
+    var tr: schema.Track = .{ .children = &refs };
     const tr_ref = references.CompositionItemHandle.init(&tr);
 
-    try std.testing.expectEqual(
-        SIZE,
-        tr.children.len
-    );
+    try std.testing.expectEqual(SIZE, tr.children.len);
 
     const tree = try build_temporal_tree(
         allocator,
@@ -394,9 +393,11 @@ pub fn validate_connections_in_tree(
             },
         );
         try std.testing.expect(
-            maybe_parent_index != null 
-            or child_indices[0] != null 
-            or child_indices[1] != null
+            (
+                maybe_parent_index != null
+                or child_indices[0] != null
+                or child_indices[1] != null
+            ),
         );
 
         // if there is a parent, expect that one of its children is this index
@@ -406,14 +407,16 @@ pub fn validate_connections_in_tree(
             const parent_code = tree.tree_data.items(.code)[parent_index];
             const current_code = tree.tree_data.items(.code)[index];
 
-            const parent_to_current = parent_code.next_step_towards(current_code);
+            const parent_to_current = parent_code.next_step_towards(
+                current_code,
+            );
 
             const parent_children = (
                 tree.tree_data.items(.child_indices)[parent_index]
             );
 
             try std.testing.expect(
-                parent_children[@intFromEnum(parent_to_current)] == index
+                parent_children[@intFromEnum(parent_to_current)] == index,
             );
         }
     }
@@ -423,11 +426,11 @@ test "build_temporal_tree: leak sentinel test - single clip"
 {
     const allocator = std.testing.allocator;
 
-    var cl : schema.Clip = .null_picture;
+    var cl: schema.Clip = .null_picture;
 
     const tree = try build_temporal_tree(
         allocator,
-        cl.handle().space_node(.presentation)
+        cl.handle().space_node(.presentation),
     );
     defer tree.deinit(allocator);
 }
@@ -444,7 +447,7 @@ test "TestWalkingIterator: clip"
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_CTI_1_10;
 
-    var cl = schema.Clip {
+    var cl = schema.Clip{
         .maybe_bounds_s = media_source_range,
         .media = .null_picture,
     };
@@ -481,11 +484,11 @@ test "TestWalkingIterator: track with clip w/ destination"
     const media_source_range = T_CTI_1_10;
 
     // construct the clip and add it to the track
-    var cl = schema.Clip {
+    var cl = schema.Clip{
         .maybe_bounds_s = media_source_range,
         .media = .null_picture,
     };
-    var cl2 = schema.Clip {
+    var cl2 = schema.Clip{
         .maybe_bounds_s = media_source_range,
         .media = .null_picture,
     };
@@ -500,7 +503,7 @@ test "TestWalkingIterator: track with clip w/ destination"
 
     const tree = try build_temporal_tree(
         allocator,
-        tr_ptr.space_node(.presentation)
+        tr_ptr.space_node(.presentation),
     );
     defer tree.deinit(allocator);
 
@@ -510,33 +513,37 @@ test "TestWalkingIterator: track with clip w/ destination"
         try artifacts.file_path(&path_buf, "walk.dot"),
         "walk",
         .{},
-   );
+    );
 
     // from the top to the second clip
     {
-        const path = try tree.path(
-            allocator, 
-            .{
-                .source = tree.index_for_node(
-                    tr_ptr.space_node(.presentation)
-                ).?,
-                .destination = tree.index_for_node(
-                    cl_ptr.space_node(.media)
-                ).?,
-            },
+        const path = (
+            try tree.path(
+                allocator,
+                .{
+                    .source = tree.index_for_node(
+                        tr_ptr.space_node(.presentation),
+                    ).?,
+                    .destination = tree.index_for_node(
+                        cl_ptr.space_node(.media),
+                    ).?,
+                },
+            )
         );
         defer allocator.free(path);
 
-        const parent_path = try tree.path(
-            allocator, 
-            .{
-                .source = tree.index_for_node(
-                    tr_ptr.space_node(.presentation)
-                ).?,
-                .destination = tree.index_for_node(
-                        cl_ptr.space_node(.media)
+        const parent_path = (
+            try tree.path(
+                allocator,
+                .{
+                    .source = tree.index_for_node(
+                        tr_ptr.space_node(.presentation),
+                    ).?,
+                    .destination = tree.index_for_node(
+                        cl_ptr.space_node(.media),
                     ).?,
                 },
+            )
         );
         defer allocator.free(parent_path);
 
@@ -555,7 +562,7 @@ fn depth_child_code_leaky(
     allocator: std.mem.Allocator,
     parent_code: treecode.Treecode,
     index: usize,
-) !treecode.Treecode 
+) !treecode.Treecode
 {
     var result = try parent_code.clone(allocator);
 
@@ -568,17 +575,14 @@ fn depth_child_code_leaky(
     return result;
 }
 
-test "depth_child_hash: math" 
+test "depth_child_hash: math"
 {
     const allocator = std.testing.allocator;
 
-    var root = try treecode.Treecode.init_word(
-        allocator,
-        0b1000
-    );
+    var root = try treecode.Treecode.init_word(allocator, 0b1000);
     defer root.deinit(allocator);
 
-    const expected_root:treecode.TreecodeWord = 0b1000;
+    const expected_root: treecode.TreecodeWord = 0b1000;
 
     for (0..4)
         |i|
@@ -594,11 +598,12 @@ test "depth_child_hash: math"
             treecode.TreecodeWord,
             expected_root,
             i,
-        ); 
+        );
 
-        errdefer opentime.dbg_print(@src(), 
+        errdefer opentime.dbg_print(
+            @src(),
             "iteration: {d}, expected: {b} got: {f}\n",
-            .{ i, expected, result }
+            .{ i, expected, result },
         );
 
         try std.testing.expectEqual(
@@ -612,11 +617,11 @@ fn sequential_child_code_leaky(
     allocator: std.mem.Allocator,
     parent_code: treecode.Treecode,
     index: usize,
-) !treecode.Treecode 
+) !treecode.Treecode
 {
     var result = try parent_code.clone(allocator);
 
-    for (0..index+1)
+    for (0..index + 1)
         |_|
     {
         try result.append(allocator, .right);
@@ -642,10 +647,7 @@ test "sequential_child_code_leaky lifetime"
 
     start_code.deinit(allocator);
 
-    try std.testing.expectEqual(
-        next_code_hash,
-        next_code.hash()
-    );
+    try std.testing.expectEqual(next_code_hash, next_code.hash());
 }
 
 test "depth_child_code_leaky lifetime"
@@ -665,13 +667,10 @@ test "depth_child_code_leaky lifetime"
 
     start_code.deinit(allocator);
 
-    try std.testing.expectEqual(
-        next_code_hash,
-        next_code.hash()
-    );
+    try std.testing.expectEqual(next_code_hash, next_code.hash());
 }
 
-test "sequential_child_hash: math" 
+test "sequential_child_hash: math"
 {
     const allocator = std.testing.allocator;
 
@@ -696,16 +695,17 @@ test "sequential_child_hash: math"
 
         try test_code.append(allocator, .right);
 
-        errdefer opentime.dbg_print(@src(), 
+        errdefer opentime.dbg_print(
+            @src(),
             "iteration: {d}, expected: {f} got: {f}\n",
-            .{ i, test_code, result }
+            .{ i, test_code, result },
         );
 
         try std.testing.expect(test_code.eql(result));
     }
 }
 
-test "label_for_node_leaky" 
+test "label_for_node_leaky"
 {
     const allocator = std.testing.allocator;
 
@@ -736,7 +736,7 @@ test "label_for_node_leaky"
     );
 }
 
-test "path_code: tree test" 
+test "path_code: tree test"
 {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
@@ -751,7 +751,7 @@ test "path_code: tree test"
     for (&clips, &clip_ptrs)
         |*cl, *cl_p|
     {
-        cl.* = schema.Clip {
+        cl.* = schema.Clip{
             .maybe_bounds_s = test_data_m.T_INT_1_TO_9,
             .media = .null_picture,
         };
@@ -789,10 +789,7 @@ test "path_code: tree test"
         tree.map_node_to_index.count(),
         tree.tree_data.len,
     );
-    try std.testing.expectEqual(
-        35,
-        tree.map_node_to_index.count()
-    );
+    try std.testing.expectEqual(35, tree.map_node_to_index.count());
 
     try tree.write_dot_graph(
         allocator,
@@ -804,28 +801,26 @@ test "path_code: tree test"
 
     const TestData = struct {
         ind: usize,
-        expect: treecode.TreecodeWord, 
+        expect: treecode.TreecodeWord,
     };
 
     const test_data = [_]TestData{
-        .{.ind = 0, .expect= 0b1010 },
-        .{.ind = 1, .expect= 0b10110 },
-        .{.ind = 2, .expect= 0b101110 },
+        .{ .ind = 0, .expect = 0b1010 },
+        .{ .ind = 1, .expect = 0b10110 },
+        .{ .ind = 2, .expect = 0b101110 },
     };
     for (0.., test_data)
-        |t_i, t| 
+        |t_i, t|
     {
-        const space = (
-            tr.children[t.ind].space_node(.presentation)
-        );
+        const space = (tr.children[t.ind].space_node(.presentation));
         const result = (
-            tree.code_from_node(space) 
+            tree.code_from_node(space)
             orelse return error.NoSpaceForCode
         );
 
         errdefer std.log.err(
             "\n[iteration: {d}] index: {d} expected: {b} result: {f} \n",
-            .{t_i, t.ind, t.expect, result}
+            .{ t_i, t.ind, t.expect, result },
         );
 
         const expect = try treecode.Treecode.init_word(
@@ -838,7 +833,7 @@ test "path_code: tree test"
     }
 }
 
-test "schema.Track with clip with identity transform projection" 
+test "schema.Track with clip with identity transform projection"
 {
     const allocator = std.testing.allocator;
 
@@ -868,14 +863,10 @@ test "schema.Track with clip with identity transform projection"
     );
     defer tree.deinit(allocator);
 
-    try std.testing.expectEqual(
-        11,
-        tr_ref.track.children.len
-    );
+    try std.testing.expectEqual(11, tr_ref.track.children.len);
 }
 
-
-test "Temporaltree: schema.Track with clip with identity transform" 
+test "Temporaltree: schema.Track with clip with identity transform"
 {
     const allocator = std.testing.allocator;
 
@@ -885,7 +876,9 @@ test "Temporaltree: schema.Track with clip with identity transform"
     };
     const cl_ref = references.CompositionItemHandle.init(&cl);
 
-    var tr_children = [_]references.CompositionItemHandle{ cl_ref, };
+    var tr_children = [_]references.CompositionItemHandle{
+        cl_ref,
+    };
     var tr: schema.Track = .{ .children = &tr_children };
 
     const root = references.CompositionItemHandle.init(&tr);
@@ -896,10 +889,7 @@ test "Temporaltree: schema.Track with clip with identity transform"
     );
     defer tree.deinit(allocator);
 
-    try std.testing.expectEqual(
-        5,
-        tree.map_node_to_index.count()
-    );
+    try std.testing.expectEqual(5, tree.map_node_to_index.count());
 
     try std.testing.expectEqual(root, tree.root_node().item);
 
@@ -915,21 +905,16 @@ test "Temporaltree: schema.Track with clip with identity transform"
         try std.testing.expectEqual(0, tc.code_length);
     }
 
-    const maybe_clip_code = tree.code_from_node(
-        cl_ref.space_node(.media)
-    );
+    const maybe_clip_code = tree.code_from_node(cl_ref.space_node(.media));
     try std.testing.expect(maybe_clip_code != null);
     const clip_code = maybe_clip_code.?;
 
     // clip object code
     {
-        var tc = try treecode.Treecode.init_word(
-            allocator,
-            0b10010
-        );
+        var tc = try treecode.Treecode.init_word(allocator, 0b10010);
         defer tc.deinit(allocator);
         errdefer opentime.dbg_print(
-            @src(), 
+            @src(),
             "\ntc: {f}, clip_code: {f}\n",
             .{
                 tc,
@@ -940,16 +925,14 @@ test "Temporaltree: schema.Track with clip with identity transform"
         try std.testing.expect(tc.eql(clip_code));
     }
 
-    try std.testing.expect(
-        treecode.path_exists(clip_code, root_code)
-    );
+    try std.testing.expect(treecode.path_exists(clip_code, root_code));
 }
 
-// 
+//
 // Trace test
 //
 // What I want: trace spaces from a -> b, ie tl.presentation to clip.media
-// 
+//
 // timeline.presentation: [0, 10)
 //
 //  timeline.presentation -> timline.child
@@ -966,7 +949,7 @@ test "test debug_print_time_hierarchy"
     // track
 
     // clips
-    var cl1 = schema.Clip {
+    var cl1 = schema.Clip{
         .name = "Spaghetti.wav",
         .media = .{
             .domain = .picture,
@@ -975,7 +958,7 @@ test "test debug_print_time_hierarchy"
                 .sample_rate_hz = .{ .Integer = 24 },
                 .start_index = 0,
             },
-            .data_reference = .{ 
+            .data_reference = .{
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
@@ -984,12 +967,12 @@ test "test debug_print_time_hierarchy"
                     },
                 },
             },
-        }
+        },
     };
     const cl_ptr = references.CompositionItemHandle.init(&cl1);
 
     // new for this test - add in an warp on the clip, which holds the frame
-    var wp = schema.Warp {
+    var wp = schema.Warp{
         .child = cl_ptr,
         .transform = try topology_m.Topology.init_identity(
             allocator,
@@ -1011,9 +994,9 @@ test "test debug_print_time_hierarchy"
     };
     var tl: schema.Timeline = .{
         .name = "test debug_print_time_hierarchy",
-        .discrete_space_partitions = .{ 
+        .discrete_space_partitions = .{
             .presentation = .{
-                .picture = .{ 
+                .picture = .{
                     // matches the media rate
                     .sample_rate_hz = .{ .Integer = 24 },
                     .start_index = 0,
@@ -1034,28 +1017,26 @@ test "test debug_print_time_hierarchy"
     defer tp.deinit(allocator);
 }
 
-test "track child after gap - use presentation space to compute offset" 
+test "track child after gap - use presentation space to compute offset"
 {
     const allocator = std.testing.allocator;
 
     var gp = schema.Gap{
         .bounds_s = .{
             .start = .zero,
-            .end = opentime.Ordinate.init(3), 
+            .end = opentime.Ordinate.init(3),
         },
     };
-    var cl = schema.Clip {
+    var cl = schema.Clip{
         .name = "target_clip",
-        .maybe_bounds_s = @import(
-            "test_structures.zig"
-        ).T_INT_1_TO_9, 
+        .maybe_bounds_s = @import("test_structures.zig").T_INT_1_TO_9,
         .media = .null_picture,
     };
     const cl_ref = references.CompositionItemHandle.init(&cl);
     var gp2 = schema.Gap{
         .bounds_s = .{
             .start = .zero,
-            .end = opentime.Ordinate.init(4), 
+            .end = opentime.Ordinate.init(4),
         },
     };
 
@@ -1081,7 +1062,7 @@ test "track child after gap - use presentation space to compute offset"
     const tr_pres_to_cl_media = (
         try proj_topo.projection_operator_to(
             allocator,
-             cl_ref.space_node(.media),
+            cl_ref.space_node(.media),
         )
     );
 
@@ -1094,25 +1075,25 @@ test "track child after gap - use presentation space to compute offset"
     );
 
     try opentime.expectOrdinateEqual(
-        gp.bounds_s.duration(), 
+        gp.bounds_s.duration(),
         tr_pres_to_cl_media.source_bounds().?.start,
     );
     try opentime.expectOrdinateEqual(
-        gp.bounds_s.duration().add(cl.maybe_bounds_s.?.duration()), 
+        gp.bounds_s.duration().add(cl.maybe_bounds_s.?.duration()),
         tr_pres_to_cl_media.source_bounds().?.end,
     );
 
     try opentime.expectOrdinateEqual(
-        1, 
+        1,
         tr_pres_to_cl_media.destination_bounds().?.start,
     );
     try opentime.expectOrdinateEqual(
-        9, 
+        9,
         tr_pres_to_cl_media.destination_bounds().?.end,
     );
 
     try opentime.expectOrdinateEqual(
-        0, 
+        0,
         proj_topo.input_bounds().?.start,
     );
     try opentime.expectOrdinateEqual(
