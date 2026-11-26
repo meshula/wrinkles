@@ -262,15 +262,18 @@ def main():
 
     print(f"# Performance Measurements")
     print(f"")
-    print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Platform: {sys.platform}")
-    print(f"Build: ReleaseFast")
-    print(f"OTIO v1 baseline: {baseline_desc}")
-    print(f"OTIO v1 version: {get_python_otio_version()}")
+    print(f"- **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"- **Platform:** {sys.platform}")
+    print(f"- **Build:** ReleaseFast")
+    print(f"- **OTIO v1 baseline:** {baseline_desc}")
+    print(f"- **OTIO v1 version:** {get_python_otio_version()}")
     if LOCAL_TEST_FILES_LIST.exists():
-        print(f"Local test files: {LOCAL_TEST_FILES_LIST.name}")
+        print(f"- **Local test files:** `{LOCAL_TEST_FILES_LIST.name}`")
     else:
-        print(f"Local test files: none ({LOCAL_TEST_FILES_LIST.name} not found)")
+        print(
+            f"- **Local test files:** none "
+            f"(`{LOCAL_TEST_FILES_LIST.name}` not found)"
+        )
     print(f"")
 
     # Test files: local (non-public) list first, then built-in public samples
@@ -314,19 +317,20 @@ def main():
     if PY_OTIOCAT is None:
         print("Python otiocat not found (set $PY_OTIOCAT); skipping baseline.")
     else:
-        print("| File | Format | Read Time |")
-        print("|------|--------|-----------|")
+        print("| File | Format | Size | Read Time |")
+        print("|------|--------|------|-----------|")
         for name, base_path in test_files:
             otio_path = Path(str(base_path) + '.otio')
             if not otio_path.exists():
                 continue
+            otio_size = format_size(otio_path.stat().st_size)
 
             try:
                 baseline = measure_python_otiocat_read_time(otio_path, runs=5)
                 baselines[name] = baseline
-                print(f"| {name} | .otio | {format_time(baseline)} |")
+                print(f"| {name} | .otio | {otio_size} | {format_time(baseline)} |")
             except Exception as e:
-                print(f"| {name} | .otio | ERROR |")
+                print(f"| {name} | .otio | {otio_size} | ERROR |")
                 print(f"  Error: {e}", file=sys.stderr)
 
     print("")
@@ -338,14 +342,15 @@ def main():
     print("\"vs OTIO v1\" is the speedup of the with-metadata read relative to")
     print("the python otiocat baseline above (higher is faster).")
     print("")
-    print("| File | Format | With Metadata | Without Metadata | Speedup | vs OTIO v1 |")
-    print("|------|--------|---------------|------------------|---------|------------|")
+    print("| File | Format | Size | With Metadata | Without Metadata | Speedup | vs OTIO v1 |")
+    print("|------|--------|------|---------------|------------------|---------|------------|")
 
     for name, base_path in test_files:
         for ext in ['.tla', '.tlb']:
             filepath = Path(str(base_path) + ext)
             if not filepath.exists():
                 continue
+            size = format_size(filepath.stat().st_size)
 
             try:
                 time_with = measure_read_time(filepath, runs=5, skip_metadata=False)
@@ -358,9 +363,9 @@ def main():
                 else:
                     vs_v1 = "-"
 
-                print(f"| {name} | {ext} | {format_time(time_with)} | {format_time(time_without)} | {speedup:.2f}x | {vs_v1} |")
+                print(f"| {name} | {ext} | {size} | {format_time(time_with)} | {format_time(time_without)} | {speedup:.2f}x | {vs_v1} |")
             except Exception as e:
-                print(f"| {name} | {ext} | ERROR | ERROR | - | - |", file=sys.stderr)
+                print(f"| {name} | {ext} | {size} | ERROR | ERROR | - | - |", file=sys.stderr)
                 print(f"  Error: {e}", file=sys.stderr)
 
     print("")
@@ -369,24 +374,34 @@ def main():
     print("## Write Performance")
     print("")
     print("Time to write from TLA source (median of 5 runs).")
+    print("\"Target Size\" is the size of the existing (with-metadata) target")
+    print("file next to the source, if there is one.")
     print("")
-    print("| File | Target | With Metadata | Without Metadata | Speedup |")
-    print("|------|--------|---------------|------------------|---------|")
+    print("| File | Target | Source Size | Target Size | With Metadata | Without Metadata | Speedup |")
+    print("|------|--------|-------------|-------------|---------------|------------------|---------|")
 
     for name, base_path in test_files:
         tla_path = Path(str(base_path) + '.tla')
         if not tla_path.exists():
             continue
 
+        source_size = format_size(tla_path.stat().st_size)
+
         for target_ext in ['.tlb']:
+            target_path = Path(str(base_path) + target_ext)
+            if target_path.exists():
+                target_size = format_size(target_path.stat().st_size)
+            else:
+                target_size = "-"
+
             try:
                 time_with = measure_write_time(tla_path, target_ext, runs=5, skip_metadata=False)
                 time_without = measure_write_time(tla_path, target_ext, runs=5, skip_metadata=True)
                 speedup = time_with / time_without if time_without > 0 else 0
 
-                print(f"| {name} | {target_ext} | {format_time(time_with)} | {format_time(time_without)} | {speedup:.2f}x |")
+                print(f"| {name} | {target_ext} | {source_size} | {target_size} | {format_time(time_with)} | {format_time(time_without)} | {speedup:.2f}x |")
             except Exception as e:
-                print(f"| {name} | {target_ext} | ERROR | ERROR | - |", file=sys.stderr)
+                print(f"| {name} | {target_ext} | {source_size} | {target_size} | ERROR | ERROR | - |", file=sys.stderr)
                 print(f"  Error: {e}", file=sys.stderr)
 
     print("")
